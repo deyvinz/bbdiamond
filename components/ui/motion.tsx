@@ -7,7 +7,7 @@ export function MotionPage({ children, className }: { children: React.ReactNode;
   return (
     <div
       className={cn(
-        "w-full animate-in fade-in slide-in-from-bottom-4 duration-500",
+        "w-full animate-in fade-in slide-in-from-bottom-2 duration-300",
         className
       )}
     >
@@ -19,15 +19,13 @@ export function MotionPage({ children, className }: { children: React.ReactNode;
 // Staggered children animation
 export function MotionStagger({ 
   children, 
-  className,
-  staggerDelay = "delay-100" 
+  className
 }: { 
   children: React.ReactNode
   className?: string
-  staggerDelay?: string 
 }) {
   return (
-    <div className={cn("animate-in fade-in duration-500", className)}>
+    <div className={cn("animate-in fade-in duration-300", className)}>
       {children}
     </div>
   )
@@ -37,7 +35,7 @@ export function MotionStagger({
 export function MotionItem({ 
   children, 
   className,
-  delay = "delay-100"
+  delay = "delay-75"
 }: { 
   children: React.ReactNode
   className?: string
@@ -46,7 +44,7 @@ export function MotionItem({
   return (
     <div
       className={cn(
-        "animate-in fade-in slide-in-from-bottom-4 duration-300",
+        "animate-in fade-in slide-in-from-bottom-2 duration-200",
         delay,
         className
       )}
@@ -76,7 +74,7 @@ export function MotionButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "inline-flex items-center justify-center rounded-md text-sm font-medium transition-all duration-200 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+        "inline-flex items-center justify-center rounded-md text-sm font-medium transition-all duration-200 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 animate-in fade-in slide-in-from-bottom-2 duration-300",
         className
       )}
     >
@@ -96,7 +94,7 @@ export function MotionCard({
   return (
     <div
       className={cn(
-        "transition-all duration-200 hover:-translate-y-1 hover:shadow-lg",
+        "transition-all duration-150 hover:-translate-y-1 hover:scale-105 hover:shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200",
         className
       )}
     >

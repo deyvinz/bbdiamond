@@ -6,7 +6,7 @@ export default function Page(){
         <div className="rounded-xl border border-gold-100 overflow-hidden">
           <iframe
             className="w-full h-[1200px]"
-            src="https://docs.google.com/forms/d/e/YOUR_FORM_ID/viewform?embedded=true"
+            src="https://forms.gle/rP9UnFrMNPriUEZp8"
           />
         </div>
       </section>

@@ -1,0 +1,349 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Guest, GuestFilters } from '@/lib/types/guests'
+import GuestTable from './GuestTable'
+import GuestForm from './GuestForm'
+import ImportCsvDialog from './ImportCsvDialog'
+import GuestDetailsDialog from './GuestDetailsDialog'
+import { Button } from '@/components/ui/button'
+import { useToast } from '@/components/ui/use-toast'
+import { Plus, Upload } from 'lucide-react'
+import {
+  createGuest, 
+  updateGuest, 
+  deleteGuest, 
+  createInvitationForGuest
+} from '@/lib/guests-service'
+import {
+  regenerateInvitationToken,
+  sendInviteEmail,
+  exportGuestsToCsv
+} from '@/lib/guests-client'
+
+interface GuestsClientProps {
+  initialGuests: Guest[]
+  totalCount: number
+  page: number
+  pageSize: number
+  totalPages: number
+  initialFilters: GuestFilters
+}
+
+export default function GuestsClient({
+  initialGuests,
+  totalCount,
+  page,
+  pageSize,
+  totalPages,
+  initialFilters
+}: GuestsClientProps) {
+  const [guests, setGuests] = useState(initialGuests)
+  const [totalCountState, setTotalCountState] = useState(totalCount)
+  const [showGuestForm, setShowGuestForm] = useState(false)
+  const [showImportDialog, setShowImportDialog] = useState(false)
+  const [editingGuest, setEditingGuest] = useState<Guest | undefined>()
+  const [viewGuest, setViewGuest] = useState<Guest | undefined>()
+  const [loading, setLoading] = useState(false)
+  const router = useRouter()
+  const { toast } = useToast()
+
+  const handlePageChange = (newPage: number) => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('page', newPage.toString())
+    router.push(url.toString())
+  }
+
+  const handleFiltersChange = (newFilters: GuestFilters) => {
+    const url = new URL(window.location.href)
+    Object.entries(newFilters).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') {
+        url.searchParams.set(key, value.toString())
+      } else {
+        url.searchParams.delete(key)
+      }
+    })
+    url.searchParams.delete('page') // Reset to first page
+    router.push(url.toString())
+  }
+
+  const handleEdit = (guest: Guest) => {
+    setEditingGuest(guest)
+    setShowGuestForm(true)
+  }
+
+  const handleView = (guest: Guest) => {
+    setViewGuest(guest)
+  }
+
+  const handleSaveGuest = async (data: { guest: Record<string, any>; invitation?: Record<string, any> }) => {
+    setLoading(true)
+    try {
+      console.log('handleSaveGuest called with:', data)
+      
+      if (editingGuest) {
+        // Update existing guest
+        console.log('Updating guest:', editingGuest.id)
+        const updatedGuest = await updateGuest(editingGuest.id, data.guest)
+        console.log('Updated guest:', updatedGuest)
+        setGuests(prev => prev.map(g => g.id === editingGuest.id ? updatedGuest : g))
+        toast({
+          title: "Success",
+          description: "Guest updated successfully",
+        })
+      } else {
+        // Create new guest
+        console.log('Creating new guest with data:', data.guest)
+        const newGuest = await createGuest(data.guest)
+        console.log('Created guest:', newGuest)
+        
+        // Create invitations if specified
+        if (data.invitation?.event_ids && data.invitation.event_ids.length > 0) {
+          for (const eventId of data.invitation.event_ids) {
+            await createInvitationForGuest(newGuest.id, eventId, data.invitation.headcount || 1)
+          }
+        }
+        
+        setGuests(prev => [newGuest, ...prev])
+        setTotalCountState(prev => prev + 1)
+        toast({
+          title: "Success",
+          description: "Guest created successfully",
+        })
+      }
+      setShowGuestForm(false)
+      setEditingGuest(undefined)
+    } catch (error) {
+      console.error('Error in handleSaveGuest:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDelete = async (guestId: string) => {
+    if (!confirm('Are you sure you want to delete this guest? This action cannot be undone.')) {
+      return
+    }
+
+    setLoading(true)
+    try {
+      await deleteGuest(guestId)
+      setGuests(prev => prev.filter(g => g.id !== guestId))
+      setTotalCountState(prev => Math.max(0, prev - 1))
+      toast({
+        title: "Success",
+        description: "Guest deleted successfully",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRegenerateToken = async (guestId: string, eventId: string) => {
+    setLoading(true)
+    try {
+      await regenerateInvitationToken(guestId, eventId)
+      toast({
+        title: "Success",
+        description: "Token regenerated successfully",
+      })
+      // Refresh the page to get updated data
+      router.refresh()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSendInvite = async (guestId: string, eventId: string) => {
+    setLoading(true)
+    try {
+      await sendInviteEmail(guestId, eventId)
+      toast({
+        title: "Success",
+        description: "Invitation email sent successfully",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleExport = () => {
+    try {
+      exportGuestsToCsv(guests)
+      toast({
+        title: "Success",
+        description: "Guests exported to CSV",
+      })
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to export guests",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleBulkAction = async (action: string, guestIds: string[]) => {
+    setLoading(true)
+    try {
+      switch (action) {
+        case 'send_invite':
+          // Send invites for all selected guests
+          for (const guestId of guestIds) {
+            const guest = guests.find(g => g.id === guestId)
+            if (guest?.invitations?.[0]) {
+              await sendInviteEmail(guestId, guest.invitations[0].event_id)
+            }
+          }
+          toast({
+            title: "Success",
+            description: `Invitations sent to ${guestIds.length} guests`,
+          })
+          break
+        case 'regenerate_tokens':
+          // Regenerate tokens for all selected guests
+          for (const guestId of guestIds) {
+            const guest = guests.find(g => g.id === guestId)
+            if (guest?.invitations?.[0]) {
+              await regenerateInvitationToken(guestId, guest.invitations[0].event_id)
+            }
+          }
+          toast({
+            title: "Success",
+            description: `Tokens regenerated for ${guestIds.length} guests`,
+          })
+          break
+        case 'export':
+          // Export selected guests
+          const selectedGuests = guests.filter(g => guestIds.includes(g.id))
+          exportGuestsToCsv(selectedGuests)
+          toast({
+            title: "Success",
+            description: "Selected guests exported to CSV",
+          })
+          break
+        case 'delete':
+          // Delete selected guests
+          if (!confirm(`Are you sure you want to delete ${guestIds.length} guests? This action cannot be undone.`)) {
+            return
+          }
+          for (const guestId of guestIds) {
+            await deleteGuest(guestId)
+          }
+          setGuests(prev => prev.filter(g => !guestIds.includes(g.id)))
+          setTotalCountState(prev => Math.max(0, prev - guestIds.length))
+          toast({
+            title: "Success",
+            description: `${guestIds.length} guests deleted successfully`,
+          })
+          break
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleImportComplete = () => {
+    // Refresh the page to get updated data
+    router.refresh()
+  }
+
+  return (
+    <>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-serif">Guests Management</h1>
+            <p className="text-gray-600 mt-1">
+              Manage your wedding guest list, invitations, and RSVPs
+            </p>
+          </div>
+          <div className="flex items-center space-x-3">
+            <Button
+              onClick={() => setShowImportDialog(true)}
+              variant="outline"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Import CSV
+            </Button>
+            <Button
+              onClick={() => {
+                setEditingGuest(undefined)
+                setShowGuestForm(true)
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Guest
+            </Button>
+          </div>
+        </div>
+
+        <GuestTable
+          guests={guests}
+          totalCount={totalCountState}
+          page={page}
+          pageSize={pageSize}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          onFiltersChange={handleFiltersChange}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onRegenerateToken={handleRegenerateToken}
+          onSendInvite={handleSendInvite}
+          onExport={handleExport}
+          onBulkAction={handleBulkAction}
+          onView={handleView}
+        />
+      </div>
+
+      <GuestForm
+        open={showGuestForm}
+        onOpenChange={setShowGuestForm}
+        guest={editingGuest}
+        onSave={handleSaveGuest}
+      />
+
+      <ImportCsvDialog
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        onImportComplete={handleImportComplete}
+      />
+
+      <GuestDetailsDialog
+        open={!!viewGuest}
+        guest={viewGuest}
+        onOpenChange={(open) => !open && setViewGuest(undefined)}
+      />
+    </>
+  )
+}
