@@ -21,11 +21,8 @@ COPY . .
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Set build-time environment variables with placeholder values
-# These will be overridden at runtime by docker-compose
-ENV NEXT_PUBLIC_SUPABASE_URL="https://placeholder.supabase.co"
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY="placeholder-key"
-ENV SUPABASE_SERVICE_ROLE="placeholder-service-role"
+# Note: Environment variables will be set at runtime by docker-compose
+# No build-time environment variables needed for Supabase
 
 RUN npm run build
 
