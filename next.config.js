@@ -13,7 +13,7 @@ const nextConfig = {
   
   // Image optimization
   images: {
-    domains: ['localhost'],
+    domains: ['localhost', 'utumylehywfktctigkie.supabase.co'],
     unoptimized: false,
   },
   
