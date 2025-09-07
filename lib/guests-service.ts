@@ -31,7 +31,7 @@ export async function getGuestsPage(params: GuestsListParams): Promise<GuestList
   return response.json()
 }
 
-export async function createGuest(input: any): Promise<Guest> {
+export async function createGuest(input: Partial<Guest>): Promise<Guest> {
   const response = await fetch('/api/guests', {
     method: 'POST',
     headers: {
@@ -48,7 +48,7 @@ export async function createGuest(input: any): Promise<Guest> {
   return response.json()
 }
 
-export async function updateGuest(id: string, patch: any): Promise<Guest> {
+export async function updateGuest(id: string, patch: Partial<Guest>): Promise<Guest> {
   const response = await fetch(`/api/guests/${id}`, {
     method: 'PUT',
     headers: {
@@ -82,7 +82,7 @@ export async function createInvitationForGuest(
   guestId: string, 
   eventId: string, 
   headcount: number = 1
-): Promise<any> {
+): Promise<{ id: string; token: string; created_at: string }> {
   const response = await fetch('/api/guests/invitations', {
     method: 'POST',
     headers: {

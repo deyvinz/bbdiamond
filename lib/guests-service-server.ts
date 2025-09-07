@@ -148,7 +148,7 @@ export async function getGuestsPage(params: GuestsListParams): Promise<GuestList
   )
 }
 
-export async function createGuest(input: any): Promise<Guest> {
+export async function createGuest(input: Partial<Guest>): Promise<Guest> {
   const supabase = await supabaseServer()
   
   // Validate input
@@ -195,7 +195,7 @@ export async function createGuest(input: any): Promise<Guest> {
   return guest
 }
 
-export async function updateGuest(id: string, patch: any): Promise<Guest> {
+export async function updateGuest(id: string, patch: Partial<Guest>): Promise<Guest> {
   const supabase = await supabaseServer()
   
   // Get current guest for audit
@@ -287,7 +287,7 @@ export async function createInvitationForGuest(
   guestId: string, 
   eventId: string, 
   headcount: number = 1
-): Promise<any> {
+): Promise<{ id: string; token: string; created_at: string }> {
   const supabase = await supabaseServer()
   
   const { data: invitation, error } = await supabase
@@ -314,13 +314,13 @@ export async function createInvitationForGuest(
     headcount 
   })
 
-  return invitation
+  return invitation as { id: string; token: string; created_at: string }
 }
 
 export async function updateInvitationEvent(
   invitationEventId: string,
   updates: { status?: string; headcount?: number }
-): Promise<any> {
+): Promise<{ id: string; event_id: string; status: string; headcount: number }> {
   const supabase = await supabaseServer()
   
   const { data: invitationEvent, error } = await supabase
@@ -340,7 +340,7 @@ export async function updateInvitationEvent(
   // Log audit
   await logAuditAction('invitation_event_update', invitationEventId, 'invitation_event', invitationEventId, updates)
 
-  return invitationEvent
+  return invitationEvent as { id: string; event_id: string; status: string; headcount: number }
 }
 
 export async function bulkInvalidateGuests(): Promise<void> {

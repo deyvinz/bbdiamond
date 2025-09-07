@@ -9,7 +9,7 @@ import ImportCsvDialog from './ImportCsvDialog'
 import GuestDetailsDialog from './GuestDetailsDialog'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
-import { Plus, Upload } from 'lucide-react'
+import { Plus, Upload, RefreshCw } from 'lucide-react'
 import {
   createGuest, 
   updateGuest, 
@@ -46,6 +46,7 @@ export default function GuestsClient({
   const [editingGuest, setEditingGuest] = useState<Guest | undefined>()
   const [viewGuest, setViewGuest] = useState<Guest | undefined>()
   const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
 
@@ -75,6 +76,23 @@ export default function GuestsClient({
 
   const handleView = (guest: Guest) => {
     setViewGuest(guest)
+  }
+
+  const refreshData = async () => {
+    setRefreshing(true)
+    try {
+      // Refresh the page to get latest data from server
+      router.refresh()
+    } catch (error) {
+      console.error('Error refreshing data:', error)
+      toast({
+        title: "Error",
+        description: "Failed to refresh data",
+        variant: "destructive",
+      })
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   const handleSaveGuest = async (data: { guest: Record<string, any>; invitation?: Record<string, any> }) => {
@@ -114,6 +132,8 @@ export default function GuestsClient({
       }
       setShowGuestForm(false)
       setEditingGuest(undefined)
+      // Refresh data to get latest state
+      await refreshData()
     } catch (error) {
       console.error('Error in handleSaveGuest:', error)
       toast({
@@ -140,6 +160,8 @@ export default function GuestsClient({
         title: "Success",
         description: "Guest deleted successfully",
       })
+      // Refresh data to get latest state
+      await refreshData()
     } catch (error) {
       toast({
         title: "Error",
@@ -159,8 +181,8 @@ export default function GuestsClient({
         title: "Success",
         description: "Token regenerated successfully",
       })
-      // Refresh the page to get updated data
-      router.refresh()
+      // Refresh data to get updated state
+      await refreshData()
     } catch (error) {
       toast({
         title: "Error",
@@ -180,6 +202,8 @@ export default function GuestsClient({
         title: "Success",
         description: "Invitation email sent successfully",
       })
+      // Refresh data to get updated state
+      await refreshData()
     } catch (error) {
       toast({
         title: "Error",
@@ -223,6 +247,8 @@ export default function GuestsClient({
             title: "Success",
             description: `Invitations sent to ${guestIds.length} guests`,
           })
+          // Refresh data after bulk action
+          await refreshData()
           break
         case 'regenerate_tokens':
           // Regenerate tokens for all selected guests
@@ -236,6 +262,8 @@ export default function GuestsClient({
             title: "Success",
             description: `Tokens regenerated for ${guestIds.length} guests`,
           })
+          // Refresh data after bulk action
+          await refreshData()
           break
         case 'export':
           // Export selected guests
@@ -260,6 +288,8 @@ export default function GuestsClient({
             title: "Success",
             description: `${guestIds.length} guests deleted successfully`,
           })
+          // Refresh data after bulk delete
+          await refreshData()
           break
       }
     } catch (error) {
@@ -273,9 +303,9 @@ export default function GuestsClient({
     }
   }
 
-  const handleImportComplete = () => {
+  const handleImportComplete = async () => {
     // Refresh the page to get updated data
-    router.refresh()
+    await refreshData()
   }
 
   return (
@@ -289,6 +319,14 @@ export default function GuestsClient({
             </p>
           </div>
           <div className="flex items-center space-x-3">
+            <Button
+              onClick={refreshData}
+              variant="outline"
+              disabled={refreshing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
             <Button
               onClick={() => setShowImportDialog(true)}
               variant="outline"

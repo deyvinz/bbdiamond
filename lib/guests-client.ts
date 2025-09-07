@@ -30,7 +30,7 @@ async function generateInviteCode(): Promise<string> {
 }
 
 // Client-side functions
-export async function createGuest(guestData: any, invitationData?: any) {
+export async function createGuest(guestData: Partial<Guest>, invitationData?: { event_ids?: string[]; headcount?: number }) {
   console.log('createGuest called with:', { guestData, invitationData })
   
   // Validate input
@@ -130,7 +130,7 @@ export async function createGuest(guestData: any, invitationData?: any) {
   return guest
 }
 
-export async function updateGuest(guestId: string, guestData: any) {
+export async function updateGuest(guestId: string, guestData: Partial<Guest>) {
   // Validate input
   const validatedGuest = guestSchema.parse(guestData)
   
@@ -276,15 +276,15 @@ export async function exportGuestsToCsv(guests: Guest[]) {
   downloadCsv(csvData, `guests-${new Date().toISOString().split('T')[0]}.csv`)
 }
 
-export async function importGuestsFromCsv(csvText: string, eventIds?: string[]) {
+export async function importGuestsFromCsv(csvText: string, eventIds?: string[]): Promise<{ created: number; updated: number; skipped: number; errors: string[] }> {
   const { parseCsv } = await import('./csv')
   const { createGuest, updateGuest, createInvitationForGuest } = await import('./guests-service')
   const rows = parseCsv(csvText)
-  const results = {
+  const results: { created: number; updated: number; skipped: number; errors: string[] } = {
     created: 0,
     updated: 0,
     skipped: 0,
-    errors: [] as string[]
+    errors: []
   }
 
   // Track processed names to prevent duplicates within CSV
@@ -329,11 +329,11 @@ export async function importGuestsFromCsv(csvText: string, eventIds?: string[]) 
 
       if (existingGuest) {
         // Update existing guest
-        await updateGuest(existingGuest.id, row)
+        await updateGuest(existingGuest.id, row as Partial<Guest>)
         results.updated++
       } else {
         // Create new guest
-        const newGuest = await createGuest(row)
+        const newGuest = await createGuest(row as Partial<Guest>)
         results.created++
         
         // Create invitations if eventIds provided
@@ -347,7 +347,7 @@ export async function importGuestsFromCsv(csvText: string, eventIds?: string[]) 
       if (error instanceof Error && error.message.includes('PGRST116')) {
         // No existing guest found (this is expected for new guests)
         try {
-          const newGuest = await createGuest(row)
+          const newGuest = await createGuest(row as Partial<Guest>)
           results.created++
           
           // Create invitations if eventIds provided

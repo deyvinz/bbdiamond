@@ -2,7 +2,7 @@ import { getKVClient } from './kv'
 
 const DEBUG = process.env.NODE_ENV !== 'production' || process.env.CACHE_DEBUG === 'true'
 
-function debugLog(message: string, ...args: any[]) {
+function debugLog(message: string, ...args: unknown[]) {
   if (DEBUG) {
     console.log(`[CACHE] ${message}`, ...args)
   }

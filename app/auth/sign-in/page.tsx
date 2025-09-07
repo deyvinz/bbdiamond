@@ -1,9 +1,9 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { supabase } from '@/lib/supabase-browser'
 import { useSearchParams } from 'next/navigation'
 
-export default function SignInPage() {
+function SignInForm() {
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [sent, setSent] = useState(false)
@@ -175,5 +175,17 @@ export default function SignInPage() {
         </div>
       </section>
     </div>
+  )
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-600"></div>
+      </div>
+    }>
+      <SignInForm />
+    </Suspense>
   )
 }

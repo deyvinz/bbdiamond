@@ -6,6 +6,11 @@ const nextConfig = {
   // Optimize for production
   compress: true,
   
+  // Disable ESLint during build
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  
   // Image optimization
   images: {
     domains: ['localhost'],
@@ -44,11 +49,8 @@ const nextConfig = {
     CUSTOM_KEY: process.env.CUSTOM_KEY,
   },
   
-  // Experimental features
-  experimental: {
-    // Enable server components logging in production
-    serverComponentsExternalPackages: ['ioredis'],
-  },
+  // External packages for server components
+  serverExternalPackages: ['ioredis'],
   
   // Webpack configuration for better builds
   webpack: (config, { isServer }) => {

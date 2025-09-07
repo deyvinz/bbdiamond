@@ -49,7 +49,7 @@ export interface AuditLog {
   actor_id: string
   entity: 'guest' | 'invitation'
   entity_id: string
-  delta?: Record<string, any>
+  delta?: Record<string, unknown>
   created_at: string
 }
 

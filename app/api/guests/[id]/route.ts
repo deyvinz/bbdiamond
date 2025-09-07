@@ -3,11 +3,12 @@ import { updateGuest, deleteGuest } from '@/lib/guests-service-server'
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json()
-    const guest = await updateGuest(params.id, body)
+    const resolvedParams = await params
+    const guest = await updateGuest(resolvedParams.id, body)
     return NextResponse.json(guest)
   } catch (error) {
     console.error('Error updating guest:', error)
@@ -20,10 +21,11 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await deleteGuest(params.id)
+    const resolvedParams = await params
+    await deleteGuest(resolvedParams.id)
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error deleting guest:', error)
