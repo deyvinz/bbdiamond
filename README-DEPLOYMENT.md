@@ -53,9 +53,9 @@ Copy `env.production.example` to `.env.local` and configure:
 
 The deployment includes:
 
-- **App**: Next.js application (port 3000)
+- **App**: Next.js application (port 3006)
 - **Redis**: Caching service (port 6379)
-- **Nginx**: Reverse proxy (ports 80, 443)
+- **Nginx**: Reverse proxy (ports 8080, 8443)
 
 ## SSL Configuration
 
