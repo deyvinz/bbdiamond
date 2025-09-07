@@ -58,6 +58,6 @@ echo "📋 Recent logs:"
 docker-compose logs --tail=20
 
 echo "✅ Deployment complete!"
-echo "🌐 Your app should be available at: http://your-server-ip"
+echo "🌐 Your app should be available at: http://46.202.194.72"
 echo "📊 To view logs: docker-compose logs -f"
 echo "🛑 To stop: docker-compose down"
