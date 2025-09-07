@@ -42,6 +42,7 @@ interface GuestTableProps {
   page: number
   pageSize: number
   totalPages: number
+  initialFilters: GuestFilters
   onPageChange: (page: number) => void
   onFiltersChange: (filters: GuestFilters) => void
   onEdit: (guest: Guest) => void
@@ -59,6 +60,7 @@ function GuestTable({
   page,
   pageSize,
   totalPages,
+  initialFilters,
   onPageChange,
   onFiltersChange,
   onEdit,
@@ -69,26 +71,12 @@ function GuestTable({
   onBulkAction,
   onView,
 }: GuestTableProps) {
-  const [search, setSearch] = useState('')
   const [selectedGuests, setSelectedGuests] = useState<string[]>([])
-  const [filters, setFilters] = useState<GuestFilters>({})
+  const [filters, setFilters] = useState<GuestFilters>(initialFilters)
   const { toast } = useToast()
 
-  const filteredGuests = useMemo(() => {
-    return guests.filter(guest => {
-      if (search) {
-        const searchLower = search.toLowerCase()
-        return (
-          guest.first_name.toLowerCase().includes(searchLower) ||
-          guest.last_name.toLowerCase().includes(searchLower) ||
-          guest.email.toLowerCase().includes(searchLower) ||
-          guest.phone?.toLowerCase().includes(searchLower) ||
-          guest.household?.name.toLowerCase().includes(searchLower)
-        )
-      }
-      return true
-    })
-  }, [guests, search])
+  // Use guests directly since filtering is done server-side
+  const filteredGuests = guests
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -107,7 +95,6 @@ function GuestTable({
   }
 
   const handleSearch = (value: string) => {
-    setSearch(value)
     onFiltersChange({ ...filters, search: value })
   }
 
@@ -168,7 +155,7 @@ function GuestTable({
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Search guests..."
-            value={search}
+            value={filters.search || ''}
             onChange={(e) => handleSearch(e.target.value)}
             className="pl-10"
           />

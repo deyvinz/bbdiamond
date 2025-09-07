@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Guest, GuestFilters } from '@/lib/types/guests'
 import GuestTable from './GuestTable'
@@ -50,6 +50,12 @@ export default function GuestsClient({
   const router = useRouter()
   const { toast } = useToast()
 
+  // Update local state when props change (after refresh)
+  useEffect(() => {
+    setGuests(initialGuests)
+    setTotalCountState(totalCount)
+  }, [initialGuests, totalCount])
+
   const handlePageChange = (newPage: number) => {
     const url = new URL(window.location.href)
     url.searchParams.set('page', newPage.toString())
@@ -58,11 +64,22 @@ export default function GuestsClient({
 
   const handleFiltersChange = (newFilters: GuestFilters) => {
     const url = new URL(window.location.href)
+    
+    // Map client-side filter keys to server-side parameter names
+    const paramMapping: Record<string, string> = {
+      search: 'search',
+      rsvp_status: 'rsvp_status', 
+      is_vip: 'is_vip',
+      sort_by: 'sort_by',
+      sort_order: 'sort_order'
+    }
+    
     Object.entries(newFilters).forEach(([key, value]) => {
+      const paramName = paramMapping[key] || key
       if (value !== undefined && value !== '') {
-        url.searchParams.set(key, value.toString())
+        url.searchParams.set(paramName, value.toString())
       } else {
-        url.searchParams.delete(key)
+        url.searchParams.delete(paramName)
       }
     })
     url.searchParams.delete('page') // Reset to first page
@@ -83,6 +100,40 @@ export default function GuestsClient({
     try {
       // Refresh the page to get latest data from server
       router.refresh()
+      
+      // Also update local state by refetching data
+      const currentUrl = new URL(window.location.href)
+      const searchParams = new URLSearchParams(currentUrl.search)
+      
+      const params = {
+        page: parseInt(searchParams.get('page') || '1'),
+        pageSize: 20,
+        q: searchParams.get('search') || undefined,
+        status: searchParams.get('rsvp_status') || undefined,
+        vip: searchParams.get('is_vip') === 'true' ? true : searchParams.get('is_vip') === 'false' ? false : undefined,
+        sort: {
+          column: searchParams.get('sort_by') || 'name',
+          direction: (searchParams.get('sort_order') as 'asc' | 'desc') || 'asc'
+        }
+      }
+      
+      // Fetch fresh data
+      const response = await fetch(`/api/guests?${new URLSearchParams({
+        page: params.page.toString(),
+        pageSize: params.pageSize.toString(),
+        ...(params.q && { q: params.q }),
+        ...(params.status && { status: params.status }),
+        ...(params.vip !== undefined && { vip: params.vip.toString() }),
+        sortColumn: params.sort.column,
+        sortDirection: params.sort.direction
+      })}`)
+      
+      if (response.ok) {
+        const data = await response.json()
+        setGuests(data.guests)
+        setTotalCountState(data.total_count)
+      }
+      
     } catch (error) {
       console.error('Error refreshing data:', error)
       toast({
@@ -352,6 +403,7 @@ export default function GuestsClient({
           page={page}
           pageSize={pageSize}
           totalPages={totalPages}
+          initialFilters={initialFilters}
           onPageChange={handlePageChange}
           onFiltersChange={handleFiltersChange}
           onEdit={handleEdit}
