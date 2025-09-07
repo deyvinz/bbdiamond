@@ -5,7 +5,7 @@ services:
   app:
     build: .
     ports:
-      - "3006:3000"
+      - "8080:3000"
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
@@ -37,23 +37,28 @@ services:
     networks:
       - app-network
 
-  # Nginx reverse proxy
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "8080:80"
-      - "8443:443"
+  # Certbot for SSL certificate renewal
+  certbot:
+    image: certbot/certbot
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - app
+      - certbot_certs:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    command: certonly --webroot --webroot-path=/var/www/certbot --email your-email@example.com --agree-tos --no-eff-email -d brendabagsherdiamond.com -d www.brendabagsherdiamond.com
+    restart: "no"
+
+  # SSL renewal service
+  ssl-renewal:
+    image: certbot/certbot
+    volumes:
+      - certbot_certs:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    command: sh -c "trap exit TERM; while :; do certbot renew --webroot --webroot-path=/var/www/certbot; sleep 12h & wait $${!}; done;"
     restart: unless-stopped
-    networks:
-      - app-network
 
 volumes:
   redis_data:
+  certbot_certs:
+  certbot_www:
 
 networks:
   app-network:
