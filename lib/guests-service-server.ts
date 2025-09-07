@@ -129,7 +129,7 @@ export async function getGuestsPage(params: GuestsListParams): Promise<GuestList
       // Filter by RSVP status if specified
       let filteredGuests = processedGuests
       if (filters.rsvp_status) {
-        filteredGuests = processedGuests.filter(guest => 
+        filteredGuests = processedGuests.filter((guest: any) => 
           guest.latest_rsvp?.status === filters.rsvp_status
         )
       }

@@ -71,7 +71,7 @@ export async function getGuestsServer(
   }
 
   // Process guests to add latest RSVP status and events
-  const processedGuests = (guests || []).map(guest => {
+  const processedGuests = (guests || []).map((guest: any) => {
     // Get all invitation events from all invitations
     const allInvitationEvents = guest.invitations?.flatMap((inv: any) => inv.invitation_events || []) || []
     
@@ -111,7 +111,7 @@ export async function getGuestsServer(
   // Filter by RSVP status if specified
   let filteredGuests = processedGuests
   if (filters.rsvp_status) {
-    filteredGuests = processedGuests.filter(guest => 
+    filteredGuests = processedGuests.filter((guest: any) => 
       guest.latest_rsvp?.status === filters.rsvp_status
     )
   }
