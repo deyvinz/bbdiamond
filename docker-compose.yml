@@ -1,5 +1,9 @@
 version: '3.8'
 
+# Load environment variables from .env.local
+env_file:
+  - .env.local
+
 services:
   # Next.js Application
   app:
@@ -8,14 +12,14 @@ services:
       - "8080:3000"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - SUPABASE_SERVICE_ROLE=${SUPABASE_SERVICE_ROLE}
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-https://placeholder.supabase.co}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-placeholder-key}
+      - SUPABASE_SERVICE_ROLE=${SUPABASE_SERVICE_ROLE:-placeholder-service-role}
       - CACHE_PROVIDER=${CACHE_PROVIDER:-redis}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - REDIS_USERNAME=${REDIS_USERNAME}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-defaultpassword}
+      - REDIS_USERNAME=${REDIS_USERNAME:-default}
       - CACHE_NAMESPACE=${CACHE_NAMESPACE:-wg}
       - CACHE_GUESTS_TTL_SECONDS=${CACHE_GUESTS_TTL_SECONDS:-120}
       - CACHE_JITTER_SECONDS=${CACHE_JITTER_SECONDS:-20}
