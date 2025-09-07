@@ -2,6 +2,25 @@ import { cookies } from 'next/headers'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 
 export async function supabaseServer() {
+  // Check if environment variables are available
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('Supabase environment variables not found. This is expected during build time.')
+    // Return a mock client for build time
+    return {
+      from: () => ({
+        select: () => ({
+          order: () => Promise.resolve({ data: [], error: null })
+        })
+      }),
+      auth: {
+        getUser: () => Promise.resolve({ data: { user: null }, error: null })
+      }
+    } as any
+  }
+
   const cookieStore = await cookies()
   
   // Debug: Log Supabase cookies only
@@ -12,8 +31,8 @@ export async function supabaseServer() {
   console.log('Supabase cookies found:', supabaseCookies.length)
   
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         get(name: string) { 
