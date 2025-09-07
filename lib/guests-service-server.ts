@@ -89,7 +89,7 @@ export async function getGuestsPage(params: GuestsListParams): Promise<GuestList
       }
 
       // Process guests to add latest RSVP status and events
-      const processedGuests = (guests || []).map(guest => {
+      const processedGuests = (guests || []).map((guest: any) => {
         // Get all invitation events from all invitations
         const allInvitationEvents = guest.invitations?.flatMap((inv: any) => inv.invitation_events || []) || []
         
