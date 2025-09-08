@@ -65,8 +65,11 @@ export default function InvitationsClient({
   const refreshData = async () => {
     setIsRefreshing(true)
     try {
+      // Add a small delay to ensure cache invalidation has completed
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       // Use router.refresh() to trigger a full server-side refresh
-      await router.refresh()
+      router.refresh()
     } finally {
       setIsRefreshing(false)
     }
@@ -122,6 +125,7 @@ export default function InvitationsClient({
     }>
   }) => {
     try {
+      setLoading(true)
       if (editingInvitation) {
         // Update existing invitation
         await updateInvitationAction(editingInvitation.id, {
@@ -150,6 +154,8 @@ export default function InvitationsClient({
         description: error instanceof Error ? error.message : "Failed to save invitation",
         variant: "destructive",
       })
+    } finally {
+      setLoading(false)
     }
   }
 
