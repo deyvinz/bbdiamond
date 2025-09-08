@@ -37,7 +37,6 @@ export function guestDetailKey(guestId: string): string {
 export function guestInvitationsKey(guestId: string): string {
   return `guests:invitations:${guestId}`
 }
-
 export function eventGuestsKey(eventId: string): string {
   return `events:guests:${eventId}`
 }
@@ -85,3 +84,49 @@ export function getCommonGuestListKeys(): string[] {
 
   return keys
 }
+
+export interface InvitationsListParams {
+  page: number
+  pageSize: number
+  q?: string
+  eventId?: string
+  status?: string
+  dateFrom?: string
+  dateTo?: string
+  sort?: {
+    column: string
+    direction: 'asc' | 'desc'
+  }
+}
+
+export function invitationsListKey(params: InvitationsListParams): string {
+  const { page, pageSize, q, eventId, status, dateFrom, dateTo, sort } = params
+  const namespace = process.env.CACHE_NAMESPACE || 'wg'
+  
+  const keyParts = [
+    namespace,
+    'invitations',
+    'list',
+    `page:${page}`,
+    `size:${pageSize}`,
+    q ? `q:${q}` : '',
+    eventId ? `event:${eventId}` : '',
+    status ? `status:${status}` : '',
+    dateFrom ? `from:${dateFrom}` : '',
+    dateTo ? `to:${dateTo}` : '',
+    sort ? `sort:${sort.column}:${sort.direction}` : ''
+  ].filter(Boolean)
+  
+  return keyParts.join(':')
+}
+
+export function invitationDetailKey(invitationId: string): string {
+  const namespace = process.env.CACHE_NAMESPACE || 'wg'
+  return `${namespace}:invitations:detail:${invitationId}`
+}
+
+export function invitationsByGuestKey(guestId: string): string {
+  const namespace = process.env.CACHE_NAMESPACE || 'wg'
+  return `${namespace}:invitations:guest:${guestId}`
+}
+

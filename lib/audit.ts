@@ -62,3 +62,13 @@ export async function logInviteCodeBackfill(
     user_agent
   )
 }
+
+export async function logInvitationAction(
+  action: string,
+  details: Record<string, unknown>,
+  user_id?: string,
+  ip_address?: string,
+  user_agent?: string
+): Promise<void> {
+  await logAdminAction(action, details, user_id, ip_address, user_agent)
+}

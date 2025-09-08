@@ -62,9 +62,59 @@ export const backfillInviteCodesSchema = z.object({
   maxRetries: z.number().int().min(1).max(10).default(5),
 })
 
+// Invitation schemas
+export const invitationEventSchema = z.object({
+  event_id: z.string().min(1, 'Event is required'),
+  headcount: z.number().int().min(1).max(20).default(1),
+  status: z.enum(['pending', 'accepted', 'declined', 'waitlist']).default('pending'),
+})
+
+export const createInvitationSchema = z.object({
+  guest_ids: z.array(z.string().uuid()).min(1, 'At least one guest is required'),
+  events: z.array(invitationEventSchema).min(1, 'At least one event is required'),
+})
+
+export const updateInvitationSchema = z.object({
+  guest_id: z.string().uuid().optional(),
+  events: z.array(invitationEventSchema).optional(),
+})
+
+export const invitationFiltersSchema = z.object({
+  q: z.string().optional(),
+  eventId: z.string().optional(),
+  status: z.enum(['pending', 'accepted', 'declined', 'waitlist']).optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  sort: z.object({
+    column: z.string().default('created_at'),
+    direction: z.enum(['asc', 'desc']).default('desc'),
+  }).optional(),
+})
+
+export const csvInvitationSchema = z.object({
+  guest_email: z.string().email('Invalid email address'),
+  guest_first_name: z.string().optional(),
+  guest_last_name: z.string().optional(),
+  event_id: z.string().min(1, 'Event ID is required'),
+  headcount: z.number().int().min(1).max(20).default(1),
+  status: z.enum(['pending', 'accepted', 'declined', 'waitlist']).default('pending'),
+})
+
+export const sendEmailSchema = z.object({
+  invitationId: z.string().uuid(),
+  eventId: z.string().uuid(),
+  email: z.string().email().optional(),
+})
+
 export type GuestInput = z.infer<typeof guestSchema>
 export type CsvGuestInput = z.infer<typeof csvGuestSchema>
 export type PaginationInput = z.infer<typeof paginationSchema>
 export type GuestFiltersInput = z.infer<typeof guestFiltersSchema>
 export type InvitationInput = z.infer<typeof invitationSchema>
 export type BackfillInviteCodesInput = z.infer<typeof backfillInviteCodesSchema>
+export type InvitationEventInput = z.infer<typeof invitationEventSchema>
+export type CreateInvitationInput = z.infer<typeof createInvitationSchema>
+export type UpdateInvitationInput = z.infer<typeof updateInvitationSchema>
+export type InvitationFiltersInput = z.infer<typeof invitationFiltersSchema>
+export type CsvInvitationInput = z.infer<typeof csvInvitationSchema>
+export type SendEmailInput = z.infer<typeof sendEmailSchema>
