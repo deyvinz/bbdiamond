@@ -38,7 +38,8 @@ export default function Home() {
             <MotionItem>
               <div className="relative overflow-hidden aspect-[4/3] md:aspect-[5/4] rounded-2xl border border-gold-100 shadow-gold bg-white/70 transition-all duration-300 hover:scale-105 hover:rotate-1 active:scale-95">
                 <Image
-                  src="https://utumylehywfktctigkie.supabase.co/storage/v1/object/public/bdiamond/b-d.jpg"
+                  src="/images/logo.png"
+                  // "https://utumylehywfktctigkie.supabase.co/storage/v1/object/public/bdiamond/b-d.jpg"
                   alt="Brenda & Diamond"
                   fill
                   className="object-cover rounded-2xl"

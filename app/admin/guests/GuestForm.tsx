@@ -1,11 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Guest, Invitation } from '@/lib/types/guests'
-import { guestSchema, invitationSchema } from '@/lib/validators'
+import { Guest } from '@/lib/types/guests'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
@@ -206,20 +204,14 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
     }
     
     setErrors(newErrors)
-    console.log('Validation errors:', newErrors)
-    console.log('Form data being validated:', formData)
     return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    console.log('Form data:', formData)
-    console.log('Invitation data:', invitationData)
-    console.log('Create invitation:', createInvitation)
+      
     
     if (!validateForm()) {
-      console.log('Validation failed, errors should be displayed')
       return
     }
 
@@ -238,10 +230,7 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
         headcount: invitationData.headcount
       } : undefined
       
-      console.log('Sending guest payload:', guestPayload)
-      console.log('Sending invitation payload:', invitationPayload)
-      
-      await onSave({ guest: guestPayload, invitation: invitationPayload })
+      onSave({ guest: guestPayload, invitation: invitationPayload })
       
       toast({
         title: "Success",

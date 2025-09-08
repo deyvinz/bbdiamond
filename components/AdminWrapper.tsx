@@ -16,18 +16,12 @@ export default function AdminWrapper({ children }: AdminWrapperProps) {
     const checkAuth = async () => {
       try {
         const { data: { user }, error } = await supabase.auth.getUser()
-        
-        console.log('AdminWrapper - User:', user ? 'authenticated' : 'not authenticated')
-        console.log('AdminWrapper - Error:', error)
-        
         if (error) {
-          console.log('Auth error:', error)
           router.push('/auth/sign-in?next=/admin')
           return
         }
         
         if (!user) {
-          console.log('No user, redirecting to sign-in')
           router.push('/auth/sign-in?next=/admin')
           return
         }
@@ -35,7 +29,6 @@ export default function AdminWrapper({ children }: AdminWrapperProps) {
         setUser(user)
         setLoading(false)
       } catch (err) {
-        console.log('Check auth error:', err)
         router.push('/auth/sign-in?next=/admin')
       }
     }
@@ -44,7 +37,6 @@ export default function AdminWrapper({ children }: AdminWrapperProps) {
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state changed:', event, session?.user ? 'authenticated' : 'not authenticated')
       
       if (event === 'SIGNED_OUT' || !session) {
         router.push('/auth/sign-in?next=/admin')

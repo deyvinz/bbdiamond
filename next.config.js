@@ -13,7 +13,20 @@ const nextConfig = {
   
   // Image optimization
   images: {
-    domains: ['localhost', 'utumylehywfktctigkie.supabase.co'],
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'utumylehywfktctigkie.supabase.co',
+        port: '',
+        pathname: '/**',
+      },
+    ],
     unoptimized: false,
   },
   

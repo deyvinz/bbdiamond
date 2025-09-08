@@ -3,7 +3,7 @@ import { Redis as UpstashRedis } from '@upstash/redis'
 
 export interface KVClient {
   get(key: string): Promise<string | null>
-  set(key: string, value: string, ttlSec?: number): Promise<void>
+  set(key: string, value: string, ttlSec?: number): Promise<string>
   del(...keys: string[]): Promise<number>
   mget(keys: string[]): Promise<(string | null)[]>
 }
@@ -31,15 +31,16 @@ class RedisCloudClient implements KVClient {
     }
   }
 
-  async set(key: string, value: string, ttlSec?: number): Promise<void> {
+  async set(key: string, value: string, ttlSec?: number): Promise<string> {
     try {
       if (ttlSec) {
-        await this.client.setex(key, ttlSec, value)
+        return await this.client.setex(key, ttlSec, value)
       } else {
-        await this.client.set(key, value)
+        return await this.client.set(key, value)
       }
     } catch (error) {
       console.warn('Redis Cloud set error:', error)
+      return 'ERROR'
     }
   }
 
@@ -82,15 +83,18 @@ class UpstashClient implements KVClient {
     }
   }
 
-  async set(key: string, value: string, ttlSec?: number): Promise<void> {
+  async set(key: string, value: string, ttlSec?: number): Promise<string> {
     try {
       if (ttlSec) {
-        await this.client.setex(key, ttlSec, value)
+        const result = await this.client.setex(key, ttlSec, value)
+        return result || 'OK'
       } else {
-        await this.client.set(key, value)
+        const result = await this.client.set(key, value)
+        return result || 'OK'
       }
     } catch (error) {
       console.warn('Upstash set error:', error)
+      return 'ERROR'
     }
   }
 
@@ -108,7 +112,6 @@ class UpstashClient implements KVClient {
       const results = await Promise.all(keys.map(key => this.client.get(key)))
       return results.map(r => r as string | null)
     } catch (error) {
-      console.warn('Upstash mget error:', error)
       return keys.map(() => null)
     }
   }
@@ -119,8 +122,9 @@ class NoOpClient implements KVClient {
     return null
   }
 
-  async set(_key: string, _value: string, _ttlSec?: number): Promise<void> {
+  async set(_key: string, _value: string, _ttlSec?: number): Promise<string> {
     // No-op
+    return 'OK'
   }
 
   async del(..._keys: string[]): Promise<number> {
@@ -143,7 +147,6 @@ export function getKVClient(): KVClient {
   const namespace = process.env.CACHE_NAMESPACE || 'wg'
 
   if (provider === 'disabled' || !provider) {
-    console.warn(`Cache disabled: CACHE_PROVIDER=${provider}`)
     kvClient = new NoOpClient()
     return kvClient
   }
@@ -154,12 +157,10 @@ export function getKVClient(): KVClient {
     const redisPassword = process.env.REDIS_PASSWORD
     const redisUsername = process.env.REDIS_USERNAME
     if (!redisHost || !redisPort) {
-      console.warn('Redis Cloud selected but REDIS_HOST or REDIS_PORT not set, falling back to no-op')
       kvClient = new NoOpClient()
       return kvClient
     }
     kvClient = new RedisCloudClient(redisHost, redisPort, redisPassword, redisUsername)
-    console.log(`Cache initialized: Redis Cloud (${namespace})`)
     return kvClient
   }
 
@@ -167,16 +168,53 @@ export function getKVClient(): KVClient {
     const url = process.env.UPSTASH_REDIS_REST_URL
     const token = process.env.UPSTASH_REDIS_REST_TOKEN
     if (!url || !token) {
-      console.warn('Upstash selected but UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN not set, falling back to no-op')
       kvClient = new NoOpClient()
       return kvClient
     }
     kvClient = new UpstashClient(url, token)
-    console.log(`Cache initialized: Upstash (${namespace})`)
     return kvClient
   }
 
-  console.warn(`Unknown cache provider: ${provider}, falling back to no-op`)
   kvClient = new NoOpClient()
   return kvClient
+}
+
+// Mutex helpers for distributed locking
+export async function acquireLock(key: string, ttlSec: number = 300): Promise<boolean> {
+  const kv = getKVClient()
+  const lockKey = `${process.env.CACHE_NAMESPACE || 'wg'}:locks:${key}`
+  const lockValue = `${Date.now()}-${Math.random()}`
+  
+  try {
+    // Try to set the key only if it doesn't exist (NX) with expiration (EX)
+    const result = await kv.set(lockKey, lockValue, ttlSec)
+    return result === 'OK'
+  } catch (error) {
+    console.warn('Failed to acquire lock:', error)
+    return false
+  }
+}
+
+export async function releaseLock(key: string): Promise<void> {
+  const kv = getKVClient()
+  const lockKey = `${process.env.CACHE_NAMESPACE || 'wg'}:locks:${key}`
+  
+  try {
+    await kv.del(lockKey)
+  } catch (error) {
+    console.warn('Failed to release lock:', error)
+  }
+}
+
+export async function isLockHeld(key: string): Promise<boolean> {
+  const kv = getKVClient()
+  const lockKey = `${process.env.CACHE_NAMESPACE || 'wg'}:locks:${key}`
+  
+  try {
+    const result = await kv.get(lockKey)
+    return result !== null
+  } catch (error) {
+    console.warn('Failed to check lock status:', error)
+    return false
+  }
 }

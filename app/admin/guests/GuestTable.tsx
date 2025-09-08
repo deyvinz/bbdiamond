@@ -50,7 +50,7 @@ interface GuestTableProps {
   onRegenerateToken: (guestId: string, eventId: string) => void
   onSendInvite: (guestId: string, eventId: string) => void
   onExport: () => void
-  onBulkAction: (action: string, guestIds: string[]) => void
+  onBulkAction?: (action: string, guestIds: string[]) => void
   onView: (guest: Guest) => void
 }
 
@@ -71,8 +71,8 @@ function GuestTable({
   onBulkAction,
   onView,
 }: GuestTableProps) {
-  const [selectedGuests, setSelectedGuests] = useState<string[]>([])
   const [filters, setFilters] = useState<GuestFilters>(initialFilters)
+  const [selectedGuests, setSelectedGuests] = useState<string[]>([])
   const { toast } = useToast()
 
   // Use guests directly since filtering is done server-side
@@ -95,7 +95,9 @@ function GuestTable({
   }
 
   const handleSearch = (value: string) => {
-    onFiltersChange({ ...filters, search: value })
+    const newFilters = { ...filters, search: value }
+    setFilters(newFilters)
+    onFiltersChange(newFilters)
   }
 
   const handleFilterChange = (key: keyof GuestFilters, value: string | boolean | undefined) => {
@@ -193,7 +195,7 @@ function GuestTable({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => onBulkAction('send_invite', selectedGuests)}
+            onClick={() => onBulkAction?.('send_invite', selectedGuests)}
           >
             <Mail className="h-4 w-4 mr-2" />
             Send Invites
@@ -201,7 +203,7 @@ function GuestTable({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => onBulkAction('regenerate_tokens', selectedGuests)}
+            onClick={() => onBulkAction?.('regenerate_tokens', selectedGuests)}
           >
             <RefreshCw className="h-4 w-4 mr-2" />
             Regenerate Tokens
@@ -209,7 +211,7 @@ function GuestTable({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => onBulkAction('export', selectedGuests)}
+            onClick={() => onBulkAction?.('export', selectedGuests)}
           >
             <Download className="h-4 w-4 mr-2" />
             Export Selected
@@ -217,7 +219,7 @@ function GuestTable({
           <Button
             size="sm"
             variant="destructive"
-            onClick={() => onBulkAction('delete', selectedGuests)}
+            onClick={() => onBulkAction?.('delete', selectedGuests)}
           >
             <Trash2 className="h-4 w-4 mr-2" />
             Delete

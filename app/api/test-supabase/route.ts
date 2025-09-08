@@ -2,7 +2,6 @@ import { supabaseServer } from '@/lib/supabase-server'
 
 export async function GET() {
   try {
-    console.log('Testing Supabase connection...')
     
     const supabase = await supabaseServer()
     
@@ -12,7 +11,6 @@ export async function GET() {
       .select('count')
       .limit(1)
     
-    console.log('Supabase test result:', { data, error })
     
     return Response.json({
       success: true,
@@ -24,7 +22,6 @@ export async function GET() {
       }
     })
   } catch (err) {
-    console.error('Supabase test error:', err)
     return Response.json({
       success: false,
       error: err instanceof Error ? err.message : 'Unknown error',

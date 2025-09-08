@@ -13,14 +13,9 @@ export async function getGuestsServer(
   
   // Debug authentication
   const { data: { user }, error: authError } = await supabase.auth.getUser()
-  console.log('=== AUTH DEBUG ===')
-  console.log('User:', user?.id || 'No user')
-  console.log('Auth error:', authError)
   
   // Test is_admin_or_staff function
   const { data: isAdmin, error: adminError } = await supabase.rpc('is_admin_or_staff')
-  console.log('Is admin/staff:', isAdmin)
-  console.log('Admin check error:', adminError)
   
   // Full query with all related data
   let query = supabase

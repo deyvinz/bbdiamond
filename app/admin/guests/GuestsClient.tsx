@@ -7,9 +7,10 @@ import GuestTable from './GuestTable'
 import GuestForm from './GuestForm'
 import ImportCsvDialog from './ImportCsvDialog'
 import GuestDetailsDialog from './GuestDetailsDialog'
+import { BackfillInviteCodesDialog } from './BackfillInviteCodesDialog'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
-import { Plus, Upload, RefreshCw } from 'lucide-react'
+import { Plus, Upload, RefreshCw, Settings } from 'lucide-react'
 import {
   createGuest, 
   updateGuest, 
@@ -18,9 +19,9 @@ import {
 } from '@/lib/guests-service'
 import {
   regenerateInvitationToken,
-  sendInviteEmail,
   exportGuestsToCsv
 } from '@/lib/guests-client'
+import { sendInvitationAction } from '@/lib/actions/send-invitation'
 
 interface GuestsClientProps {
   initialGuests: Guest[]
@@ -43,6 +44,7 @@ export default function GuestsClient({
   const [totalCountState, setTotalCountState] = useState(totalCount)
   const [showGuestForm, setShowGuestForm] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
+  const [showBackfillDialog, setShowBackfillDialog] = useState(false)
   const [editingGuest, setEditingGuest] = useState<Guest | undefined>()
   const [viewGuest, setViewGuest] = useState<Guest | undefined>()
   const [loading, setLoading] = useState(false)
@@ -148,14 +150,10 @@ export default function GuestsClient({
 
   const handleSaveGuest = async (data: { guest: Record<string, any>; invitation?: Record<string, any> }) => {
     setLoading(true)
-    try {
-      console.log('handleSaveGuest called with:', data)
-      
+    try {      
       if (editingGuest) {
         // Update existing guest
-        console.log('Updating guest:', editingGuest.id)
         const updatedGuest = await updateGuest(editingGuest.id, data.guest)
-        console.log('Updated guest:', updatedGuest)
         setGuests(prev => prev.map(g => g.id === editingGuest.id ? updatedGuest : g))
         toast({
           title: "Success",
@@ -163,10 +161,7 @@ export default function GuestsClient({
         })
       } else {
         // Create new guest
-        console.log('Creating new guest with data:', data.guest)
-        const newGuest = await createGuest(data.guest)
-        console.log('Created guest:', newGuest)
-        
+        const newGuest = await createGuest(data.guest)       
         // Create invitations if specified
         if (data.invitation?.event_ids && data.invitation.event_ids.length > 0) {
           for (const eventId of data.invitation.event_ids) {
@@ -248,10 +243,10 @@ export default function GuestsClient({
   const handleSendInvite = async (guestId: string, eventId: string) => {
     setLoading(true)
     try {
-      await sendInviteEmail(guestId, eventId)
+      const result = await sendInvitationAction(guestId, eventId)
       toast({
         title: "Success",
-        description: "Invitation email sent successfully",
+        description: result.message,
       })
       // Refresh data to get updated state
       await refreshData()
@@ -291,7 +286,7 @@ export default function GuestsClient({
           for (const guestId of guestIds) {
             const guest = guests.find(g => g.id === guestId)
             if (guest?.invitations?.[0]) {
-              await sendInviteEmail(guestId, guest.invitations[0].event_id)
+              await sendInvitationAction(guestId, guest.invitations[0].event_id)
             }
           }
           toast({
@@ -386,6 +381,14 @@ export default function GuestsClient({
               Import CSV
             </Button>
             <Button
+              onClick={() => setShowBackfillDialog(true)}
+              variant="outline"
+              className="bg-gold-50 border-gold-200 text-gold-700 hover:bg-gold-100"
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Backfill Invite Codes
+            </Button>
+            <Button
               onClick={() => {
                 setEditingGuest(undefined)
                 setShowGuestForm(true)
@@ -427,6 +430,11 @@ export default function GuestsClient({
         open={showImportDialog}
         onOpenChange={setShowImportDialog}
         onImportComplete={handleImportComplete}
+      />
+
+      <BackfillInviteCodesDialog
+        open={showBackfillDialog}
+        onOpenChange={setShowBackfillDialog}
       />
 
       <GuestDetailsDialog

@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { getGuestsPage } from '@/lib/guests-service-server'
+import { getGuestsServer } from '@/lib/guests'
 import GuestsClient from './GuestsClient'
 import { CardSkeleton } from '@/components/ui/skeleton'
 
@@ -18,21 +18,22 @@ export default async function GuestsPage({ searchParams }: GuestsPageProps) {
   const resolvedSearchParams = await searchParams
   const page = parseInt(resolvedSearchParams.page || '1')
   
-  const params = {
+  const filters = {
+    search: resolvedSearchParams.search,
+    rsvp_status: resolvedSearchParams.rsvp_status as any,
+    is_vip: resolvedSearchParams.is_vip === 'true' ? true : resolvedSearchParams.is_vip === 'false' ? false : undefined,
+    sort_by: resolvedSearchParams.sort_by as any || 'name',
+    sort_order: resolvedSearchParams.sort_order as any || 'asc'
+  }
+
+  const pagination = {
     page,
-    pageSize: 20,
-    q: resolvedSearchParams.search,
-    status: resolvedSearchParams.rsvp_status,
-    vip: resolvedSearchParams.is_vip === 'true' ? true : resolvedSearchParams.is_vip === 'false' ? false : undefined,
-    sort: {
-      column: resolvedSearchParams.sort_by || 'name',
-      direction: (resolvedSearchParams.sort_order as 'asc' | 'desc') || 'asc'
-    }
+    page_size: 20
   }
 
   let guestsData
   try {
-    guestsData = await getGuestsPage(params)
+    guestsData = await getGuestsServer(filters, pagination)
   } catch (error) {
     console.error('Error fetching guests:', error)
     guestsData = {
@@ -59,11 +60,11 @@ export default async function GuestsPage({ searchParams }: GuestsPageProps) {
         pageSize={guestsData.page_size}
         totalPages={guestsData.total_pages}
         initialFilters={{
-          search: params.q,
-          rsvp_status: params.status as any,
-          is_vip: params.vip,
-          sort_by: params.sort.column as any,
-          sort_order: params.sort.direction
+          search: filters.search,
+          rsvp_status: filters.rsvp_status,
+          is_vip: filters.is_vip,
+          sort_by: filters.sort_by,
+          sort_order: filters.sort_order
         }}
       />
     </Suspense>

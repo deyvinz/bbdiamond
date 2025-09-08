@@ -56,8 +56,15 @@ export const invitationSchema = z.object({
   headcount: z.number().int().min(1).max(20).default(1),
 })
 
+export const backfillInviteCodesSchema = z.object({
+  dryRun: z.boolean().default(true),
+  batchSize: z.number().int().min(50).max(5000).default(500),
+  maxRetries: z.number().int().min(1).max(10).default(5),
+})
+
 export type GuestInput = z.infer<typeof guestSchema>
 export type CsvGuestInput = z.infer<typeof csvGuestSchema>
 export type PaginationInput = z.infer<typeof paginationSchema>
 export type GuestFiltersInput = z.infer<typeof guestFiltersSchema>
 export type InvitationInput = z.infer<typeof invitationSchema>
+export type BackfillInviteCodesInput = z.infer<typeof backfillInviteCodesSchema>
