@@ -33,8 +33,9 @@ interface SendEmailDialogProps {
   invitation?: Invitation
   onSend: (data: {
     invitationId: string
-    eventId: string
-    email?: string
+    eventIds: string[]
+    to?: string
+    includeQr?: boolean
   }) => void
   loading?: boolean
 }
@@ -52,18 +53,20 @@ export default function SendEmailDialog({
   onSend,
   loading = false,
 }: SendEmailDialogProps) {
-  const [selectedEventId, setSelectedEventId] = useState<string>('')
+  const [selectedEventIds, setSelectedEventIds] = useState<string[]>([])
   const [emailOverride, setEmailOverride] = useState<string>('')
+  const [includeQr, setIncludeQr] = useState<boolean>(true)
   const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null)
+  const [rateLimitLoading, setRateLimitLoading] = useState<boolean>(false)
 
   // Reset form when dialog opens/closes
   useEffect(() => {
     if (open && invitation) {
-      setSelectedEventId(invitation.invitation_events[0]?.event_id || '')
+      setSelectedEventIds([])
       setEmailOverride('')
       loadRateLimitInfo()
     } else {
-      setSelectedEventId('')
+      setSelectedEventIds([])
       setEmailOverride('')
       setRateLimitInfo(null)
     }
@@ -72,28 +75,47 @@ export default function SendEmailDialog({
   const loadRateLimitInfo = async () => {
     if (!invitation) return
 
+    setRateLimitLoading(true)
     try {
-      // TODO: Implement actual API call to get rate limit info
-      // For now, mock the data
+      const response = await fetch(`/api/admin/invitations/${invitation.id}/rate-limit`)
+      if (response.ok) {
+        const data = await response.json()
+        setRateLimitInfo({
+          sentToday: data.sentToday,
+          maxPerDay: data.maxPerDay,
+          canSend: data.canSend,
+        })
+      } else {
+        console.error('Failed to load rate limit info:', response.statusText)
+        // Fallback to default values
+        setRateLimitInfo({
+          sentToday: 0,
+          maxPerDay: 3,
+          canSend: true,
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load rate limit info:', error)
+      // Fallback to default values
       setRateLimitInfo({
-        sentToday: 1,
+        sentToday: 0,
         maxPerDay: 3,
         canSend: true,
       })
-    } catch (error) {
-      console.error('Failed to load rate limit info:', error)
+    } finally {
+      setRateLimitLoading(false)
     }
   }
 
-  const selectedEvent = invitation?.invitation_events.find(
-    event => event.event_id === selectedEventId
-  )
+  const selectedEvents = invitation?.invitation_events.filter(
+    event => selectedEventIds.includes(event.event_id)
+  ) || []
 
   const handleSend = () => {
-    if (!invitation || !selectedEventId) {
+    if (!invitation || selectedEventIds.length === 0) {
       toast({
         title: "Error",
-        description: "Please select an event",
+        description: "Please select at least one event",
         variant: "destructive",
       })
       return
@@ -110,8 +132,9 @@ export default function SendEmailDialog({
 
     onSend({
       invitationId: invitation.id,
-      eventId: selectedEventId,
-      email: emailOverride || undefined,
+      eventIds: selectedEventIds,
+      to: emailOverride || undefined,
+      includeQr,
     })
   }
 
@@ -119,8 +142,8 @@ export default function SendEmailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-5 w-5" />
             Send Invitation Email
@@ -130,7 +153,7 @@ export default function SendEmailDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="flex-1 overflow-y-auto space-y-6 pr-2 pb-4">
           {/* Guest Info */}
           <Card>
             <CardHeader>
@@ -158,80 +181,94 @@ export default function SendEmailDialog({
 
           {/* Event Selection */}
           <div className="space-y-2">
-            <Label htmlFor="event-select">Select Event</Label>
-            <Select value={selectedEventId} onValueChange={setSelectedEventId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose an event" />
-              </SelectTrigger>
-              <SelectContent>
-                {invitation.invitation_events.map((event) => (
-                  <SelectItem key={event.event_id} value={event.event_id}>
+            <Label>Select Events</Label>
+            <div className="space-y-2">
+              {invitation.invitation_events.map((event) => (
+                <div key={event.event_id} className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id={`event-${event.event_id}`}
+                    checked={selectedEventIds.includes(event.event_id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedEventIds([...selectedEventIds, event.event_id])
+                      } else {
+                        setSelectedEventIds(selectedEventIds.filter(id => id !== event.event_id))
+                      }
+                    }}
+                    className="h-4 w-4 text-gold-600 focus:ring-gold-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor={`event-${event.event_id}`} className="text-sm font-medium">
                     {event.event.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  </label>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Event Details */}
-          {selectedEvent && (
+          {selectedEvents.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Event Details</CardTitle>
+                <CardTitle className="text-lg">Selected Events</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  <div className="font-medium text-lg">
-                    {selectedEvent.event.name}
-                  </div>
-                  
-                  <div className="space-y-2 text-sm text-gray-600">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
-                      {format(new Date(selectedEvent.event.starts_at), 'EEEE, MMMM d, yyyy')}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      {format(new Date(selectedEvent.event.starts_at), 'h:mm a')}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      {selectedEvent.event.venue}
-                    </div>
-                    {selectedEvent.event.address && (
-                      <div className="ml-6 text-gray-500">
-                        {selectedEvent.event.address}
+                <div className="space-y-4">
+                  {selectedEvents.map((event) => (
+                    <div key={event.event_id} className="border rounded-lg p-4 space-y-3">
+                      <div className="font-medium text-lg">
+                        {event.event.name}
                       </div>
-                    )}
-                  </div>
+                      
+                      <div className="space-y-2 text-sm text-gray-600">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4" />
+                          {format(new Date(event.event.starts_at), 'EEEE, MMMM d, yyyy')}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          {format(new Date(event.event.starts_at), 'h:mm a')}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4" />
+                          {event.event.venue}
+                        </div>
+                        {event.event.address && (
+                          <div className="ml-6 text-gray-500">
+                            {event.event.address}
+                          </div>
+                        )}
+                      </div>
 
-                  <div className="flex items-center gap-4 pt-2">
-                    <Badge
-                      variant={
-                        selectedEvent.status === 'accepted' 
-                          ? 'default'
-                          : selectedEvent.status === 'pending'
-                          ? 'outline'
-                          : selectedEvent.status === 'declined'
-                          ? 'secondary'
-                          : 'outline'
-                      }
-                      className={
-                        selectedEvent.status === 'accepted' 
-                          ? 'bg-gold-100 text-gold-800 border-gold-300'
-                          : selectedEvent.status === 'pending'
-                          ? 'bg-gray-100 text-gray-800 border-gray-300'
-                          : selectedEvent.status === 'declined'
-                          ? 'bg-red-100 text-red-800 border-red-300'
-                          : 'bg-amber-100 text-amber-800 border-amber-300'
-                      }
-                    >
-                      {selectedEvent.status.charAt(0).toUpperCase() + selectedEvent.status.slice(1)}
-                    </Badge>
-                    <span className="text-sm text-gray-600">
-                      Headcount: {selectedEvent.headcount}
-                    </span>
-                  </div>
+                      <div className="flex items-center gap-4 pt-2">
+                        <Badge
+                          variant={
+                            event.status === 'accepted' 
+                              ? 'default'
+                              : event.status === 'pending'
+                              ? 'outline'
+                              : event.status === 'declined'
+                              ? 'secondary'
+                              : 'outline'
+                          }
+                          className={
+                            event.status === 'accepted' 
+                              ? 'bg-gold-100 text-gold-800 border-gold-300'
+                              : event.status === 'pending'
+                              ? 'bg-gray-100 text-gray-800 border-gray-300'
+                              : event.status === 'declined'
+                              ? 'bg-red-100 text-red-800 border-red-300'
+                              : 'bg-amber-100 text-amber-800 border-amber-300'
+                          }
+                        >
+                          {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+                        </Badge>
+                        <span className="text-sm text-gray-600">
+                          Headcount: {event.headcount}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -252,8 +289,36 @@ export default function SendEmailDialog({
             </p>
           </div>
 
+          {/* QR Code Option */}
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <input
+                id="include-qr"
+                type="checkbox"
+                checked={includeQr}
+                onChange={(e) => setIncludeQr(e.target.checked)}
+                className="h-4 w-4 text-gold-600 focus:ring-gold-500 border-gray-300 rounded"
+              />
+              <Label htmlFor="include-qr" className="text-sm font-medium">
+                Include QR code for check-in
+              </Label>
+            </div>
+            <p className="text-xs text-gray-500">
+              QR code will be generated automatically and included in the email
+            </p>
+          </div>
+
           {/* Rate Limit Info */}
-          {rateLimitInfo && (
+          {rateLimitLoading ? (
+            <Alert className="border-blue-200 bg-blue-50">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <span className="text-blue-800">
+                  Loading rate limit information...
+                </span>
+              </AlertDescription>
+            </Alert>
+          ) : rateLimitInfo ? (
             <Alert className={rateLimitInfo.canSend ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
@@ -269,19 +334,19 @@ export default function SendEmailDialog({
                 )}
               </AlertDescription>
             </Alert>
-          )}
+          ) : null}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 border-t pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button 
             onClick={handleSend} 
-            disabled={loading || !selectedEventId || (rateLimitInfo ? !rateLimitInfo.canSend : false)}
+            disabled={loading || rateLimitLoading || selectedEventIds.length === 0 || (rateLimitInfo ? !rateLimitInfo.canSend : false)}
             className="bg-gold-600 hover:bg-gold-700"
           >
-            {loading ? 'Sending...' : 'Send Email'}
+            {loading ? 'Sending...' : rateLimitLoading ? 'Loading...' : 'Send Email'}
           </Button>
         </DialogFooter>
       </DialogContent>

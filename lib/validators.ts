@@ -102,8 +102,9 @@ export const csvInvitationSchema = z.object({
 
 export const sendEmailSchema = z.object({
   invitationId: z.string().uuid(),
-  eventId: z.string().uuid(),
-  email: z.string().email().optional(),
+  eventIds: z.array(z.string().uuid()).min(1, 'At least one event must be selected'),
+  to: z.string().email().optional(),
+  includeQr: z.boolean().default(true),
 })
 
 export type GuestInput = z.infer<typeof guestSchema>

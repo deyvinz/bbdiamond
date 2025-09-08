@@ -106,7 +106,7 @@ export async function getInvitationsPage(
           venue,
           address
         )
-      )
+      ).order('event.starts_at', { foreignTable: 'events' })
     `)
 
   // Apply filters
@@ -135,10 +135,47 @@ export async function getInvitationsPage(
   const sortDirection = filters.sort?.direction || 'desc'
   query = query.order(sortColumn, { ascending: sortDirection === 'asc' })
 
-  // Get total count
-  const { count } = await supabase
+  // Get total count with same filters and joins
+  let countQuery = supabase
     .from('invitations')
-    .select('*', { count: 'exact', head: true })
+    .select(`
+      id,
+      guest:guests(
+        id,
+        first_name,
+        last_name,
+        email,
+        invite_code
+      ),
+      invitation_events(
+        id,
+        event_id,
+        status
+      )
+    `, { count: 'exact', head: true })
+
+  // Apply same filters to count query
+  if (filters.q) {
+    countQuery = countQuery.or(`guest.first_name.ilike.%${filters.q}%,guest.last_name.ilike.%${filters.q}%,guest.email.ilike.%${filters.q}%,guest.invite_code.ilike.%${filters.q}%`)
+  }
+
+  if (filters.eventId) {
+    countQuery = countQuery.eq('invitation_events.event_id', filters.eventId)
+  }
+
+  if (filters.status) {
+    countQuery = countQuery.eq('invitation_events.status', filters.status)
+  }
+
+  if (filters.dateFrom) {
+    countQuery = countQuery.gte('created_at', filters.dateFrom)
+  }
+
+  if (filters.dateTo) {
+    countQuery = countQuery.lte('created_at', filters.dateTo)
+  }
+
+  const { count } = await countQuery
 
   // Apply pagination
   const offset = (pagination.page - 1) * pagination.page_size
@@ -150,6 +187,7 @@ export async function getInvitationsPage(
     console.error('Invitations query error:', error)
     throw new Error(`Failed to fetch invitations: ${error.message}`)
   }
+
 
   // Get latest RSVP for each invitation event
   const invitationEventIds = invitations?.flatMap((inv: any) => 
@@ -539,7 +577,7 @@ export async function sendInviteEmail(params: SendEmailInput): Promise<{ success
     .from('invitations')
     .select(`
       *,
-      guest:guests(email, first_name, last_name),
+      guest:guests(email, first_name, last_name, invite_code),
       invitation_events(
         *,
         event:events(name, starts_at, venue, address)
@@ -552,9 +590,15 @@ export async function sendInviteEmail(params: SendEmailInput): Promise<{ success
     throw new Error('Invitation not found')
   }
 
-  const event = invitation.invitation_events?.find((ie: any) => ie.event_id === params.eventId)
-  if (!event) {
-    throw new Error('Event not found in invitation')
+  // Determine which event to use
+  let event
+  // Get selected events
+  const selectedEvents = invitation.invitation_events?.filter((ie: any) => 
+    params.eventIds.includes(ie.event_id)
+  ) || []
+  
+  if (selectedEvents.length === 0) {
+    throw new Error('No valid events found for invitation')
   }
 
   // Check rate limit
@@ -562,21 +606,83 @@ export async function sendInviteEmail(params: SendEmailInput): Promise<{ success
   const { data: mailLogs } = await supabase
     .from('mail_logs')
     .select('*')
-    .eq('invitation_id', params.invitationId)
+    .eq('token', invitation.token)
     .gte('sent_at', `${today}T00:00:00.000Z`)
 
   if (mailLogs && mailLogs.length >= 3) {
     throw new Error('Daily email limit exceeded for this invitation')
   }
 
-  // Call edge function
+  // Prepare email data
+  const guestName = `${invitation.guest.first_name} ${invitation.guest.last_name}`
+  
+  // For multiple events, use the first event for the main subject and RSVP URL
+  const primaryEvent = selectedEvents[0]
+  const eventDate = new Date(primaryEvent.event.starts_at).toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+  const eventTime = new Date(primaryEvent.event.starts_at).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+  const formattedEventDate = `${eventDate} · ${eventTime}`
+  
+  const rsvpUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://brendabagsherdiamond.com'}/rsvp?token=${invitation.token}`
+  
+  // Generate QR code URL (you can implement this based on your QR generation strategy)
+  const qrImageUrl = params.includeQr ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://brendabagsherdiamond.com'}/api/qr?token=${invitation.token}` : undefined
+
+  // Generate .ics attachment for the primary event
+  const icsContent = generateIcsAttachment({
+    eventName: primaryEvent.event.name,
+    startsAt: primaryEvent.event.starts_at,
+    venue: primaryEvent.event.venue,
+    address: primaryEvent.event.address,
+    rsvpUrl,
+  })
+
+  // Call edge function with new payload
   const { data, error } = await supabase.functions.invoke('send-qr-email', {
     body: {
-      token: invitation.token,
-      eventId: params.eventId,
-      email: params.email || invitation.guest.email,
-      guest_name: `${invitation.guest.first_name} ${invitation.guest.last_name}`,
-      event_name: event.event.name
+      to: params.to || invitation.guest.email,
+      subject: `You're Invited, ${invitation.guest.first_name} — ${selectedEvents.length > 1 ? `${selectedEvents.length} Events` : primaryEvent.event.name}`,
+      html: '', // Will be generated by edge function
+      text: '', // Will be generated by edge function
+      meta: {
+        invitationId: params.invitationId,
+        eventIds: params.eventIds,
+        rsvpUrl,
+        guestName,
+        inviteCode: invitation.guest.invite_code,
+        events: selectedEvents.map((event: any) => ({
+          id: event.event_id,
+          name: event.event.name,
+          startsAtISO: event.event.starts_at,
+          venue: event.event.venue,
+          address: event.event.address,
+        })),
+        primaryEvent: {
+          id: primaryEvent.event_id,
+          name: primaryEvent.event.name,
+          startsAtISO: primaryEvent.event.starts_at,
+          venue: primaryEvent.event.venue,
+          address: primaryEvent.event.address,
+        },
+        includeQr: params.includeQr || true,
+        eventDate: formattedEventDate,
+        qrImageUrl,
+      },
+      attachments: [
+        {
+          filename: 'event.ics',
+          content: icsContent,
+          contentType: 'text/calendar',
+        },
+      ],
     }
   })
 
@@ -584,8 +690,8 @@ export async function sendInviteEmail(params: SendEmailInput): Promise<{ success
   await supabase
     .from('mail_logs')
     .insert({
-      invitation_id: params.invitationId,
-      invitation_event_id: event.id,
+      token: invitation.token,
+      email: params.to || invitation.guest.email,
       sent_at: new Date().toISOString(),
       success: !error,
       error_message: error?.message
@@ -598,12 +704,53 @@ export async function sendInviteEmail(params: SendEmailInput): Promise<{ success
   // Log audit
   await logAdminAction('invite_email_send', {
     invitation_id: params.invitationId,
-    event_id: params.eventId,
-    email: params.email || invitation.guest.email,
-    event_name: event.event.name
+    event_id: primaryEvent.event_id,
+    email: params.to || invitation.guest.email
   })
 
-  return { success: true, message: 'Invitation email sent successfully' }
+  return { success: true, message: 'Email sent successfully' }
+}
+
+// Helper function to generate .ics attachment
+function generateIcsAttachment({
+  eventName,
+  startsAt,
+  venue,
+  address,
+  rsvpUrl,
+}: {
+  eventName: string
+  startsAt: string
+  venue: string
+  address?: string
+  rsvpUrl: string
+}): string {
+  const startDate = new Date(startsAt)
+  const endDate = new Date(startDate.getTime() + 4 * 60 * 60 * 1000) // 4 hours duration
+  
+  const formatDate = (date: Date) => {
+    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+  }
+  
+  const location = address ? `${venue}, ${address}` : venue
+  
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Brenda & Diamond//Wedding//EN',
+    'BEGIN:VEVENT',
+    `UID:${crypto.randomUUID()}@brendabagsherdiamond.com`,
+    `DTSTAMP:${formatDate(new Date())}`,
+    `DTSTART:${formatDate(startDate)}`,
+    `DTEND:${formatDate(endDate)}`,
+    `SUMMARY:${eventName}`,
+    `LOCATION:${location}`,
+    `URL:${rsvpUrl}`,
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].join('\r\n')
+  
+  return Buffer.from(ics).toString('base64')
 }
 
 export async function importInvitationsFromCsv(csvData: CsvInvitationInput[]): Promise<{

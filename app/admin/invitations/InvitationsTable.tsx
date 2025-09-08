@@ -68,7 +68,7 @@ interface InvitationsTableProps {
   onDelete: (invitationId: string) => void
   onRegenerateInviteToken: (invitationId: string) => void
   onRegenerateEventToken: (invitationEventId: string) => void
-  onSendEmail: (invitationId: string, eventId: string) => void
+  onSendEmail: (invitationId: string) => void
   onView: (invitation: Invitation) => void
   onExport: () => void
   onBulkAction?: (action: string, invitationIds: string[]) => void
@@ -414,12 +414,12 @@ export default function InvitationsTable({
                             <RefreshCw className="h-4 w-4 mr-2" />
                             Regenerate Invite Token
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onSendEmail(invitation.id)}>
+                            <Mail className="h-4 w-4 mr-2" />
+                            Send Email
+                          </DropdownMenuItem>
                           {invitation.invitation_events.map((event) => (
                             <div key={event.id}>
-                              <DropdownMenuItem onClick={() => onSendEmail(invitation.id, event.event_id)}>
-                                <Mail className="h-4 w-4 mr-2" />
-                                Send Email - {event.event.name}
-                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleCopyEventToken(event.event_token)}>
                                 <Copy className="h-4 w-4 mr-2" />
                                 Copy Event Token - {event.event.name}

@@ -9,175 +9,269 @@ import {
   Preview,
   Section,
   Text,
-  Button,
   Hr,
 } from '@react-email/components'
 import * as React from 'react'
+import { BaseEmailLayout } from './BaseEmailLayout'
+import { EmailButton } from './components/EmailButton'
+import { SectionHeading } from './components/SectionHeading'
+import { InfoRow } from './components/InfoRow'
+import { Footer } from './components/Footer'
 
-interface InvitationEmailProps {
+export interface InvitationEmailProps {
   guestName: string
   inviteCode: string
   rsvpUrl: string
   eventName: string
   eventDate: string
-  eventTime: string
   eventVenue: string
   eventAddress?: string
+  addToCalendarUrl?: string
   qrImageUrl?: string
+  heroImageUrl?: string
+  registryUrl?: string
+  travelUrl?: string
+  contactEmail?: string
+  replyToEmail?: string
 }
 
-export const InvitationEmail = ({
+export function InvitationEmail({
   guestName,
   inviteCode,
   rsvpUrl,
   eventName,
   eventDate,
-  eventTime,
   eventVenue,
   eventAddress,
+  addToCalendarUrl,
   qrImageUrl,
-}: InvitationEmailProps) => {
-  const previewText = `You're invited to ${eventName} - RSVP now!`
+  heroImageUrl,
+  registryUrl,
+  travelUrl,
+  contactEmail,
+  replyToEmail,
+}: InvitationEmailProps) {
+  const preheaderText = `RSVP for ${eventName} — ${eventDate}`
+  const mapUrl = eventAddress ? `https://maps.google.com/maps?q=${encodeURIComponent(eventAddress)}` : undefined
 
   return (
-    <Html>
-      <Head />
-      <Preview>{previewText}</Preview>
-      <Body style={main}>
-        <Container style={container}>
-          {/* Header */}
-          <Section style={header}>
-            <Heading style={headerTitle}>Brenda & Diamond</Heading>
-            <Text style={headerSubtitle}>Wedding Celebration</Text>
+    <BaseEmailLayout preheader={preheaderText}>
+      {/* Header */}
+      <Section style={header}>
+        <Heading style={headerTitle}>Brenda & Diamond</Heading>
+        <Text style={headerSubtitle}>Wedding Celebration</Text>
+        <Hr style={headerRule} />
+      </Section>
+
+      {/* Hero Image */}
+      {heroImageUrl && (
+        <Section style={heroSection}>
+          <Img
+            src={heroImageUrl}
+            alt="Wedding celebration"
+            style={heroImage}
+          />
+        </Section>
+      )}
+
+      {/* Main Content */}
+      <Section style={content}>
+        <Text style={greeting}>Dear {guestName},</Text>
+        
+        <Text style={paragraph}>
+          We are delighted to invite you to celebrate our special day with us!
+        </Text>
+
+        <Text style={paragraph}>
+          Your presence would make our wedding celebration even more meaningful.
+        </Text>
+
+        {/* Event Details Card */}
+        <Section style={eventCard}>
+          <SectionHeading level={2}>
+            {eventName}
+          </SectionHeading>
+          
+          <InfoRow label="📅 Date:" value={eventDate} />
+          <InfoRow label="🕒 Time:" value={eventDate.split(' · ')[1] || ''} />
+          <InfoRow 
+            label="📍 Venue:" 
+            value={eventVenue}
+            href={mapUrl}
+          />
+          {eventAddress && (
+            <InfoRow 
+              label="🏠 Address:" 
+              value={eventAddress}
+              href={mapUrl}
+            />
+          )}
+        </Section>
+
+        {/* RSVP Button */}
+        <Section style={buttonContainer}>
+          <EmailButton href={rsvpUrl} ariaLabel={`RSVP for ${eventName}`}>
+            RSVP Now
+          </EmailButton>
+          <Text style={fallbackUrl}>
+            Can't click the button? Copy this link: {rsvpUrl}
+          </Text>
+        </Section>
+
+        {/* Invite Code */}
+        <Section style={codeSection}>
+          <Text style={codeLabel}>Your Invite Code:</Text>
+          <Text style={codeValue}>{inviteCode}</Text>
+        </Section>
+
+        {/* QR Code */}
+        {qrImageUrl && (
+          <Section style={qrSection}>
+            <Text style={qrLabel}>Show this at check-in:</Text>
+            <Img
+              src={qrImageUrl}
+              alt={`QR code for ${eventName} RSVP`}
+              style={qrImage}
+            />
           </Section>
+        )}
 
-          {/* Main Content */}
-          <Section style={content}>
-            <Heading style={greeting}>Dear {guestName},</Heading>
-            
-            <Text style={paragraph}>
-              We are delighted to invite you to celebrate our special day with us!
-            </Text>
-
-            <Text style={paragraph}>
-              Your presence would make our wedding celebration even more meaningful.
-            </Text>
-
-            {/* Event Details Card */}
-            <Section style={eventCard}>
-              <Heading style={eventTitle}>{eventName}</Heading>
-              <Text style={eventDetail}>
-                📅 <strong>Date:</strong> {eventDate}
+        {/* Helpful Links */}
+        {(travelUrl || registryUrl || addToCalendarUrl) && (
+          <Section style={linksSection}>
+            <Text style={linksTitle}>Helpful Links:</Text>
+            {addToCalendarUrl && (
+              <Text style={linkItem}>
+                <Link href={addToCalendarUrl} style={linkStyle}>
+                  📅 Add to Calendar
+                </Link>
               </Text>
-              <Text style={eventDetail}>
-                🕒 <strong>Time:</strong> {eventTime}
-              </Text>
-              <Text style={eventDetail}>
-                📍 <strong>Venue:</strong> {eventVenue}
-              </Text>
-              {eventAddress && (
-                <Text style={eventDetail}>
-                  🏠 <strong>Address:</strong> {eventAddress}
-                </Text>
-              )}
-            </Section>
-
-            {/* RSVP Button */}
-            <Section style={buttonContainer}>
-              <Button style={rsvpButton} href={rsvpUrl}>
-                RSVP Now
-              </Button>
-            </Section>
-
-            {/* Invite Code */}
-            <Section style={codeSection}>
-              <Text style={codeLabel}>Your Invite Code:</Text>
-              <Text style={codeValue}>{inviteCode}</Text>
-            </Section>
-
-            {/* QR Code */}
-            {qrImageUrl && (
-              <Section style={qrSection}>
-                <Text style={qrLabel}>Scan to RSVP:</Text>
-                <Img
-                  src={qrImageUrl}
-                  alt="QR Code for RSVP"
-                  style={qrImage}
-                />
-              </Section>
             )}
-
-            <Text style={paragraph}>
-              Please RSVP by clicking the button above or visiting our website.
-              We can't wait to celebrate with you!
-            </Text>
-
-            <Text style={paragraph}>
-              With love and excitement,<br />
-              Brenda & Diamond
-            </Text>
+            {travelUrl && (
+              <Text style={linkItem}>
+                <Link href={travelUrl} style={linkStyle}>
+                  ✈️ Travel & Stay
+                </Link>
+              </Text>
+            )}
+            {registryUrl && (
+              <Text style={linkItem}>
+                <Link href={registryUrl} style={linkStyle}>
+                  🎁 Registry
+                </Link>
+              </Text>
+            )}
           </Section>
+        )}
 
-          {/* Footer */}
-          <Hr style={hr} />
-          <Section style={footer}>
-            <Text style={footerText}>
-              This invitation was sent to you for our wedding celebration.
-              If you have any questions, please contact us.
-            </Text>
-          </Section>
-        </Container>
-      </Body>
-    </Html>
+        <Text style={paragraph}>
+          Please RSVP by clicking the button above or visiting our website.
+          We can't wait to celebrate with you!
+        </Text>
+
+        <Text style={paragraph}>
+          With love and excitement,<br />
+          Brenda & Diamond
+        </Text>
+      </Section>
+
+      {/* Footer */}
+      <Footer 
+        websiteUrl="https://brendabagsherdiamond.com"
+        contactEmail={contactEmail}
+        replyToEmail={replyToEmail}
+      />
+    </BaseEmailLayout>
   )
 }
 
+// Subject helper
+export function getInvitationSubject(guestName: string, eventName: string): string {
+  return `You're Invited, ${guestName} — ${eventName}`
+}
+
+// Plain text renderer
+export function renderPlainText(invitation: InvitationEmailProps): string {
+  const lines = [
+    'Brenda & Diamond — Invitation',
+    '',
+    `Dear ${invitation.guestName},`,
+    '',
+    invitation.eventName,
+    invitation.eventDate,
+    invitation.eventVenue,
+    invitation.eventAddress || '',
+    '',
+    `RSVP: ${invitation.rsvpUrl}`,
+    `Invite Code: ${invitation.inviteCode}`,
+    invitation.qrImageUrl ? `QR: ${invitation.qrImageUrl}` : '',
+    '',
+    'Links:',
+    invitation.addToCalendarUrl || '',
+    invitation.travelUrl || '',
+    invitation.registryUrl || '',
+    invitation.contactEmail || '',
+    '',
+    "We can't wait to celebrate with you.",
+  ]
+  
+  return lines.filter(line => line.trim()).join('\n')
+}
+
 // Styles
-const main = {
-  backgroundColor: '#f8f9fa',
-  fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
-}
-
-const container = {
-  margin: '0 auto',
-  padding: '20px 0 48px',
-  maxWidth: '600px',
-}
-
 const header = {
-  backgroundColor: '#1a1a1a',
+  backgroundColor: '#FFFFFF',
   padding: '40px 20px',
   textAlign: 'center' as const,
-  borderRadius: '8px 8px 0 0',
 }
 
 const headerTitle = {
-  color: '#ffffff',
+  color: '#111111',
   fontSize: '32px',
   fontWeight: 'bold',
   margin: '0 0 8px 0',
-  fontFamily: 'serif',
+  fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+  letterSpacing: '1px',
 }
 
 const headerSubtitle = {
-  color: '#d4af37',
+  color: '#C7A049',
   fontSize: '18px',
-  margin: '0',
+  margin: '0 0 20px 0',
   fontWeight: '300',
   letterSpacing: '2px',
 }
 
+const headerRule = {
+  borderColor: '#C7A049',
+  borderWidth: '2px',
+  borderStyle: 'solid',
+  margin: '0',
+  width: '60px',
+}
+
+const heroSection = {
+  textAlign: 'center' as const,
+  padding: '0 20px',
+}
+
+const heroImage = {
+  maxWidth: '100%',
+  height: 'auto',
+  borderRadius: '8px',
+}
+
 const content = {
-  backgroundColor: '#ffffff',
+  backgroundColor: '#FFFFFF',
   padding: '40px 20px',
-  borderRadius: '0 0 8px 8px',
 }
 
 const greeting = {
-  color: '#1a1a1a',
+  color: '#111111',
   fontSize: '24px',
   fontWeight: 'bold',
   margin: '0 0 20px 0',
+  fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
 }
 
 const paragraph = {
@@ -188,26 +282,19 @@ const paragraph = {
 }
 
 const eventCard = {
-  backgroundColor: '#f8f9fa',
-  border: '2px solid #d4af37',
+  backgroundColor: '#FFFFFF',
+  border: '2px solid #C7A049',
   borderRadius: '8px',
   padding: '24px',
   margin: '24px 0',
 }
 
 const eventTitle = {
-  color: '#1a1a1a',
+  color: '#111111',
   fontSize: '20px',
   fontWeight: 'bold',
   margin: '0 0 16px 0',
   textAlign: 'center' as const,
-}
-
-const eventDetail = {
-  color: '#4a4a4a',
-  fontSize: '16px',
-  lineHeight: '24px',
-  margin: '0 0 8px 0',
 }
 
 const buttonContainer = {
@@ -215,23 +302,17 @@ const buttonContainer = {
   margin: '32px 0',
 }
 
-const rsvpButton = {
-  backgroundColor: '#d4af37',
-  borderRadius: '6px',
-  color: '#1a1a1a',
-  fontSize: '18px',
-  fontWeight: 'bold',
-  textDecoration: 'none',
-  textAlign: 'center' as const,
-  display: 'inline-block',
-  padding: '16px 32px',
-  border: 'none',
-  cursor: 'pointer',
+const fallbackUrl = {
+  color: '#666666',
+  fontSize: '14px',
+  margin: '16px 0 0 0',
+  fontFamily: 'monospace',
+  wordBreak: 'break-all' as const,
 }
 
 const codeSection = {
-  backgroundColor: '#f8f9fa',
-  border: '1px solid #e0e0e0',
+  backgroundColor: '#FFFFFF',
+  border: '1px solid #EFE7D7',
   borderRadius: '6px',
   padding: '20px',
   margin: '24px 0',
@@ -246,7 +327,7 @@ const codeLabel = {
 }
 
 const codeValue = {
-  color: '#1a1a1a',
+  color: '#111111',
   fontSize: '24px',
   fontWeight: 'bold',
   margin: '0',
@@ -269,23 +350,34 @@ const qrLabel = {
 const qrImage = {
   maxWidth: '150px',
   height: 'auto',
+  border: '1px solid #C7A049',
+  borderRadius: '4px',
+  padding: '8px',
 }
 
-const hr = {
-  borderColor: '#e0e0e0',
-  margin: '32px 0',
+const linksSection = {
+  backgroundColor: '#FFFFFF',
+  border: '1px solid #EFE7D7',
+  borderRadius: '6px',
+  padding: '20px',
+  margin: '24px 0',
 }
 
-const footer = {
-  textAlign: 'center' as const,
-  padding: '20px 0',
+const linksTitle = {
+  color: '#111111',
+  fontSize: '16px',
+  fontWeight: 'bold',
+  margin: '0 0 12px 0',
 }
 
-const footerText = {
-  color: '#666666',
-  fontSize: '14px',
-  lineHeight: '20px',
-  margin: '0',
+const linkItem = {
+  margin: '0 0 8px 0',
+}
+
+const linkStyle = {
+  color: '#C7A049',
+  textDecoration: 'underline',
+  fontSize: '16px',
 }
 
 export default InvitationEmail

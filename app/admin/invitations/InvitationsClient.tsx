@@ -52,6 +52,7 @@ export default function InvitationsClient({
   const searchParams = useSearchParams()
   const [invitations, setInvitations] = useState(initialInvitations)
   const [loading, setLoading] = useState(false)
+  const [sendingEmail, setSendingEmail] = useState(false)
   const [showInvitationForm, setShowInvitationForm] = useState(false)
   const [showSendEmailDialog, setShowSendEmailDialog] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
@@ -83,9 +84,19 @@ export default function InvitationsClient({
     
     Object.entries(filters).forEach(([key, value]) => {
       if (value) {
-        params.set(key, value.toString())
+        if (key === 'sort' && typeof value === 'object' && value !== null) {
+          // Handle sort object specially
+          const sortObj = value as { column: string; direction: string }
+          params.set('sort', sortObj.column)
+          params.set('direction', sortObj.direction)
+        } else {
+          params.set(key, value.toString())
+        }
       } else {
         params.delete(key)
+        if (key === 'sort') {
+          params.delete('direction')
+        }
       }
     })
     
@@ -204,7 +215,7 @@ export default function InvitationsClient({
     }
   }
 
-  const handleSendEmail = (invitationId: string, eventId: string) => {
+  const handleSendEmail = (invitationId: string) => {
     const invitation = invitations.find(inv => inv.id === invitationId)
     if (invitation) {
       setSelectedInvitation(invitation)
@@ -214,11 +225,16 @@ export default function InvitationsClient({
 
   const handleSendEmailConfirm = async (data: {
     invitationId: string
-    eventId: string
-    email?: string
+    eventIds: string[]
+    to?: string
+    includeQr?: boolean
   }) => {
+    setSendingEmail(true)
     try {
-      await sendInviteEmailAction(data)
+      await sendInviteEmailAction({
+        ...data,
+        includeQr: data.includeQr ?? true,
+      })
       toast({
         title: "Success",
         description: "Invitation email sent successfully",
@@ -232,6 +248,8 @@ export default function InvitationsClient({
         description: error instanceof Error ? error.message : "Failed to send email",
         variant: "destructive",
       })
+    } finally {
+      setSendingEmail(false)
     }
   }
 
@@ -326,7 +344,8 @@ export default function InvitationsClient({
             if (invitation?.invitation_events?.[0]) {
               await sendInviteEmailAction({
                 invitationId,
-                eventId: invitation.invitation_events[0].event_id
+                eventIds: invitation.invitation_events.map(event => event.event_id),
+                includeQr: true
               })
             }
           }
@@ -462,7 +481,7 @@ export default function InvitationsClient({
         onOpenChange={setShowSendEmailDialog}
         invitation={selectedInvitation}
         onSend={handleSendEmailConfirm}
-        loading={loading}
+        loading={sendingEmail}
       />
 
       <ImportCsvDialog

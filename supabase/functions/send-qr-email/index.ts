@@ -6,34 +6,360 @@ import QRCode from "npm:qrcode@1.5.3";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY")!);
 
-serve(async (req: { json: () => PromiseLike<{ email: any; token: any; eventTitle: any; eventStart: any; eventLocation: any; }> | { email: any; token: any; eventTitle: any; eventStart: any; eventLocation: any; }; }) => {
-  try {
-    const { email, token, eventTitle, eventStart, eventLocation } = await req.json();
-    const png = await QRCode.toDataURL(token, { margin: 0 });
-    const ics = [
-      "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Our Wedding//EN","BEGIN:VEVENT",
-      `UID:${crypto.randomUUID()}@ourwedding`,
-      `DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').split('.')[0]}Z`,
-      `DTSTART:${eventStart}`, // e.g. 20251012T213000Z
-      `SUMMARY:${eventTitle}`,
-      `LOCATION:${eventLocation}`,
-      "END:VEVENT","END:VCALENDAR"
-    ].join('\r\n');
+interface EmailPayload {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  meta: {
+    invitationId: string;
+    eventIds: string[];
+    rsvpUrl: string;
+    guestName: string;
+    inviteCode: string;
+    events: Array<{
+      id: string;
+      name: string;
+      startsAtISO: string;
+      venue: string;
+      address?: string;
+    }>;
+    primaryEvent: {
+      id: string;
+      name: string;
+      startsAtISO: string;
+      venue: string;
+      address?: string;
+    };
+    includeQr: boolean;
+    eventDate: string;
+    qrImageUrl?: string;
+  };
+  attachments?: Array<{
+    filename: string;
+    content: string;
+    contentType: string;
+  }>;
+}
 
-    await resend.emails.send({
-      from: "RSVP <hello@yourdomain.com>",
-      to: email,
-      subject: `Your RSVP & QR Code • ${eventTitle}`,
-      html: `<div style="font-family:Inter,system-ui">
-        <h2 style="font-family:Playfair Display,serif">We can’t wait to see you!</h2>
-        <p>Show this QR at check‑in:</p>
-        <img src="${png}" alt="QR" style="width:180px;height:180px;border:1px solid #CDA349;padding:6px" />
-      </div>`,
-      attachments: [{ filename: "event.ics", content: btoa(ics) }]
+// Helper function to generate QR code as base64 data URI
+async function generateQRCodeBuffer(text: string): Promise<Buffer> {
+  try {
+    console.log('Generating QR code for:', text);
+    const qrCodeBuffer = await QRCode.toBuffer(text, {
+      width: 150,
+      margin: 2,
+      color: {
+        dark: '#111111',
+        light: '#FFFFFF'
+      }
+    });
+    console.log('QR code generated successfully, size:', qrCodeBuffer.length);
+    return qrCodeBuffer;
+  } catch (error) {
+    console.error('Error generating QR code:', error);
+    throw error;
+  }
+}
+
+// Helper function to generate email HTML
+async function generateEmailHTML({
+  guestName,
+  inviteCode,
+  rsvpUrl,
+  events,
+  primaryEvent,
+  eventDate,
+  qrImageUrl,
+  includeQr,
+}: {
+  guestName: string;
+  inviteCode: string;
+  rsvpUrl: string;
+  events: Array<{
+    id: string;
+    name: string;
+    startsAtISO: string;
+    venue: string;
+    address?: string;
+  }>;
+  primaryEvent: {
+    id: string;
+    name: string;
+    startsAtISO: string;
+    venue: string;
+    address?: string;
+  };
+  eventDate: string;
+  includeQr?: boolean;
+}): Promise<string> {
+  const mapUrl = primaryEvent.address ? `https://maps.google.com/maps?q=${encodeURIComponent(primaryEvent.address)}` : undefined;
+  
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>You're Invited, ${guestName} — ${primaryEvent.name}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #FFFFFF; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; background-color: #FFFFFF;">
+    
+    <!-- Logo Header -->
+    <div style="background-color: #000000; padding: 30px 20px; text-align: center;">
+      <img src="https://utumylehywfktctigkie.supabase.co/storage/v1/object/public/bdiamond/logo.png" alt="Brenda & Diamond" style="max-width: 200px; height: auto; margin: 0 auto; display: block;">
+    </div>
+
+    <!-- Header -->
+    <div style="background-color: #FFFFFF; padding: 40px 20px; text-align: center;">
+      <h1 style="color: #111111; font-size: 32px; font-weight: bold; margin: 0 0 8px 0; letter-spacing: 1px;">Brenda & Diamond</h1>
+      <p style="color: #C7A049; font-size: 18px; margin: 0 0 20px 0; font-weight: 300; letter-spacing: 2px;">Wedding Celebration</p>
+      <hr style="border: 2px solid #C7A049; margin: 0; width: 60px;">
+    </div>
+
+    <!-- Main Content -->
+    <div style="background-color: #FFFFFF; padding: 40px 20px;">
+      <p style="color: #111111; font-size: 24px; font-weight: bold; margin: 0 0 20px 0;">Dear ${guestName},</p>
+      
+      <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+        We are delighted to invite you to celebrate our special day with us!
+      </p>
+
+      <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+        Your presence would make our wedding celebration even more meaningful.
+      </p>
+
+            <!-- Event Details Cards -->
+            ${events
+              .sort((a, b) => new Date(a.startsAtISO).getTime() - new Date(b.startsAtISO).getTime())
+              .map(event => {
+        const eventDate = new Date(event.startsAtISO).toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+        const eventTime = new Date(event.startsAtISO).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        });
+        const eventMapUrl = event.address ? `https://maps.google.com/maps?q=${encodeURIComponent(event.address)}` : undefined;
+        const formattedEventDateTime = `${eventDate} · ${eventTime}`;
+        
+        return `
+        <div style="background-color: #FFFFFF; border: 2px solid #C7A049; border-radius: 8px; padding: 24px; margin: 24px 0;">
+          <h2 style="color: #111111; font-size: 20px; font-weight: bold; margin: 0 0 16px 0; text-align: center;">${event.name}</h2>
+          
+          <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 8px 0;">
+            <span style="font-weight: 600; color: #111111; margin-right: 8px;">📅 Date:</span>${formattedEventDateTime}
+          </p>
+          <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 8px 0;">
+            <span style="font-weight: 600; color: #111111; margin-right: 8px;">📍 Venue:</span>
+            ${eventMapUrl ? `<a href="${eventMapUrl}" style="color: #C7A049; text-decoration: underline;">${event.venue}</a>` : event.venue}
+          </p>
+          ${event.address ? `
+          <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 8px 0;">
+            <span style="font-weight: 600; color: #111111; margin-right: 8px;">🏠 Address:</span>
+            ${eventMapUrl ? `<a href="${eventMapUrl}" style="color: #C7A049; text-decoration: underline;">${event.address}</a>` : event.address}
+          </p>
+          ` : ''}
+        </div>
+        `;
+      }).join('')}
+
+      <!-- RSVP Button -->
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${rsvpUrl}" style="background-color: #C7A049; border-radius: 8px; color: #111111; font-size: 18px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 14px 32px 18px 32px; border: none; cursor: pointer; min-height: 44px; min-width: 44px; line-height: 1.2;">
+          RSVP Now
+        </a>
+        <p style="color: #666666; font-size: 14px; margin: 16px 0 0 0; font-family: monospace; word-break: break-all;">
+          Can't click the button? Copy this link: ${rsvpUrl}
+        </p>
+      </div>
+
+      <!-- Invite Code -->
+      <div style="background-color: #FFFFFF; border: 1px solid #EFE7D7; border-radius: 6px; padding: 20px; margin: 24px 0; text-align: center;">
+        <p style="color: #666666; font-size: 14px; margin: 0 0 8px 0; font-weight: 500;">Your Invite Code:</p>
+        <p style="color: #111111; font-size: 24px; font-weight: bold; margin: 0; font-family: monospace; letter-spacing: 2px;">${inviteCode}</p>
+      </div>
+
+            ${includeQr ? `
+            <!-- QR Code -->
+            <div style="text-align: center; margin: 24px 0;">
+              <p style="color: #666666; font-size: 14px; margin: 0 0 12px 0; font-weight: 500;">Show this at check-in (see attached QR code image):</p>
+            </div>
+            ` : ''}
+
+      <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 20px 0;">
+        Please RSVP by clicking the button above or visiting our website.
+        We can't wait to celebrate with you!
+      </p>
+
+      <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 20px 0;">
+        With love and excitement,<br>
+        Brenda & Diamond
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <hr style="border-color: #EFE7D7; margin: 32px 0;">
+    <div style="text-align: center; padding: 20px 0;">
+      <p style="color: #666666; font-size: 16px; line-height: 24px; margin: 0 0 16px 0;">
+        We can't wait to celebrate with you ✨
+      </p>
+      <p style="margin: 0 0 16px 0;">
+        <a href="https://brendabagsherdiamond.com" style="color: #C7A049; text-decoration: underline;">Visit our website</a>
+      </p>
+      <p style="color: #666666; font-size: 14px; line-height: 20px; margin: 0;">
+        Questions? Contact us at <a href="mailto:hello@brendabagsherdiamond.com" style="color: #C7A049; text-decoration: underline;">hello@brendabagsherdiamond.com</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+}
+
+// Helper function to generate email text
+function generateEmailText({
+  guestName,
+  inviteCode,
+  rsvpUrl,
+  events,
+}: {
+  guestName: string;
+  inviteCode: string;
+  rsvpUrl: string;
+  events: Array<{
+    id: string;
+    name: string;
+    startsAtISO: string;
+    venue: string;
+    address?: string;
+  }>;
+}): string {
+  const eventDetails = events
+    .sort((a, b) => new Date(a.startsAtISO).getTime() - new Date(b.startsAtISO).getTime())
+    .map(event => {
+    const eventDate = new Date(event.startsAtISO).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    const eventTime = new Date(event.startsAtISO).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    const formattedEventDateTime = `${eventDate} · ${eventTime}`;
+    
+    return [
+      event.name,
+      formattedEventDateTime,
+      event.venue,
+      event.address || '',
+      '',
+    ];
+  }).flat();
+
+  const lines = [
+    'Brenda & Diamond — Invitation',
+    '',
+    `Dear ${guestName},`,
+    '',
+    ...eventDetails,
+    `RSVP: ${rsvpUrl}`,
+    `Invite Code: ${inviteCode}`,
+    '',
+    "We can't wait to celebrate with you.",
+  ];
+  
+  return lines.filter(line => line.trim()).join('\n');
+}
+
+serve(async (req: Request) => {
+  try {
+    const payload: EmailPayload = await req.json();
+    
+    // Validate payload
+    if (!payload.to || !payload.subject || !payload.meta) {
+      return new Response(JSON.stringify({ error: "Invalid payload" }), { 
+        status: 400,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    const { meta, attachments = [] } = payload;
+    
+    // Generate QR code as attachment if requested
+    let finalAttachments = [...attachments];
+    if (meta.includeQr) {
+      try {
+        const qrCodeBuffer = await generateQRCodeBuffer(meta.rsvpUrl);
+        finalAttachments.push({
+          filename: 'qr-code.png',
+          content: qrCodeBuffer.toString('base64'),
+          contentType: 'image/png',
+        });
+      } catch (error) {
+        console.error('Failed to generate QR code:', error);
+      }
+    }
+
+    // Generate email HTML directly
+    const html = await generateEmailHTML({
+      guestName: meta.guestName,
+      inviteCode: meta.inviteCode,
+      rsvpUrl: meta.rsvpUrl,
+      events: meta.events,
+      primaryEvent: meta.primaryEvent,
+      eventDate: meta.eventDate,
+      includeQr: meta.includeQr,
     });
 
-    return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type":"application/json" } });
+    const text = generateEmailText({
+      guestName: meta.guestName,
+      inviteCode: meta.inviteCode,
+      rsvpUrl: meta.rsvpUrl,
+      events: meta.events,
+    });
+
+    // Send email
+    const { data, error } = await resend.emails.send({
+      from: "Brenda & Diamond <hello@brendabagsherdiamond.com>",
+      to: payload.to,
+      subject: payload.subject,
+      html,
+      text,
+      attachments: finalAttachments.map(att => ({
+        filename: att.filename,
+        content: att.content,
+        content_type: att.contentType,
+      })),
+    });
+
+    if (error) {
+      console.error("Resend error:", error);
+      return new Response(JSON.stringify({ error: "Failed to send email" }), { 
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      messageId: data?.id 
+    }), { 
+      headers: { "Content-Type": "application/json" } 
+    });
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), { status: 400 });
+    console.error("Edge function error:", e);
+    return new Response(JSON.stringify({ error: String(e) }), { 
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 });

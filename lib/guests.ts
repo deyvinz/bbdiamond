@@ -87,19 +87,23 @@ export async function getGuestsServer(
         party_size: latestRsvp.party_size,
         message: latestRsvp.message
       } : undefined,
-      // Add all events for this guest
-      all_events: allInvitationEvents.map((ie: any) => ({
-        event_id: ie.event_id,
-        event_name: ie.event?.name || 'Unknown Event',
-        event_starts_at: ie.event?.starts_at,
-        event_venue: ie.event?.venue,
-        event_address: ie.event?.address,
-        status: ie.status,
-        headcount: ie.headcount,
-        event_token: ie.event_token,
-        created_at: ie.created_at,
-        rsvps: ie.rsvps_v2 || []
-      }))
+      // Add all events for this guest, sorted by start date
+      all_events: allInvitationEvents
+        .map((ie: any) => ({
+          event_id: ie.event_id,
+          event_name: ie.event?.name || 'Unknown Event',
+          event_starts_at: ie.event?.starts_at,
+          event_venue: ie.event?.venue,
+          event_address: ie.event?.address,
+          status: ie.status,
+          headcount: ie.headcount,
+          event_token: ie.event_token,
+          created_at: ie.created_at,
+          rsvps: ie.rsvps_v2 || []
+        }))
+        .sort((a: any, b: any) => 
+          new Date(a.event_starts_at || 0).getTime() - new Date(b.event_starts_at || 0).getTime()
+        )
     }
   })
 
