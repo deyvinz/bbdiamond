@@ -243,7 +243,6 @@ function GuestTable({
               <TableHead>Phone</TableHead>
               <TableHead>Household</TableHead>
               <TableHead>VIP</TableHead>
-              <TableHead>Plus Ones</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-12"></TableHead>
             </TableRow>
@@ -270,7 +269,6 @@ function GuestTable({
                     '-'
                   )}
                 </TableCell>
-                <TableCell>{guest.plus_ones_allowed}</TableCell>
                 <TableCell>{getStatusBadge(guest.latest_rsvp?.status)}</TableCell>
                 <TableCell>
                   <DropdownMenu>
@@ -296,16 +294,16 @@ function GuestTable({
                             onClick={() => handleCopyToken(invitation.token)}
                           >
                             <Copy className="h-4 w-4 mr-2" />
-                            Copy Token ({invitation.event?.name})
+                            Copy Token ({invitation.invitation_events?.[0]?.event?.name || 'Event'})
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => onRegenerateToken(guest.id, invitation.event_id)}
+                            onClick={() => onRegenerateToken(guest.id, invitation.invitation_events?.[0]?.event_id || '')}
                           >
                             <RefreshCw className="h-4 w-4 mr-2" />
                             Regenerate Token
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => onSendInvite(guest.id, invitation.event_id)}
+                            onClick={() => onSendInvite(guest.id, invitation.invitation_events?.[0]?.event_id || '')}
                           >
                             <Mail className="h-4 w-4 mr-2" />
                             Send Invite

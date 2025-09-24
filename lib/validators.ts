@@ -8,7 +8,6 @@ export const guestSchema = z.object({
   household_id: z.string().optional(),
   household_name: z.string().optional(),
   is_vip: z.boolean().default(false),
-  plus_ones_allowed: z.number().int().min(0).max(10).default(0),
   gender: z.enum(['male', 'female', 'other']).optional(),
 })
 
@@ -107,6 +106,18 @@ export const sendEmailSchema = z.object({
   includeQr: z.boolean().default(true),
 })
 
+// Event schemas
+export const eventSchema = z.object({
+  name: z.string().min(1, 'Event name is required').max(100, 'Event name too long'),
+  venue: z.string().min(1, 'Venue is required').max(200, 'Venue name too long'),
+  address: z.string().optional().or(z.literal('')),
+  starts_at: z.string().min(1, 'Start date and time is required'),
+})
+
+export const createEventSchema = eventSchema
+
+export const updateEventSchema = eventSchema.partial()
+
 export type GuestInput = z.infer<typeof guestSchema>
 export type CsvGuestInput = z.infer<typeof csvGuestSchema>
 export type PaginationInput = z.infer<typeof paginationSchema>
@@ -119,3 +130,6 @@ export type UpdateInvitationInput = z.infer<typeof updateInvitationSchema>
 export type InvitationFiltersInput = z.infer<typeof invitationFiltersSchema>
 export type CsvInvitationInput = z.infer<typeof csvInvitationSchema>
 export type SendEmailInput = z.infer<typeof sendEmailSchema>
+export type EventInput = z.infer<typeof eventSchema>
+export type CreateEventInput = z.infer<typeof createEventSchema>
+export type UpdateEventInput = z.infer<typeof updateEventSchema>

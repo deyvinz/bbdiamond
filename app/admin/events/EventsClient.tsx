@@ -2,23 +2,12 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { useToast } from '@/components/ui/use-toast'
-import { supabase } from '@/lib/supabase-browser'
-import { Plus, Calendar, MapPin, Clock } from 'lucide-react'
-
-interface Event {
-  id: string
-  name: string
-  venue: string
-  address: string
-  starts_at: string
-  created_at: string
-  updated_at: string
-}
+import { Card, CardContent } from '@/components/ui/card'
+import { useToast } from '@/hooks/use-toast'
+import { Plus, MapPin, Clock, Edit, Trash2 } from 'lucide-react'
+import EventForm from './EventForm'
+import type { Event } from '@/lib/events-service'
+import type { CreateEventInput, UpdateEventInput } from '@/lib/validators'
 
 interface EventsClientProps {
   initialEvents: Event[]
@@ -27,38 +16,28 @@ interface EventsClientProps {
 export default function EventsClient({ initialEvents }: EventsClientProps) {
   const [events, setEvents] = useState<Event[]>(initialEvents)
   const [showForm, setShowForm] = useState(false)
-  const [formData, setFormData] = useState({
-    name: '',
-    venue: '',
-    address: '',
-    starts_at: ''
-  })
+  const [editingEvent, setEditingEvent] = useState<Event | undefined>(undefined)
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!formData.name || !formData.venue || !formData.starts_at) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      })
-      return
-    }
-
+  const handleCreateEvent = async (eventData: CreateEventInput) => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('events')
-        .insert([formData])
-        .select()
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(eventData),
+      })
 
-      if (error) throw error
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to create event')
+      }
 
-      setEvents([...events, data[0]])
-      setFormData({ name: '', venue: '', address: '', starts_at: '' })
+      const newEvent = await response.json()
+      setEvents(prev => [...prev, newEvent])
       setShowForm(false)
       
       toast({
@@ -73,6 +52,95 @@ export default function EventsClient({ initialEvents }: EventsClientProps) {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleUpdateEvent = async (eventData: UpdateEventInput) => {
+    if (!editingEvent) return
+
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/events/${editingEvent.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(eventData),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update event')
+      }
+
+      const updatedEvent = await response.json()
+      setEvents(prev => prev.map(event => 
+        event.id === editingEvent.id ? updatedEvent : event
+      ))
+      setEditingEvent(undefined)
+      
+      toast({
+        title: "Success",
+        description: "Event updated successfully",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update event",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteEvent = async (eventId: string) => {
+    if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
+      return
+    }
+
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete event')
+      }
+
+      setEvents(prev => prev.filter(event => event.id !== eventId))
+      
+      toast({
+        title: "Success",
+        description: "Event deleted successfully",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete event",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleEditClick = (event: Event) => {
+    setEditingEvent(event)
+  }
+
+  const handleFormClose = () => {
+    setShowForm(false)
+    setEditingEvent(undefined)
+  }
+
+  const handleFormSave = (data: CreateEventInput | UpdateEventInput) => {
+    if (editingEvent) {
+      handleUpdateEvent(data as UpdateEventInput)
+    } else {
+      handleCreateEvent(data as CreateEventInput)
     }
   }
 
@@ -91,73 +159,11 @@ export default function EventsClient({ initialEvents }: EventsClientProps) {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-semibold">All Events</h2>
-        <Button onClick={() => setShowForm(!showForm)}>
+        <Button onClick={() => setShowForm(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Add Event
         </Button>
       </div>
-
-      {showForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Add New Event</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name">Event Name *</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="e.g., Wedding Ceremony"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="venue">Venue *</Label>
-                  <Input
-                    id="venue"
-                    value={formData.venue}
-                    onChange={(e) => setFormData({ ...formData, venue: e.target.value })}
-                    placeholder="e.g., St. Mary Church"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="address">Address</Label>
-                <Textarea
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder="Full address of the venue"
-                  rows={2}
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="starts_at">Date & Time *</Label>
-                <Input
-                  id="starts_at"
-                  type="datetime-local"
-                  value={formData.starts_at}
-                  onChange={(e) => setFormData({ ...formData, starts_at: e.target.value })}
-                />
-              </div>
-              
-              <div className="flex gap-2">
-                <Button type="submit" disabled={loading}>
-                  {loading ? 'Creating...' : 'Create Event'}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="grid gap-4">
         {events.length === 0 ? (
@@ -171,7 +177,7 @@ export default function EventsClient({ initialEvents }: EventsClientProps) {
             <Card key={event.id}>
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
-                  <div className="space-y-2">
+                  <div className="space-y-2 flex-1">
                     <h3 className="text-xl font-semibold">{event.name}</h3>
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <MapPin className="h-4 w-4" />
@@ -185,12 +191,39 @@ export default function EventsClient({ initialEvents }: EventsClientProps) {
                       <span>{formatDate(event.starts_at)}</span>
                     </div>
                   </div>
+                  <div className="flex items-center gap-2 ml-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditClick(event)}
+                      disabled={loading}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteEvent(event.id)}
+                      disabled={loading}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           ))
         )}
       </div>
+
+      <EventForm
+        open={showForm || !!editingEvent}
+        onOpenChange={handleFormClose}
+        event={editingEvent}
+        onSave={handleFormSave}
+        loading={loading}
+      />
     </div>
   )
 }

@@ -1,30 +1,40 @@
-import { supabaseServer } from '@/lib/supabase-server'
+import { getEventsPage } from '@/lib/events-service'
 import EventsClient from './EventsClient'
 
 export default async function EventsPage() {
-  const supabase = await supabaseServer()
-  
-  const { data: events, error } = await supabase
-    .from('events')
-    .select('*')
-    .order('starts_at', { ascending: true })
+  try {
+    const { events } = await getEventsPage()
 
-  if (error) {
-    console.error('Error fetching events:', error)
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Events</h1>
-          <p className="text-muted-foreground">
-            Manage wedding events and ceremonies
-          </p>
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Events</h1>
+            <p className="text-muted-foreground">
+              Manage wedding events and ceremonies
+            </p>
+          </div>
         </div>
-      </div>
 
-      <EventsClient initialEvents={events || []} />
-    </div>
-  )
+        <EventsClient initialEvents={events} />
+      </div>
+    )
+  } catch (error) {
+    console.error('Error fetching events:', error)
+    
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Events</h1>
+            <p className="text-muted-foreground">
+              Manage wedding events and ceremonies
+            </p>
+          </div>
+        </div>
+
+        <EventsClient initialEvents={[]} />
+      </div>
+    )
+  }
 }

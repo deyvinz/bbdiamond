@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    const invitation = await createInvitationForGuest(guestId, eventId, headcount || 1)
+    const invitation = await createInvitationForGuest(guestId, eventId)
     return NextResponse.json(invitation)
   } catch (error) {
     console.error('Error creating invitation:', error)

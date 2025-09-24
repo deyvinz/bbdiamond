@@ -150,15 +150,14 @@ export async function deleteGuest(id: string): Promise<boolean> {
 
 export async function createInvitationForGuest(
   guestId: string, 
-  eventId: string, 
-  headcount: number = 1
+  eventId: string
 ): Promise<{ id: string; token: string; created_at: string }> {
   const response = await fetch('/api/guests/invitations', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ guestId, eventId, headcount }),
+    body: JSON.stringify({ guestId, eventId, headcount: 1 }),
   })
 
   if (!response.ok) {

@@ -1,28 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseServer } from '@/lib/supabase-server'
+import { getEventsPage, createEvent } from '@/lib/events-service'
+import { createEventSchema } from '@/lib/validators'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await supabaseServer()
-    
-    const { data: events, error } = await supabase
-      .from('events')
-      .select('*')
-      .order('starts_at', { ascending: true })
-
-    if (error) {
-      console.error('Error fetching events:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch events' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({ events: events || [] })
+    const { events } = await getEventsPage()
+    return NextResponse.json(events)
   } catch (error) {
     console.error('Error fetching events:', error)
     return NextResponse.json(
       { error: 'Failed to fetch events' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    
+    // Validate input
+    const validatedData = createEventSchema.parse(body)
+    
+    const event = await createEvent(validatedData)
+    return NextResponse.json(event)
+  } catch (error) {
+    console.error('Error creating event:', error)
+    
+    if (error instanceof Error && error.name === 'ZodError') {
+      return NextResponse.json(
+        { error: 'Invalid input data', details: error.message },
+        { status: 400 }
+      )
+    }
+    
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to create event' },
       { status: 500 }
     )
   }

@@ -130,3 +130,14 @@ export function invitationsByGuestKey(guestId: string): string {
   return `${namespace}:invitations:guest:${guestId}`
 }
 
+// Event cache keys
+export function eventsListKey(): string {
+  const namespace = process.env.CACHE_NAMESPACE || 'wg'
+  return `${namespace}:events:list`
+}
+
+export function eventDetailKey(eventId: string): string {
+  const namespace = process.env.CACHE_NAMESPACE || 'wg'
+  return `${namespace}:events:detail:${eventId}`
+}
+

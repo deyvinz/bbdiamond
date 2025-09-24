@@ -7,15 +7,15 @@ export default function Page(){
       <Accordion type="single" collapsible className="w-full">
         <AccordionItem value="q1">
           <AccordionTrigger>Can I bring a plus‑one?</AccordionTrigger>
-          <AccordionContent>If your invite includes a plus‑one, yes!</AccordionContent>
+          <AccordionContent>No, plus‑ones are not allowed.</AccordionContent>
         </AccordionItem>
         <AccordionItem value="q2">
           <AccordionTrigger>Is there a dress code?</AccordionTrigger>
-          <AccordionContent>Black tie with gold accents.</AccordionContent>
+          <AccordionContent>Dress nice and elegant.</AccordionContent>
         </AccordionItem>
         <AccordionItem value="q3">
           <AccordionTrigger>Are kids welcome?</AccordionTrigger>
-          <AccordionContent>Ceremony yes, reception adults only.</AccordionContent>
+          <AccordionContent>No, kids are not allowed. Only adults are allowed.</AccordionContent>
         </AccordionItem>
       </Accordion>
     </Section>

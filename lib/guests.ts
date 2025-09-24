@@ -388,7 +388,6 @@ export async function exportGuestsToCsv(guests: Guest[]) {
     email: guest.email,
     phone: guest.phone || '',
     is_vip: guest.is_vip ? 'Yes' : 'No',
-    plus_ones_allowed: guest.plus_ones_allowed.toString(),
     gender: guest.gender || '',
     household_name: guest.household?.name || '',
     rsvp_status: guest.latest_rsvp?.status || 'pending'

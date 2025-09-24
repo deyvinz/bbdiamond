@@ -66,7 +66,6 @@ export const expectedCsvColumns = [
   'email',
   'phone',
   'is_vip',
-  'plus_ones_allowed',
   'dietary',
   'household_name'
 ] as const

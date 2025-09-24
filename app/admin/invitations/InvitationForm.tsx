@@ -37,7 +37,7 @@ interface InvitationFormProps {
     guest_ids: string[]
     events: Array<{
       event_id: string
-      headcount: number
+      headcount: number // Fixed at 1, not editable in form
       status: 'pending' | 'accepted' | 'declined' | 'waitlist'
     }>
   }) => void
@@ -177,7 +177,7 @@ export default function InvitationForm({
   const handleAddEvent = (event: EventOption) => {
     setSelectedEvents(prev => [...prev, {
       event_id: event.id,
-      headcount: 1,
+      headcount: 1, // Fixed headcount of 1
       status: 'pending',
     }])
     setSearchEvent('')
@@ -188,11 +188,14 @@ export default function InvitationForm({
   }
 
   const handleEventChange = (eventId: string, field: string, value: any) => {
-    setSelectedEvents(prev => prev.map(event => 
-      event.event_id === eventId 
-        ? { ...event, [field]: value }
-        : event
-    ))
+    // Only allow status changes, headcount is fixed at 1
+    if (field === 'status') {
+      setSelectedEvents(prev => prev.map(event => 
+        event.event_id === eventId 
+          ? { ...event, [field]: value }
+          : event
+      ))
+    }
   }
 
   const handleSubmit = () => {
@@ -343,35 +346,22 @@ export default function InvitationForm({
                               </div>
                             )}
 
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor={`headcount-${index}`}>Headcount</Label>
-                                <Input
-                                  id={`headcount-${index}`}
-                                  type="number"
-                                  min="1"
-                                  max="20"
-                                  value={eventData.headcount}
-                                  onChange={(e) => handleEventChange(eventData.event_id, 'headcount', parseInt(e.target.value))}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`status-${index}`}>Status</Label>
-                                <Select
-                                  value={eventData.status}
-                                  onValueChange={(value) => handleEventChange(eventData.event_id, 'status', value)}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="pending">Pending</SelectItem>
-                                    <SelectItem value="accepted">Accepted</SelectItem>
-                                    <SelectItem value="declined">Declined</SelectItem>
-                                    <SelectItem value="waitlist">Waitlist</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`status-${index}`}>Status</Label>
+                              <Select
+                                value={eventData.status}
+                                onValueChange={(value) => handleEventChange(eventData.event_id, 'status', value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="pending">Pending</SelectItem>
+                                  <SelectItem value="accepted">Accepted</SelectItem>
+                                  <SelectItem value="declined">Declined</SelectItem>
+                                  <SelectItem value="waitlist">Waitlist</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </div>
                           </div>
                         </div>

@@ -267,7 +267,6 @@ export async function exportGuestsToCsv(guests: Guest[]) {
     email: guest.email,
     phone: guest.phone || '',
     is_vip: guest.is_vip ? 'Yes' : 'No',
-    plus_ones_allowed: guest.plus_ones_allowed.toString(),
     gender: guest.gender || '',
     household_name: guest.household?.name || '',
     rsvp_status: guest.latest_rsvp?.status || 'pending'
@@ -339,7 +338,7 @@ export async function importGuestsFromCsv(csvText: string, eventIds?: string[]):
         // Create invitations if eventIds provided
         if (eventIds && eventIds.length > 0) {
           for (const eventId of eventIds) {
-            await createInvitationForGuest(newGuest.id, eventId, 1)
+            await createInvitationForGuest(newGuest.id, eventId)
           }
         }
       }
@@ -353,7 +352,7 @@ export async function importGuestsFromCsv(csvText: string, eventIds?: string[]):
           // Create invitations if eventIds provided
           if (eventIds && eventIds.length > 0) {
             for (const eventId of eventIds) {
-              await createInvitationForGuest(newGuest.id, eventId, 1)
+              await createInvitationForGuest(newGuest.id, eventId)
             }
           }
         } catch (createError) {

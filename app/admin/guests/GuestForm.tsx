@@ -45,7 +45,6 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
     household_id: string
     household_name: string
     is_vip: boolean
-    plus_ones_allowed: number
     gender: 'male' | 'female' | ''
   }>({
     first_name: '',
@@ -55,15 +54,12 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
     household_id: '',
     household_name: '',
     is_vip: false,
-    plus_ones_allowed: 0,
     gender: '',
   })
   const [invitationData, setInvitationData] = useState<{
     event_ids: string[]
-    headcount: number
   }>({
     event_ids: [],
-    headcount: 1,
   })
   const [createInvitation, setCreateInvitation] = useState(false)
   const [events, setEvents] = useState<Event[]>([])
@@ -87,7 +83,6 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
           household_id: guest.household_id || 'none',
           household_name: '',
           is_vip: guest.is_vip,
-          plus_ones_allowed: guest.plus_ones_allowed,
           gender: guest.gender || '',
         })
       } else {
@@ -99,11 +94,10 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
           household_id: 'none',
           household_name: '',
           is_vip: false,
-          plus_ones_allowed: 0,
           gender: '',
         })
       }
-      setInvitationData({ event_ids: [], headcount: 1 })
+      setInvitationData({ event_ids: [] })
       setCreateInvitation(false)
       setErrors({})
     }
@@ -161,7 +155,7 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
     }
   }
 
-  const handleInvitationChange = (field: string, value: string | number | string[]) => {
+  const handleInvitationChange = (field: string, value: string | string[]) => {
     setInvitationData(prev => ({ ...prev, [field]: value }))
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }))
@@ -226,8 +220,7 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
       }
 
       const invitationPayload = createInvitation && invitationData.event_ids.length > 0 ? {
-        event_ids: invitationData.event_ids,
-        headcount: invitationData.headcount
+        event_ids: invitationData.event_ids
       } : undefined
       
       onSave({ guest: guestPayload, invitation: invitationPayload })
@@ -263,153 +256,145 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6 px-1">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="first_name">First Name *</Label>
-              <Input
-                id="first_name"
-                value={formData.first_name}
-                onChange={(e) => handleInputChange('first_name', e.target.value)}
-                className={errors.first_name ? 'border-red-500' : ''}
-              />
-              {errors.first_name && (
-                <p className="text-sm text-red-500 mt-1">{errors.first_name}</p>
-              )}
+          {/* Personal Information Section */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Personal Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="first_name">First Name *</Label>
+                <Input
+                  id="first_name"
+                  value={formData.first_name}
+                  onChange={(e) => handleInputChange('first_name', e.target.value)}
+                  className={errors.first_name ? 'border-red-500' : ''}
+                />
+                {errors.first_name && (
+                  <p className="text-sm text-red-500 mt-1">{errors.first_name}</p>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="last_name">Last Name *</Label>
+                <Input
+                  id="last_name"
+                  value={formData.last_name}
+                  onChange={(e) => handleInputChange('last_name', e.target.value)}
+                  className={errors.last_name ? 'border-red-500' : ''}
+                />
+                {errors.last_name && (
+                  <p className="text-sm text-red-500 mt-1">{errors.last_name}</p>
+                )}
+              </div>
             </div>
-            <div>
-              <Label htmlFor="last_name">Last Name *</Label>
-              <Input
-                id="last_name"
-                value={formData.last_name}
-                onChange={(e) => handleInputChange('last_name', e.target.value)}
-                className={errors.last_name ? 'border-red-500' : ''}
-              />
-              {errors.last_name && (
-                <p className="text-sm text-red-500 mt-1">{errors.last_name}</p>
-              )}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  className={errors.email ? 'border-red-500' : ''}
+                />
+                {errors.email && (
+                  <p className="text-sm text-red-500 mt-1">{errors.email}</p>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  value={formData.phone}
+                  onChange={(e) => handleInputChange('phone', e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="gender">Gender</Label>
+                <Select
+                  value={formData.gender}
+                  onValueChange={(value) => handleInputChange('gender', value as any)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="is_vip"
+                  checked={formData.is_vip}
+                  onCheckedChange={(checked) => handleInputChange('is_vip', checked)}
+                />
+                <Label htmlFor="is_vip">VIP Guest</Label>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="email">Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => handleInputChange('email', e.target.value)}
-                className={errors.email ? 'border-red-500' : ''}
-              />
-              {errors.email && (
-                <p className="text-sm text-red-500 mt-1">{errors.email}</p>
-              )}
-            </div>
-            <div>
-              <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                value={formData.phone}
-                onChange={(e) => handleInputChange('phone', e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="household_id">Household</Label>
-              <Select
-                value={formData.household_id}
-                onValueChange={(value) => handleInputChange('household_id', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select household" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No household</SelectItem>
-                  {households.map((household) => (
-                    <SelectItem key={household.id} value={household.id}>
-                      {household.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="household_name">Or create new household</Label>
-              <Input
-                id="household_name"
-                value={formData.household_name}
-                onChange={(e) => handleInputChange('household_name', e.target.value)}
-                placeholder="Enter household name"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="is_vip"
-                checked={formData.is_vip}
-                onCheckedChange={(checked) => handleInputChange('is_vip', checked)}
-              />
-              <Label htmlFor="is_vip">VIP Guest</Label>
-            </div>
-            <div>
-              <Label htmlFor="plus_ones_allowed">Plus Ones Allowed</Label>
-              <Input
-                id="plus_ones_allowed"
-                type="number"
-                min="0"
-                max="10"
-                value={formData.plus_ones_allowed}
-                onChange={(e) => handleInputChange('plus_ones_allowed', parseInt(e.target.value) || 0)}
-                className={errors.plus_ones_allowed ? 'border-red-500' : ''}
-              />
-              {errors.plus_ones_allowed && (
-                <p className="text-sm text-red-500 mt-1">{errors.plus_ones_allowed}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="gender">Gender</Label>
-              <Select
-                value={formData.gender}
-                onValueChange={(value) => handleInputChange('gender', value as any)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select gender" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="male">Male</SelectItem>
-                  <SelectItem value="female">Female</SelectItem>
-                </SelectContent>
-              </Select>
+          {/* Household Information Section */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Household Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="household_id">Existing Household</Label>
+                <Select
+                  value={formData.household_id}
+                  onValueChange={(value) => handleInputChange('household_id', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select household" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No household</SelectItem>
+                    {households.map((household) => (
+                      <SelectItem key={household.id} value={household.id}>
+                        {household.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="household_name">Or Create New Household</Label>
+                <Input
+                  id="household_name"
+                  value={formData.household_name}
+                  onChange={(e) => handleInputChange('household_name', e.target.value)}
+                  placeholder="Enter household name"
+                />
+              </div>
             </div>
           </div>
 
           {/* Invitation Section */}
-          <div className="border-t pt-4">
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Invitation Settings</h3>
             <div className="flex items-center space-x-2 mb-4">
               <Checkbox
                 id="create_invitation"
                 checked={createInvitation}
                 onCheckedChange={(checked) => setCreateInvitation(checked as boolean)}
               />
-              <Label htmlFor="create_invitation" className="text-lg font-medium">
+              <Label htmlFor="create_invitation" className="text-base font-medium">
                 Create invitation with RSVP code
               </Label>
             </div>
             
             {createInvitation && (
-              <div className="space-y-4">
+              <div className="space-y-4 bg-gray-50 p-4 rounded-lg">
                 <div>
-                  <Label>Select Events *</Label>
+                  <Label className="text-sm font-medium">Select Events *</Label>
+                  <p className="text-xs text-gray-600 mb-3">Choose which events this guest will be invited to</p>
                   {loadingEvents ? (
                     <div className="text-sm text-muted-foreground">Loading events...</div>
                   ) : (
-                    <div className={`grid grid-cols-1 gap-3 mt-2 max-h-40 overflow-y-auto border rounded-md p-3 ${errors.event_ids ? 'border-red-500' : ''}`}>
+                    <div className={`grid grid-cols-1 gap-3 max-h-40 overflow-y-auto border rounded-md p-3 bg-white ${errors.event_ids ? 'border-red-500' : 'border-gray-200'}`}>
                       {events.map((event) => (
                         <div key={event.id} className="flex items-center space-x-2">
                           <Checkbox
@@ -429,21 +414,6 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
                   )}
                   {errors.event_ids && (
                     <p className="text-sm text-red-500 mt-1">{errors.event_ids}</p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="headcount">Headcount</Label>
-                  <Input
-                    id="headcount"
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={invitationData.headcount}
-                    onChange={(e) => handleInvitationChange('headcount', parseInt(e.target.value) || 1)}
-                    className={errors.headcount ? 'border-red-500' : ''}
-                  />
-                  {errors.headcount && (
-                    <p className="text-sm text-red-500 mt-1">{errors.headcount}</p>
                   )}
                 </div>
               </div>

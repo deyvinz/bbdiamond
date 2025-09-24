@@ -38,10 +38,6 @@ export default function GuestDetailsDialog({ open, guest, onOpenChange }: GuestD
                 <div className="text-black/60">Household</div>
                 <div>{guest.household?.name || '-'}</div>
               </div>
-              <div>
-                <div className="text-black/60">Plus Ones</div>
-                <div>{guest.plus_ones_allowed}</div>
-              </div>
             </div>
           </section>
 

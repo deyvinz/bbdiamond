@@ -6,7 +6,6 @@ export interface Guest {
   phone?: string
   household_id?: string
   is_vip: boolean
-  plus_ones_allowed: number
   gender?: 'male' | 'female'
   created_at: string
   updated_at: string
@@ -24,16 +23,32 @@ export interface Guest {
 export interface Invitation {
   id: string
   guest_id: string
-  event_id: string
-  headcount: number
   token: string
-  status: 'pending' | 'accepted' | 'declined' | 'waitlist'
   created_at: string
   updated_at: string
+  invitation_events?: InvitationEvent[]
+}
+
+export interface InvitationEvent {
+  id: string
+  event_id: string
+  status: 'pending' | 'accepted' | 'declined' | 'waitlist'
+  headcount: number
+  event_token: string
+  created_at: string
   event?: {
     id: string
     name: string
+    starts_at: string
+    venue?: string
+    address?: string
   }
+  rsvps_v2?: {
+    response: 'pending' | 'accepted' | 'declined' | 'waitlist'
+    party_size: number
+    message?: string
+    created_at: string
+  }[]
 }
 
 export interface Household {

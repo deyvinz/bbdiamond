@@ -21,7 +21,7 @@ import {
   regenerateInvitationToken,
   exportGuestsToCsv
 } from '@/lib/guests-client'
-import { sendInvitationAction } from '@/lib/actions/send-invitation'
+import { sendInviteEmailAction } from '@/lib/actions/invitations'
 
 interface GuestsClientProps {
   initialGuests: Guest[]
@@ -165,7 +165,7 @@ export default function GuestsClient({
         // Create invitations if specified
         if (data.invitation?.event_ids && data.invitation.event_ids.length > 0) {
           for (const eventId of data.invitation.event_ids) {
-            await createInvitationForGuest(newGuest.id, eventId, data.invitation.headcount || 1)
+            await createInvitationForGuest(newGuest.id, eventId)
           }
         }
         
@@ -222,6 +222,19 @@ export default function GuestsClient({
   const handleRegenerateToken = async (guestId: string, eventId: string) => {
     setLoading(true)
     try {
+      // Find the guest and their invitation for this event
+      const guest = guests.find(g => g.id === guestId)
+      if (!guest?.invitations?.[0]) {
+        throw new Error('No invitation found for this guest')
+      }
+      
+      const invitation = guest.invitations[0]
+      const invitationEvent = invitation.invitation_events?.find(ie => ie.event_id === eventId)
+      
+      if (!invitationEvent) {
+        throw new Error('No invitation found for this event')
+      }
+      
       await regenerateInvitationToken(guestId, eventId)
       toast({
         title: "Success",
@@ -243,10 +256,28 @@ export default function GuestsClient({
   const handleSendInvite = async (guestId: string, eventId: string) => {
     setLoading(true)
     try {
-      const result = await sendInvitationAction(guestId, eventId)
+      // Find the guest and their invitation for this event
+      const guest = guests.find(g => g.id === guestId)
+      if (!guest?.invitations?.[0]) {
+        throw new Error('No invitation found for this guest')
+      }
+      
+      const invitation = guest.invitations[0]
+      const invitationEvent = invitation.invitation_events?.find(ie => ie.event_id === eventId)
+      
+      if (!invitationEvent) {
+        throw new Error('No invitation found for this event')
+      }
+      
+      await sendInviteEmailAction({
+        invitationId: invitation.id,
+        eventIds: [eventId],
+        includeQr: true
+      })
+      
       toast({
         title: "Success",
-        description: result.message,
+        description: "Invitation email sent successfully",
       })
       // Refresh data to get updated state
       await refreshData()
@@ -286,7 +317,16 @@ export default function GuestsClient({
           for (const guestId of guestIds) {
             const guest = guests.find(g => g.id === guestId)
             if (guest?.invitations?.[0]) {
-              await sendInvitationAction(guestId, guest.invitations[0].event_id)
+              const invitation = guest.invitations[0]
+              const eventIds = invitation.invitation_events?.map(ie => ie.event_id) || []
+              
+              if (eventIds.length > 0) {
+                await sendInviteEmailAction({
+                  invitationId: invitation.id,
+                  eventIds,
+                  includeQr: true
+                })
+              }
             }
           }
           toast({
@@ -301,7 +341,12 @@ export default function GuestsClient({
           for (const guestId of guestIds) {
             const guest = guests.find(g => g.id === guestId)
             if (guest?.invitations?.[0]) {
-              await regenerateInvitationToken(guestId, guest.invitations[0].event_id)
+              const invitation = guest.invitations[0]
+              const eventIds = invitation.invitation_events?.map(ie => ie.event_id) || []
+              
+              for (const eventId of eventIds) {
+                await regenerateInvitationToken(guestId, eventId)
+              }
             }
           }
           toast({
