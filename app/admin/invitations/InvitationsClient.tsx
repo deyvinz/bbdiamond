@@ -461,36 +461,41 @@ export default function InvitationsClient({
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header Actions */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {isRefreshing && (
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <div className="animate-spin h-4 w-4 border-2 border-gold-600 border-t-transparent rounded-full"></div>
-              Refreshing...
-            </div>
-          )}
-          <Button
-            onClick={handleCreateInvitation}
-            className="bg-gold-600 hover:bg-gold-700"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Create Invitation
-          </Button>
-          <Button
-            onClick={() => setShowImportDialog(true)}
-            variant="outline"
-            className="bg-gold-50 border-gold-200 text-gold-700 hover:bg-gold-100"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Import CSV
-          </Button>
+    <>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-serif">Invitations Management</h1>
+            <p className="text-gray-600 mt-1">
+              Manage wedding invitations and RSVPs
+            </p>
+          </div>
+          <div className="flex items-center space-x-3">
+            {isRefreshing && (
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <div className="animate-spin h-4 w-4 border-2 border-gold-600 border-t-transparent rounded-full"></div>
+                Refreshing...
+              </div>
+            )}
+            <Button
+              onClick={() => setShowImportDialog(true)}
+              variant="outline"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Import CSV
+            </Button>
+            <Button
+              onClick={handleCreateInvitation}
+              className="bg-gold-600 hover:bg-gold-700"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create Invitation
+            </Button>
+          </div>
         </div>
-      </div>
 
-      {/* Table */}
-      <InvitationsTable
+        {/* Table */}
+        <InvitationsTable
         invitations={invitations}
         totalCount={totalCount}
         page={page}
@@ -510,7 +515,8 @@ export default function InvitationsClient({
         onExport={handleExport}
         onBulkAction={handleBulkAction}
         loading={loading || isRefreshing}
-      />
+        />
+      </div>
 
       {/* Dialogs */}
       <InvitationForm
@@ -545,6 +551,6 @@ export default function InvitationsClient({
         invitation={viewingInvitation}
         config={config}
       />
-    </div>
+    </>
   )
 }
