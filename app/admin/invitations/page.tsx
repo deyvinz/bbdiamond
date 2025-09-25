@@ -62,40 +62,29 @@ export default async function InvitationsPage({ searchParams }: InvitationsPageP
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gold-700">Invitations</h1>
-          <p className="text-gray-600 mt-1">
-            Manage wedding invitations and RSVPs
-          </p>
-        </div>
+    <Suspense fallback={
+      <div className="grid gap-4 py-8">
+        <CardSkeleton />
+        <CardSkeleton />
+        <CardSkeleton />
       </div>
-
-      <Suspense fallback={
-        <div className="space-y-4">
-          <CardSkeleton />
-          <CardSkeleton />
-          <CardSkeleton />
-        </div>
-      }>
-        <InvitationsClient
-          initialInvitations={invitationsData.invitations}
-          totalCount={invitationsData.total_count}
-          page={invitationsData.page}
-          pageSize={invitationsData.page_size}
-          totalPages={invitationsData.total_pages}
-          config={config}
-          initialFilters={{
-            q: filters.q,
-            eventId: filters.eventId,
-            status: filters.status,
-            dateFrom: filters.dateFrom,
-            dateTo: filters.dateTo,
-            sort: filters.sort
-          }}
-        />
-      </Suspense>
-    </div>
+    }>
+      <InvitationsClient
+        initialInvitations={invitationsData.invitations}
+        totalCount={invitationsData.total_count}
+        page={invitationsData.page}
+        pageSize={invitationsData.page_size}
+        totalPages={invitationsData.total_pages}
+        config={config}
+        initialFilters={{
+          q: filters.q,
+          eventId: filters.eventId,
+          status: filters.status,
+          dateFrom: filters.dateFrom,
+          dateTo: filters.dateTo,
+          sort: filters.sort
+        }}
+      />
+    </Suspense>
   )
 }
