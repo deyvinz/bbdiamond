@@ -2,14 +2,16 @@
 import { Guest } from '@/lib/types/guests'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import type { ConfigValue } from '@/lib/types/config'
 
 interface GuestDetailsDialogProps {
   open: boolean
   guest?: Guest
+  config?: ConfigValue
   onOpenChange: (open: boolean) => void
 }
 
-export default function GuestDetailsDialog({ open, guest, onOpenChange }: GuestDetailsDialogProps) {
+export default function GuestDetailsDialog({ open, guest, config, onOpenChange }: GuestDetailsDialogProps) {
   if (!guest) return null
 
   return (
@@ -66,7 +68,12 @@ export default function GuestDetailsDialog({ open, guest, onOpenChange }: GuestD
                       <div key={ie.id} className="flex items-center justify-between text-sm">
                         <div>
                           <div className="font-medium">{ie.event?.name || 'Event'}</div>
-                          <div className="text-black/60">Headcount: {ie.headcount ?? '-'}</div>
+                          <div className="text-black/60">
+                            Headcount: {config?.plus_ones_enabled ? (ie.headcount ?? '-') : 1}
+                            {!config?.plus_ones_enabled && (
+                              <span className="text-xs text-gray-500 ml-1">(Fixed - Plus-ones disabled)</span>
+                            )}
+                          </div>
                         </div>
                         <div>
                           <Badge variant="outline" className="border-gold-200 text-gold-700">{ie.status || 'pending'}</Badge>

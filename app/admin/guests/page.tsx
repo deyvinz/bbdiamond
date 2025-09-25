@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { getGuestsServer } from '@/lib/guests'
+import { getAppConfig } from '@/lib/config-service'
 import GuestsClient from './GuestsClient'
 import { CardSkeleton } from '@/components/ui/skeleton'
 
@@ -32,10 +33,14 @@ export default async function GuestsPage({ searchParams }: GuestsPageProps) {
   }
 
   let guestsData
+  let config
   try {
-    guestsData = await getGuestsServer(filters, pagination)
+    [guestsData, config] = await Promise.all([
+      getGuestsServer(filters, pagination),
+      getAppConfig()
+    ])
   } catch (error) {
-    console.error('Error fetching guests:', error)
+    console.error('Error fetching data:', error)
     guestsData = {
       guests: [],
       total_count: 0,
@@ -43,6 +48,7 @@ export default async function GuestsPage({ searchParams }: GuestsPageProps) {
       page_size: 20,
       total_pages: 0
     }
+    config = null
   }
 
   return (
@@ -59,6 +65,7 @@ export default async function GuestsPage({ searchParams }: GuestsPageProps) {
         page={guestsData.page}
         pageSize={guestsData.page_size}
         totalPages={guestsData.total_pages}
+        config={config}
         initialFilters={{
           search: filters.search,
           rsvp_status: filters.rsvp_status,

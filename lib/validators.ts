@@ -118,6 +118,47 @@ export const createEventSchema = eventSchema
 
 export const updateEventSchema = eventSchema.partial()
 
+// Configuration schemas
+export const updateConfigSchema = z.object({
+  plus_ones_enabled: z.boolean().optional(),
+  max_party_size: z.number().int().min(1).max(20).optional(),
+  allow_guest_plus_ones: z.boolean().optional(),
+})
+
+// RSVP schemas
+export const rsvpSchema = z.object({
+  invite_code: z.string().min(1, 'Invite code is required').max(20, 'Invite code too long'),
+  response: z.enum(['accepted', 'declined'], {
+    message: 'Response must be either accepted or declined'
+  }),
+  email: z.string().email('Invalid email address').max(100, 'Email too long').optional(),
+  goodwill_message: z.string().max(500, 'Goodwill message too long').optional(),
+})
+
+export const rsvpConfirmationEmailSchema = z.object({
+  to: z.string().email('Invalid email address'),
+  subject: z.string().min(1, 'Subject is required'),
+  html: z.string().min(1, 'HTML content is required'),
+  text: z.string().min(1, 'Text content is required'),
+  meta: z.object({
+    invitationId: z.string().uuid(),
+    rsvpUrl: z.string().url(),
+    guestName: z.string().min(1),
+    inviteCode: z.string().min(1),
+    events: z.array(z.object({
+      name: z.string(),
+      startsAtISO: z.string(),
+      venue: z.string(),
+      address: z.string().optional(),
+    })),
+  }),
+  attachments: z.array(z.object({
+    filename: z.string(),
+    content: z.string(),
+    contentType: z.string(),
+  })).optional(),
+})
+
 export type GuestInput = z.infer<typeof guestSchema>
 export type CsvGuestInput = z.infer<typeof csvGuestSchema>
 export type PaginationInput = z.infer<typeof paginationSchema>
@@ -133,3 +174,6 @@ export type SendEmailInput = z.infer<typeof sendEmailSchema>
 export type EventInput = z.infer<typeof eventSchema>
 export type CreateEventInput = z.infer<typeof createEventSchema>
 export type UpdateEventInput = z.infer<typeof updateEventSchema>
+export type UpdateConfigInput = z.infer<typeof updateConfigSchema>
+export type RsvpInput = z.infer<typeof rsvpSchema>
+export type RsvpConfirmationEmailInput = z.infer<typeof rsvpConfirmationEmailSchema>

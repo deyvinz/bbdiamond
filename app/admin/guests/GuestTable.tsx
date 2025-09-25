@@ -35,6 +35,7 @@ import {
   Eye,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface GuestTableProps {
   guests: Guest[]
@@ -52,6 +53,7 @@ interface GuestTableProps {
   onExport: () => void
   onBulkAction?: (action: string, guestIds: string[]) => void
   onView: (guest: Guest) => void
+  loading?: boolean
 }
 
 function GuestTable({
@@ -70,6 +72,7 @@ function GuestTable({
   onExport,
   onBulkAction,
   onView,
+  loading = false,
 }: GuestTableProps) {
   const [filters, setFilters] = useState<GuestFilters>(initialFilters)
   const [selectedGuests, setSelectedGuests] = useState<string[]>([])
@@ -248,7 +251,21 @@ function GuestTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredGuests.map((guest) => (
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                </TableRow>
+              ))
+            ) : (
+              filteredGuests.map((guest) => (
               <TableRow key={guest.id} className="hover:bg-gold-50/50">
                 <TableCell>
                   <Checkbox
@@ -322,7 +339,8 @@ function GuestTable({
                   </DropdownMenu>
                 </TableCell>
               </TableRow>
-            ))}
+              ))
+            )}
           </TableBody>
         </Table>
       </div>

@@ -24,13 +24,15 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Mail, Calendar, MapPin, Clock, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
-import { toast } from '@/hooks/use-toast'
+import { toast } from '@/components/ui/use-toast'
 import type { Invitation, InvitationEvent } from '@/lib/invitations-service'
+import type { ConfigValue } from '@/lib/types/config'
 
 interface SendEmailDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   invitation?: Invitation
+  config?: ConfigValue
   onSend: (data: {
     invitationId: string
     eventIds: string[]
@@ -50,6 +52,7 @@ export default function SendEmailDialog({
   open,
   onOpenChange,
   invitation,
+  config,
   onSend,
   loading = false,
 }: SendEmailDialogProps) {
@@ -242,29 +245,23 @@ export default function SendEmailDialog({
 
                       <div className="flex items-center gap-4 pt-2">
                         <Badge
-                          variant={
-                            event.status === 'accepted' 
-                              ? 'default'
-                              : event.status === 'pending'
-                              ? 'outline'
-                              : event.status === 'declined'
-                              ? 'secondary'
-                              : 'outline'
-                          }
                           className={
                             event.status === 'accepted' 
-                              ? 'bg-gold-100 text-gold-800 border-gold-300'
+                              ? 'bg-green-100 text-green-800 border-green-300'
                               : event.status === 'pending'
-                              ? 'bg-gray-100 text-gray-800 border-gray-300'
+                              ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
                               : event.status === 'declined'
-                              ? 'bg-red-100 text-red-800 border-red-300'
+                              ? 'bg-gray-100 text-gray-800 border-gray-300'
                               : 'bg-amber-100 text-amber-800 border-amber-300'
                           }
                         >
                           {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
                         </Badge>
                         <span className="text-sm text-gray-600">
-                          Headcount: {event.headcount}
+                          Headcount: {config?.plus_ones_enabled ? event.headcount : 1}
+                          {!config?.plus_ones_enabled && (
+                            <span className="text-xs text-gray-500 ml-1">(Fixed - Plus-ones disabled)</span>
+                          )}
                         </span>
                       </div>
                     </div>

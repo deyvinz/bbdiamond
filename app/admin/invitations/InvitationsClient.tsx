@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { toast } from '@/hooks/use-toast'
+import { toast } from '@/components/ui/use-toast'
 import { Plus, Upload } from 'lucide-react'
 import InvitationsTable from './InvitationsTable'
 import InvitationForm from './InvitationForm'
@@ -18,8 +18,10 @@ import {
   regenerateEventTokenAction,
   sendInviteEmailAction,
   importInvitationsAction,
+  resendRsvpConfirmationAction,
 } from '@/lib/actions/invitations'
 import type { Invitation, InvitationEvent } from '@/lib/invitations-service'
+import type { ConfigValue } from '@/lib/types/config'
 
 interface InvitationsClientProps {
   initialInvitations: Invitation[]
@@ -27,6 +29,7 @@ interface InvitationsClientProps {
   page: number
   pageSize: number
   totalPages: number
+  config?: ConfigValue
   initialFilters: {
     q?: string
     eventId?: string
@@ -46,6 +49,7 @@ export default function InvitationsClient({
   page,
   pageSize,
   totalPages,
+  config,
   initialFilters,
 }: InvitationsClientProps) {
   const router = useRouter()
@@ -61,6 +65,12 @@ export default function InvitationsClient({
   const [selectedInvitation, setSelectedInvitation] = useState<Invitation | undefined>()
   const [viewingInvitation, setViewingInvitation] = useState<Invitation | undefined>()
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isFiltering, setIsFiltering] = useState(false)
+
+  // Sync local state with props when they change (e.g., when filtering)
+  useEffect(() => {
+    setInvitations(initialInvitations)
+  }, [initialInvitations])
 
   const refreshData = async () => {
     setIsRefreshing(true)
@@ -75,13 +85,13 @@ export default function InvitationsClient({
     }
   }
 
-  const handlePageChange = (newPage: number) => {
+  const handlePageChange = async (newPage: number) => {
     const params = new URLSearchParams(searchParams.toString())
     params.set('page', newPage.toString())
     router.push(`/admin/invitations?${params.toString()}`)
   }
 
-  const handleFiltersChange = (filters: any) => {
+  const handleFiltersChange = async (filters: any) => {
     const params = new URLSearchParams(searchParams.toString())
     params.set('page', '1') // Reset to first page
     
@@ -103,7 +113,13 @@ export default function InvitationsClient({
       }
     })
     
+    // Navigate to new URL - this will trigger a server-side re-render with new data
     router.push(`/admin/invitations?${params.toString()}`)
+  }
+
+  const handleClearFilters = () => {
+    // Clear all filter parameters from URL, keeping only page=1
+    router.push('/admin/invitations?page=1')
   }
 
   const handleCreateInvitation = () => {
@@ -256,6 +272,27 @@ export default function InvitationsClient({
       })
     } finally {
       setSendingEmail(false)
+    }
+  }
+
+  const handleResendRsvpConfirmation = async (invitationId: string) => {
+    try {
+      await resendRsvpConfirmationAction(invitationId)
+      
+      toast({
+        title: "Success",
+        description: "RSVP confirmation with QR code and digital pass sent successfully",
+      })
+      
+      // Refresh data to show updated state
+      await refreshData()
+    } catch (error) {
+      console.error('Error resending RSVP confirmation:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to resend RSVP confirmation",
+        variant: "destructive",
+      })
     }
   }
 
@@ -462,11 +499,13 @@ export default function InvitationsClient({
         initialFilters={initialFilters}
         onPageChange={handlePageChange}
         onFiltersChange={handleFiltersChange}
+        onClearFilters={handleClearFilters}
         onEdit={handleEditInvitation}
         onDelete={handleDeleteInvitation}
         onRegenerateInviteToken={handleRegenerateInviteToken}
         onRegenerateEventToken={handleRegenerateEventToken}
         onSendEmail={handleSendEmail}
+        onResendRsvpConfirmation={handleResendRsvpConfirmation}
         onView={handleViewInvitation}
         onExport={handleExport}
         onBulkAction={handleBulkAction}
@@ -478,6 +517,7 @@ export default function InvitationsClient({
         open={showInvitationForm}
         onOpenChange={setShowInvitationForm}
         invitation={editingInvitation}
+        config={config}
         onSave={handleSaveInvitation}
         loading={loading}
       />
@@ -486,6 +526,7 @@ export default function InvitationsClient({
         open={showSendEmailDialog}
         onOpenChange={setShowSendEmailDialog}
         invitation={selectedInvitation}
+        config={config}
         onSend={handleSendEmailConfirm}
         loading={sendingEmail}
       />
@@ -493,6 +534,7 @@ export default function InvitationsClient({
       <ImportCsvDialog
         open={showImportDialog}
         onOpenChange={setShowImportDialog}
+        config={config}
         onImport={handleImport}
         loading={loading}
       />
@@ -501,6 +543,7 @@ export default function InvitationsClient({
         open={showViewDialog}
         onOpenChange={setShowViewDialog}
         invitation={viewingInvitation}
+        config={config}
       />
     </div>
   )

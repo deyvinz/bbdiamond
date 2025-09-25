@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Guest, GuestFilters } from '@/lib/types/guests'
+import type { ConfigValue } from '@/lib/types/config'
 import GuestTable from './GuestTable'
 import GuestForm from './GuestForm'
 import ImportCsvDialog from './ImportCsvDialog'
@@ -29,6 +30,7 @@ interface GuestsClientProps {
   page: number
   pageSize: number
   totalPages: number
+  config?: ConfigValue | null
   initialFilters: GuestFilters
 }
 
@@ -38,6 +40,7 @@ export default function GuestsClient({
   page,
   pageSize,
   totalPages,
+  config,
   initialFilters
 }: GuestsClientProps) {
   const [guests, setGuests] = useState(initialGuests)
@@ -49,6 +52,7 @@ export default function GuestsClient({
   const [viewGuest, setViewGuest] = useState<Guest | undefined>()
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [isFiltering, setIsFiltering] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
 
@@ -58,13 +62,13 @@ export default function GuestsClient({
     setTotalCountState(totalCount)
   }, [initialGuests, totalCount])
 
-  const handlePageChange = (newPage: number) => {
+  const handlePageChange = async (newPage: number) => {
     const url = new URL(window.location.href)
     url.searchParams.set('page', newPage.toString())
     router.push(url.toString())
   }
 
-  const handleFiltersChange = (newFilters: GuestFilters) => {
+  const handleFiltersChange = async (newFilters: GuestFilters) => {
     const url = new URL(window.location.href)
     
     // Map client-side filter keys to server-side parameter names
@@ -156,8 +160,8 @@ export default function GuestsClient({
         const updatedGuest = await updateGuest(editingGuest.id, data.guest)
         setGuests(prev => prev.map(g => g.id === editingGuest.id ? updatedGuest : g))
         toast({
-          title: "Success",
-          description: "Guest updated successfully",
+          title: "✅ Guest Updated Successfully!",
+          description: `${updatedGuest.first_name} ${updatedGuest.last_name} has been updated.`,
         })
       } else {
         // Create new guest
@@ -172,8 +176,8 @@ export default function GuestsClient({
         setGuests(prev => [newGuest, ...prev])
         setTotalCountState(prev => prev + 1)
         toast({
-          title: "Success",
-          description: "Guest created successfully",
+          title: "🎉 Guest Created Successfully!",
+          description: `${newGuest.first_name} ${newGuest.last_name} has been added to your guest list.`,
         })
       }
       setShowGuestForm(false)
@@ -193,7 +197,10 @@ export default function GuestsClient({
   }
 
   const handleDelete = async (guestId: string) => {
-    if (!confirm('Are you sure you want to delete this guest? This action cannot be undone.')) {
+    const guestToDelete = guests.find(g => g.id === guestId)
+    const guestName = guestToDelete ? `${guestToDelete.first_name} ${guestToDelete.last_name}` : 'this guest'
+    
+    if (!confirm(`Are you sure you want to delete ${guestName}? This action cannot be undone and will remove all associated invitations.`)) {
       return
     }
 
@@ -203,15 +210,16 @@ export default function GuestsClient({
       setGuests(prev => prev.filter(g => g.id !== guestId))
       setTotalCountState(prev => Math.max(0, prev - 1))
       toast({
-        title: "Success",
-        description: "Guest deleted successfully",
+        title: "🗑️ Guest Deleted Successfully!",
+        description: `${guestName} and all associated invitations have been removed.`,
       })
       // Refresh data to get latest state
       await refreshData()
     } catch (error) {
+      console.error('Error deleting guest:', error)
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "An error occurred",
+        title: "❌ Failed to Delete Guest",
+        description: error instanceof Error ? error.message : "An unexpected error occurred while deleting the guest",
         variant: "destructive",
       })
     } finally {
@@ -461,6 +469,7 @@ export default function GuestsClient({
           onExport={handleExport}
           onBulkAction={handleBulkAction}
           onView={handleView}
+          loading={loading || refreshing}
         />
       </div>
 
@@ -485,6 +494,7 @@ export default function GuestsClient({
       <GuestDetailsDialog
         open={!!viewGuest}
         guest={viewGuest}
+        config={config || undefined}
         onOpenChange={(open) => !open && setViewGuest(undefined)}
       />
     </>

@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { useToast } from '@/hooks/use-toast'
+import { useToast } from '@/components/ui/use-toast'
 import type { Event } from '@/lib/events-service'
 import type { CreateEventInput, UpdateEventInput } from '@/lib/validators'
 
@@ -65,13 +65,61 @@ export default function EventForm({
     }
   }, [event, open])
 
+  // Show helpful notification when form opens
+  useEffect(() => {
+    if (open) {
+      if (event) {
+        toast({
+          title: "📝 Editing Event",
+          description: `You are editing "${event.name}". Make your changes and save.`,
+        })
+      } else {
+        toast({
+          title: "➕ Creating New Event",
+          description: "Fill in the details below to create a new wedding event.",
+        })
+      }
+    }
+  }, [open, event, toast])
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.name.trim() || !formData.venue.trim() || !formData.starts_at) {
+    // Validate required fields
+    if (!formData.name.trim()) {
       toast({
-        title: "Error",
-        description: "Please fill in all required fields",
+        title: "❌ Missing Event Name",
+        description: "Please enter a name for the event",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    if (!formData.venue.trim()) {
+      toast({
+        title: "❌ Missing Venue",
+        description: "Please enter the venue for the event",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    if (!formData.starts_at) {
+      toast({
+        title: "❌ Missing Date & Time",
+        description: "Please select the date and time for the event",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validate date is not in the past
+    const selectedDate = new Date(formData.starts_at)
+    const now = new Date()
+    if (selectedDate < now) {
+      toast({
+        title: "❌ Invalid Date",
+        description: "Event date cannot be in the past",
         variant: "destructive",
       })
       return
