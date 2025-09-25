@@ -1,12 +1,21 @@
+'use client'
+
 import Link from 'next/link';
 import Card from '@/components/Card';
 import Section from '@/components/Section';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import { MotionPage, MotionStagger, MotionItem, MotionCard } from '@/components/ui/motion';
+import ProtectedEventDetails from '@/components/ProtectedEventDetails';
 import { Heart, Church, UtensilsCrossed, Calendar, MapPin, Users } from 'lucide-react';
 
 export default function Home() {
+  const handleAccessGranted = (guest: any) => {
+    // This function is called when a guest successfully authenticates
+    // We can add any additional logic here if needed
+    console.log('Guest authenticated:', guest.first_name)
+  }
+
   return (
     <MotionPage>
       {/* Hero */}
@@ -44,88 +53,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Details */}
-      <Section title="Details" subtitle="Everything you need for the big day">
-        <MotionStagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 md:gap-6">
-          <MotionItem>
-            <MotionCard>
-              <Card>
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 mt-1">
-                    <Heart className="h-6 w-6 text-gold-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-medium text-lg">Traditional Wedding</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Calendar className="h-4 w-4 text-gold-500" />
-                      <p className="text-sm text-black/70">October 16, 2025</p>
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <MapPin className="h-4 w-4 text-gold-500" />
-                      <p className="text-sm text-black/70">Lagos, Nigeria</p>
-                    </div>
-                    <p className="text-sm text-black/70 mt-2">Dress Code: Black tie • Gold accents</p>
-                  </div>
-                </div>
-              </Card>
-            </MotionCard>
-          </MotionItem>
-          <MotionItem>
-            <MotionCard>
-              <Card>
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 mt-1">
-                    <Church className="h-6 w-6 text-gold-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-medium text-lg">Wedding Ceremony</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Calendar className="h-4 w-4 text-gold-500" />
-                      <p className="text-sm text-black/70">October 17, 2025</p>
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <MapPin className="h-4 w-4 text-gold-500" />
-                      <p className="text-sm text-black/70">Lagos, Nigeria</p>
-                    </div>
-                    <p className="text-sm text-black/70 mt-2">Dress Code: Black tie • Gold accents</p>
-                  </div>
-                </div>
-              </Card>
-            </MotionCard>
-          </MotionItem>
-          <MotionItem>
-            <MotionCard>
-              <Card>
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 mt-1">
-                    <UtensilsCrossed className="h-6 w-6 text-gold-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-medium text-lg">Wedding Reception</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Calendar className="h-4 w-4 text-gold-500" />
-                      <p className="text-sm text-black/70">October 17, 2025</p>
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <MapPin className="h-4 w-4 text-gold-500" />
-                      <p className="text-sm text-black/70">Lagos, Nigeria</p>
-                    </div>
-                    <p className="text-sm text-black/70 mt-2">Dress Code: Black tie • Gold accents</p>
-                  </div>
-                </div>
-              </Card>
-            </MotionCard>
-          </MotionItem>
-        </MotionStagger>
-
-        <div className="mt-3 rounded-lg bg-gold-50/60 border border-gold-200 px-4 py-3">
-          <p className="text-sm text-gold-900 font-medium">
-            Kindly note:{' '}
-            <span className="font-semibold">White and ivory outfits are not permitted</span> for
-            guests. Please choose other colors to let the couple stand out on their special day.
-          </p>
-        </div>
-      </Section>
+      {/* Protected Event Details */}
+      <ProtectedEventDetails onAccessGranted={handleAccessGranted} />
     </MotionPage>
   );
 }

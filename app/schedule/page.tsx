@@ -1,99 +1,60 @@
-import Section from '@/components/Section'
-import Card from '@/components/Card'
-import { supabaseServer } from '@/lib/supabase-server'
-import { MotionPage, MotionStagger, MotionItem, MotionCard } from '@/components/ui/motion'
-import { 
-  Church, 
-  UtensilsCrossed, 
-  Camera, 
-  Music, 
-  Heart, 
-  Users, 
-  Gift, 
-  MapPin, 
-  Clock,
-  Calendar,
-  PartyPopper
-} from 'lucide-react'
+'use client'
 
-export default async function Page(){
-  const supabase = await supabaseServer()
-  const { data } = await supabase
-    .from('events')
-    .select('name, venue, address, starts_at')
-    .order('starts_at', { ascending: true })
-  const events: { name:string; venue:string; address:string; starts_at:string }[] = data ?? []
+import { useState, useEffect } from 'react'
+import { useToast } from '@/components/ui/use-toast'
+import ScheduleAccessForm from '@/components/ScheduleAccessForm'
+import ProtectedSchedule from '@/components/ProtectedSchedule'
 
-  const getEventIcon = (eventName: string) => {
-    const name = eventName.toLowerCase()
-    
-    if (name.includes('ceremony') || name.includes('church')) {
-      return <Church className="h-5 w-5 text-gold-600" />
+export default function Page() {
+  const [guest, setGuest] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const { toast } = useToast()
+
+  // Load guest data from session storage on component mount
+  useEffect(() => {
+    const savedGuest = sessionStorage.getItem('schedule-guest')
+    if (savedGuest) {
+      try {
+        const guestData = JSON.parse(savedGuest)
+        setGuest(guestData)
+        // Show welcome back message
+        toast({
+          title: "Welcome back! 👋",
+          description: `You're automatically logged in, ${guestData.first_name}.`,
+        })
+      } catch (error) {
+        console.error('Error parsing saved guest data:', error)
+        // Clear invalid data
+        sessionStorage.removeItem('schedule-guest')
+      }
     }
-    if (name.includes('tradition') || name.includes('party') || name.includes('cultural')) {
-      return <PartyPopper className="h-5 w-5 text-gold-600" />
-    }
-    if (name.includes('reception') || name.includes('dinner') || name.includes('lunch') || name.includes('breakfast')) {
-      return <UtensilsCrossed className="h-5 w-5 text-gold-600" />
-    }
-    if (name.includes('photo') || name.includes('pictures') || name.includes('gallery')) {
-      return <Camera className="h-5 w-5 text-gold-600" />
-    }
-    if (name.includes('music') || name.includes('dance') || name.includes('party')) {
-      return <Music className="h-5 w-5 text-gold-600" />
-    }
-    if (name.includes('bride') || name.includes('groom') || name.includes('couple')) {
-      return <Heart className="h-5 w-5 text-gold-600" />
-    }
-    if (name.includes('bridal') || name.includes('groom') || name.includes('party') || name.includes('attendants')) {
-      return <Users className="h-5 w-5 text-gold-600" />
-    }
-    if (name.includes('gift') || name.includes('registry') || name.includes('shower')) {
-      return <Gift className="h-5 w-5 text-gold-600" />
-    }
-    if (name.includes('rehearsal') || name.includes('practice')) {
-      return <Calendar className="h-5 w-5 text-gold-600" />
-    }
-    
-    // Default icon for other events
-    return <Clock className="h-5 w-5 text-gold-600" />
+    setIsLoading(false)
+  }, [toast])
+
+  const handleAccessGranted = (guestData: any) => {
+    // Save guest data to session storage
+    sessionStorage.setItem('schedule-guest', JSON.stringify(guestData))
+    setGuest(guestData)
   }
 
-  return (
-    <MotionPage>
-      <Section title="Schedule" subtitle="Times & locations" narrow>
-        <MotionStagger className="relative ml-3 border-s border-gold-100">
-          {events.map((i: { name:string; venue:string; address:string; starts_at:string }, idx: number)=>(
-            <MotionItem key={idx} className="ms-6 mb-6">
-              <span className="absolute -start-1.5 mt-4 h-3 w-3 rounded-full bg-gold-500" />
-              <MotionCard>
-                <Card>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 mt-1">
-                        {getEventIcon(i.name)}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-medium text-lg">{i.name}</h3>
-                        <div className="flex items-center gap-2 mt-1">
-                          <MapPin className="h-4 w-4 text-gold-500" />
-                          <p className="text-sm text-black/70">{i.venue} • {i.address}</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gold-600">
-                      <Clock className="h-4 w-4" />
-                      <time>
-                        {new Date(i.starts_at).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}
-                      </time>
-                    </div>
-                  </div>
-                </Card>
-              </MotionCard>
-            </MotionItem>
-          ))}
-        </MotionStagger>
-      </Section>
-    </MotionPage>
-  )
+  const handleLogout = () => {
+    // Clear guest data from session storage
+    sessionStorage.removeItem('schedule-guest')
+    setGuest(null)
+  }
+
+  // Show loading state while checking session storage
+  if (isLoading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-2 border-gold-600 border-t-transparent rounded-full" />
+      </div>
+    )
+  }
+
+  if (guest) {
+    return <ProtectedSchedule guest={guest} onLogout={handleLogout} />
+  }
+
+  return <ScheduleAccessForm onAccessGranted={handleAccessGranted} />
 }
