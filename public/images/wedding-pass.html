@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wedding Access Pass - Vincent Adeyemi</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .pass-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #111111 0%, #2c2c2c 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #C7A049 0%, #D4AF37 50%, #C7A049 100%);
+        }
+        
+        .wedding-logo {
+            max-width: 200px;
+            height: auto;
+            margin-bottom: 16px;
+            display: block;
+        }
+        
+        .wedding-title {
+            font-size: 18px;
+            color: #C7A049;
+            font-weight: 300;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+        
+        .guest-info {
+            padding: 40px 30px;
+            text-align: center;
+        }
+        
+        .guest-name {
+            font-size: 28px;
+            font-weight: bold;
+            color: #111111;
+            margin-bottom: 16px;
+        }
+        
+        .invite-code {
+            background: #f8f9fa;
+            border: 2px solid #C7A049;
+            border-radius: 8px;
+            padding: 16px 24px;
+            display: inline-block;
+            margin-bottom: 30px;
+        }
+        
+        .invite-code-label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .invite-code-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #111111;
+            font-family: monospace;
+            letter-spacing: 2px;
+        }
+        
+        .qr-section {
+            text-align: center;
+            margin: 30px 0;
+        }
+        
+        .qr-code {
+            width: 200px;
+            height: 200px;
+            border: 3px solid #C7A049;
+            border-radius: 12px;
+            padding: 16px;
+            background: white;
+            display: inline-block;
+        }
+        
+        .qr-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 16px;
+            font-weight: 500;
+        }
+        
+        .events-section {
+            padding: 0 30px 40px;
+        }
+        
+        .events-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #111111;
+            text-align: center;
+            margin-bottom: 24px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #C7A049;
+        }
+        
+        .event-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        
+        .event-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #111111;
+            margin-bottom: 8px;
+        }
+        
+        .event-details {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.5;
+        }
+        
+        .event-detail-row {
+            margin-bottom: 4px;
+        }
+        
+        .event-detail-label {
+            font-weight: 600;
+            color: #111111;
+        }
+        
+        .footer {
+            background: #f8f9fa;
+            padding: 20px 30px;
+            text-align: center;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .website-url {
+            color: #C7A049;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .website-url:hover {
+            text-decoration: underline;
+        }
+        
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            
+            .pass-container {
+                box-shadow: none;
+                border-radius: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="pass-container">
+        <div class="header">
+            <img src="https://brendabagsherdiamond.com/images/logo.png" alt="Brenda & Diamond Wedding" class="wedding-logo">
+            <div class="wedding-title">Wedding Celebration</div>
+        </div>
+        
+        <div class="guest-info">
+            <div class="guest-name">Vincent Adeyemi</div>
+            <div class="invite-code">
+                <div class="invite-code-label">Invite Code</div>
+                <div class="invite-code-value">WP9ZD2C1</div>
+            </div>
+        </div>
+        
+        <div class="qr-section">
+            <img src="data:image/png;base64,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" alt="QR Code" class="qr-code" />
+            <div class="qr-label">Show this QR code at check-in</div>
+        </div>
+        
+        <div class="events-section">
+            <div class="events-title">Confirmed Events</div>
+            
+                <div class="event-card">
+                    <div class="event-name">Reception</div>
+                    <div class="event-details">
+                        <div class="event-detail-row">
+                            <span class="event-detail-label">📅 Date & Time:</span> Friday, October 17, 2025 · 2:00 PM
+                        </div>
+                        <div class="event-detail-row">
+                            <span class="event-detail-label">📍 Venue:</span> TBD
+                        </div>
+                        
+                        <div class="event-detail-row">
+                            <span class="event-detail-label">🏠 Address:</span> Lagos, Nigeria
+                        </div>
+                        
+                    </div>
+                </div>
+            
+                <div class="event-card">
+                    <div class="event-name">Traditional Wedding</div>
+                    <div class="event-details">
+                        <div class="event-detail-row">
+                            <span class="event-detail-label">📅 Date & Time:</span> Thursday, October 16, 2025 · 10:30 AM
+                        </div>
+                        <div class="event-detail-row">
+                            <span class="event-detail-label">📍 Venue:</span> The Hall
+                        </div>
+                        
+                        <div class="event-detail-row">
+                            <span class="event-detail-label">🏠 Address:</span> Lagos, Nigeria
+                        </div>
+                        
+                    </div>
+                </div>
+            
+                <div class="event-card">
+                    <div class="event-name">Ceremony</div>
+                    <div class="event-details">
+                        <div class="event-detail-row">
+                            <span class="event-detail-label">📅 Date & Time:</span> Friday, October 17, 2025 · 10:00 AM
+                        </div>
+                        <div class="event-detail-row">
+                            <span class="event-detail-label">📍 Venue:</span> The Monarch
+                        </div>
+                        
+                        <div class="event-detail-row">
+                            <span class="event-detail-label">🏠 Address:</span> Lekki - Epe Expy, Lekki Penninsula II, Lagos, Nigeria
+                        </div>
+                        
+                    </div>
+                </div>
+            
+        </div>
+        
+        <div class="footer">
+            <p>Visit our website: <a href="https://brendabagsherdiamond.com" class="website-url">https://brendabagsherdiamond.com</a></p>
+        </div>
+    </div>
+</body>
+</html>

@@ -40,9 +40,10 @@ import {
   Eye,
   Edit,
   Plus,
+  QrCode,
 } from 'lucide-react'
 import { format } from 'date-fns'
-import { toast } from '@/hooks/use-toast'
+import { toast } from '@/components/ui/use-toast'
 import type { Invitation, InvitationEvent } from '@/lib/invitations-service'
 
 interface InvitationsTableProps {
@@ -64,11 +65,13 @@ interface InvitationsTableProps {
   }
   onPageChange: (page: number) => void
   onFiltersChange: (filters: any) => void
+  onClearFilters: () => void
   onEdit: (invitation: Invitation) => void
   onDelete: (invitationId: string) => void
   onRegenerateInviteToken: (invitationId: string) => void
   onRegenerateEventToken: (invitationEventId: string) => void
   onSendEmail: (invitationId: string) => void
+  onResendRsvpConfirmation: (invitationId: string) => void
   onView: (invitation: Invitation) => void
   onExport: () => void
   onBulkAction?: (action: string, invitationIds: string[]) => void
@@ -78,7 +81,7 @@ interface InvitationsTableProps {
 const statusColors = {
   pending: 'outline',
   accepted: 'default',
-  declined: 'secondary',
+  declined: 'default',
   waitlist: 'outline',
 }
 
@@ -98,11 +101,13 @@ export default function InvitationsTable({
   initialFilters,
   onPageChange,
   onFiltersChange,
+  onClearFilters,
   onEdit,
   onDelete,
   onRegenerateInviteToken,
   onRegenerateEventToken,
   onSendEmail,
+  onResendRsvpConfirmation,
   onView,
   onExport,
   onBulkAction,
@@ -241,7 +246,8 @@ export default function InvitationsTable({
             onClick={() => {
               setFilters({})
               setSearchValue('')
-              onFiltersChange({})
+              // Clear all filter parameters from URL
+              onClearFilters()
             }}
           >
             <Filter className="h-4 w-4 mr-2" />
@@ -369,14 +375,13 @@ export default function InvitationsTable({
                         {invitation.invitation_events.map((event) => (
                           <Badge
                             key={event.id}
-                            variant={statusColors[event.status] as any}
                             className={
                               event.status === 'accepted' 
-                                ? 'bg-gold-100 text-gold-800 border-gold-300'
+                                ? 'bg-green-100 text-green-800 border-green-300'
                                 : event.status === 'pending'
-                                ? 'bg-gray-100 text-gray-800 border-gray-300'
+                                ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
                                 : event.status === 'declined'
-                                ? 'bg-red-100 text-red-800 border-red-300'
+                                ? 'bg-gray-100 text-gray-800 border-gray-300'
                                 : 'bg-amber-100 text-amber-800 border-amber-300'
                             }
                           >
@@ -418,6 +423,12 @@ export default function InvitationsTable({
                             <Mail className="h-4 w-4 mr-2" />
                             Send Email
                           </DropdownMenuItem>
+                          {invitation.invitation_events.some(event => event.status === 'accepted') && (
+                            <DropdownMenuItem onClick={() => onResendRsvpConfirmation(invitation.id)}>
+                              <QrCode className="h-4 w-4 mr-2" />
+                              Resend RSVP Confirmation
+                            </DropdownMenuItem>
+                          )}
                           {invitation.invitation_events.map((event) => (
                             <div key={event.id}>
                               <DropdownMenuItem onClick={() => handleCopyEventToken(event.event_token)}>

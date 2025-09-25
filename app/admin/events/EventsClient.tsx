@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { useToast } from '@/hooks/use-toast'
+import { useToast } from '@/components/ui/use-toast'
 import { Plus, MapPin, Clock, Edit, Trash2 } from 'lucide-react'
 import EventForm from './EventForm'
 import type { Event } from '@/lib/events-service'
@@ -41,13 +41,14 @@ export default function EventsClient({ initialEvents }: EventsClientProps) {
       setShowForm(false)
       
       toast({
-        title: "Success",
-        description: "Event created successfully",
+        title: "🎉 Event Created Successfully!",
+        description: `"${newEvent.name}" has been added to your events list.`,
       })
     } catch (error) {
+      console.error('Error creating event:', error)
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create event",
+        title: "❌ Failed to Create Event",
+        description: error instanceof Error ? error.message : "An unexpected error occurred while creating the event",
         variant: "destructive",
       })
     } finally {
@@ -80,13 +81,14 @@ export default function EventsClient({ initialEvents }: EventsClientProps) {
       setEditingEvent(undefined)
       
       toast({
-        title: "Success",
-        description: "Event updated successfully",
+        title: "✅ Event Updated Successfully!",
+        description: `"${updatedEvent.name}" has been updated with the new details.`,
       })
     } catch (error) {
+      console.error('Error updating event:', error)
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update event",
+        title: "❌ Failed to Update Event",
+        description: error instanceof Error ? error.message : "An unexpected error occurred while updating the event",
         variant: "destructive",
       })
     } finally {
@@ -95,7 +97,10 @@ export default function EventsClient({ initialEvents }: EventsClientProps) {
   }
 
   const handleDeleteEvent = async (eventId: string) => {
-    if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
+    const eventToDelete = events.find(e => e.id === eventId)
+    const eventName = eventToDelete?.name || 'this event'
+    
+    if (!confirm(`Are you sure you want to delete "${eventName}"? This action cannot be undone and will remove all associated invitations.`)) {
       return
     }
 
@@ -113,13 +118,14 @@ export default function EventsClient({ initialEvents }: EventsClientProps) {
       setEvents(prev => prev.filter(event => event.id !== eventId))
       
       toast({
-        title: "Success",
-        description: "Event deleted successfully",
+        title: "🗑️ Event Deleted Successfully!",
+        description: `"${eventName}" and all its associated invitations have been removed.`,
       })
     } catch (error) {
+      console.error('Error deleting event:', error)
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete event",
+        title: "❌ Failed to Delete Event",
+        description: error instanceof Error ? error.message : "An unexpected error occurred while deleting the event",
         variant: "destructive",
       })
     } finally {
@@ -134,6 +140,10 @@ export default function EventsClient({ initialEvents }: EventsClientProps) {
   const handleFormClose = () => {
     setShowForm(false)
     setEditingEvent(undefined)
+  }
+
+  const handleCreateClick = () => {
+    setShowForm(true)
   }
 
   const handleFormSave = (data: CreateEventInput | UpdateEventInput) => {
@@ -159,17 +169,31 @@ export default function EventsClient({ initialEvents }: EventsClientProps) {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-semibold">All Events</h2>
-        <Button onClick={() => setShowForm(true)}>
+        <Button onClick={handleCreateClick}>
           <Plus className="h-4 w-4 mr-2" />
           Add Event
         </Button>
       </div>
 
       <div className="grid gap-4">
-        {events.length === 0 ? (
+        {loading && (
           <Card>
             <CardContent className="p-6 text-center">
-              <p className="text-muted-foreground">No events found. Add your first event above.</p>
+              <div className="flex items-center justify-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gold-600"></div>
+                <p className="text-muted-foreground">Processing event operation...</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
+        {!loading && events.length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-center">
+              <div className="space-y-2">
+                <p className="text-muted-foreground">No events found. Add your first event above.</p>
+                <p className="text-sm text-muted-foreground">Events help organize your wedding activities and manage guest invitations.</p>
+              </div>
             </CardContent>
           </Card>
         ) : (

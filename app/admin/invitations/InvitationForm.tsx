@@ -25,19 +25,21 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Plus, Trash2, Calendar, MapPin, Clock } from 'lucide-react'
-import { toast } from '@/hooks/use-toast'
+import { toast } from '@/components/ui/use-toast'
 import type { Invitation, InvitationEvent } from '@/lib/invitations-service'
 import type { Guest } from '@/lib/types/guests'
+import type { ConfigValue } from '@/lib/types/config'
 
 interface InvitationFormProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   invitation?: Invitation
+  config?: ConfigValue
   onSave: (data: {
     guest_ids: string[]
     events: Array<{
       event_id: string
-      headcount: number // Fixed at 1, not editable in form
+      headcount: number
       status: 'pending' | 'accepted' | 'declined' | 'waitlist'
     }>
   }) => void
@@ -64,6 +66,7 @@ export default function InvitationForm({
   open,
   onOpenChange,
   invitation,
+  config,
   onSave,
   loading = false,
 }: InvitationFormProps) {
@@ -77,6 +80,18 @@ export default function InvitationForm({
   const [availableEvents, setAvailableEvents] = useState<EventOption[]>([])
   const [searchGuest, setSearchGuest] = useState('')
   const [searchEvent, setSearchEvent] = useState('')
+
+  // Update headcount values when config changes
+  useEffect(() => {
+    if (config) {
+      const newHeadcount = config.plus_ones_enabled ? (config.max_party_size || 1) : 1
+      
+      setSelectedEvents(prev => prev.map(event => ({
+        ...event,
+        headcount: config.plus_ones_enabled ? event.headcount : 1
+      })))
+    }
+  }, [config?.plus_ones_enabled, config?.max_party_size])
 
   // Load available guests and events
   useEffect(() => {
@@ -134,15 +149,23 @@ export default function InvitationForm({
       if (!response.ok) {
         throw new Error('Failed to fetch events')
       }
-      const data = await response.json()
-      const events: EventOption[] = data.events.map((event: any) => ({
-        id: event.id,
-        name: event.name,
-        starts_at: event.starts_at,
-        venue: event.venue,
-        address: event.address
-      }))
-      setAvailableEvents(events)
+      const events = await response.json()
+      
+      // Handle both array response and error response
+      if (Array.isArray(events)) {
+        const eventOptions: EventOption[] = events.map((event: any) => ({
+          id: event.id,
+          name: event.name,
+          starts_at: event.starts_at,
+          venue: event.venue,
+          address: event.address
+        }))
+        setAvailableEvents(eventOptions)
+      } else if (events.error) {
+        throw new Error(events.error)
+      } else {
+        throw new Error('Invalid response format')
+      }
     } catch (error) {
       console.error('Failed to load events:', error)
       toast({
@@ -175,9 +198,12 @@ export default function InvitationForm({
   }
 
   const handleAddEvent = (event: EventOption) => {
+    // Set headcount based on plus-ones configuration
+    const defaultHeadcount = config?.plus_ones_enabled ? (config.max_party_size || 1) : 1
+    
     setSelectedEvents(prev => [...prev, {
       event_id: event.id,
-      headcount: 1, // Fixed headcount of 1
+      headcount: defaultHeadcount,
       status: 'pending',
     }])
     setSearchEvent('')
@@ -188,13 +214,25 @@ export default function InvitationForm({
   }
 
   const handleEventChange = (eventId: string, field: string, value: any) => {
-    // Only allow status changes, headcount is fixed at 1
     if (field === 'status') {
       setSelectedEvents(prev => prev.map(event => 
         event.event_id === eventId 
           ? { ...event, [field]: value }
           : event
       ))
+    } else if (field === 'headcount') {
+      // Only allow headcount changes if plus-ones are enabled
+      if (config?.plus_ones_enabled) {
+        // Enforce max party size limit
+        const maxHeadcount = config.max_party_size || 1
+        const clampedValue = Math.min(Math.max(value, 1), maxHeadcount)
+        
+        setSelectedEvents(prev => prev.map(event => 
+          event.event_id === eventId 
+            ? { ...event, [field]: clampedValue }
+            : event
+        ))
+      }
     }
   }
 
@@ -362,6 +400,28 @@ export default function InvitationForm({
                                   <SelectItem value="waitlist">Waitlist</SelectItem>
                                 </SelectContent>
                               </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor={`headcount-${index}`}>
+                                Headcount
+                                {!config?.plus_ones_enabled && ' (Fixed at 1)'}
+                              </Label>
+                              <Input
+                                id={`headcount-${index}`}
+                                type="number"
+                                min="1"
+                                max={config?.max_party_size || 1}
+                                value={eventData.headcount}
+                                onChange={(e) => handleEventChange(eventData.event_id, 'headcount', parseInt(e.target.value, 10))}
+                                disabled={!config?.plus_ones_enabled}
+                              />
+                              <p className="text-xs text-gray-500">
+                                {config?.plus_ones_enabled 
+                                  ? `Number of people (including main guest) - Max: ${config.max_party_size}`
+                                  : 'Plus-ones are disabled - headcount fixed at 1'
+                                }
+                              </p>
                             </div>
                           </div>
                         </div>

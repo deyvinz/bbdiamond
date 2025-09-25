@@ -43,6 +43,8 @@ export async function getGuestsServer(
     query = query.eq('is_vip', filters.is_vip)
   }
 
+  // Note: RSVP status filtering will be handled in application layer after fetching all data
+
   // Apply sorting
   const sortBy = filters.sort_by || 'name'
   const sortOrder = filters.sort_order || 'asc'
@@ -53,11 +55,7 @@ export async function getGuestsServer(
     query = query.order('updated_at', { ascending: sortOrder === 'asc' })
   }
 
-  // Apply pagination
-  const from = (pagination.page - 1) * pagination.page_size
-  const to = from + pagination.page_size - 1
-  query = query.range(from, to)
-
+  // For RSVP status filtering, we need to fetch all data first, then filter, then paginate
   const { data: guests, error, count } = await query
 
   if (error) {
@@ -107,19 +105,24 @@ export async function getGuestsServer(
     }
   })
 
-  // Filter by RSVP status if specified
+  // Apply RSVP status filtering in application layer
   let filteredGuests = processedGuests
   if (filters.rsvp_status) {
     filteredGuests = processedGuests.filter((guest: any) => 
-      guest.latest_rsvp?.status === filters.rsvp_status
+      guest.all_events?.some((event: any) => event.status === filters.rsvp_status)
     )
   }
 
-  const totalCount = (filters.rsvp_status ? filteredGuests.length : (count || 0))
+  // Apply pagination to filtered results
+  const from = (pagination.page - 1) * pagination.page_size
+  const to = from + pagination.page_size - 1
+  const paginatedGuests = filteredGuests.slice(from, to)
+
+  const totalCount = filters.rsvp_status ? filteredGuests.length : (count || 0)
   const totalPages = Math.ceil(totalCount / pagination.page_size)
 
   return {
-    guests: filteredGuests,
+    guests: paginatedGuests,
     total_count: totalCount,
     page: pagination.page,
     page_size: pagination.page_size,

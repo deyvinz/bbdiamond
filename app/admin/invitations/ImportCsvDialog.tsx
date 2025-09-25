@@ -26,14 +26,16 @@ import {
   Users,
   Calendar
 } from 'lucide-react'
-import { toast } from '@/hooks/use-toast'
+import { toast } from '@/components/ui/use-toast'
 // CSV parsing will be handled on the server side
 import { csvInvitationSchema } from '@/lib/validators'
 import type { CsvInvitationInput } from '@/lib/validators'
+import type { ConfigValue } from '@/lib/types/config'
 
 interface ImportCsvDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  config?: ConfigValue
   onImport: (data: CsvInvitationInput[]) => Promise<{
     success: number
     errors: Array<{ row: number; error: string }>
@@ -49,6 +51,7 @@ interface ImportResult {
 export default function ImportCsvDialog({
   open,
   onOpenChange,
+  config,
   onImport,
   loading = false,
 }: ImportCsvDialogProps) {
@@ -307,7 +310,12 @@ export default function ImportCsvDialog({
                         {row.guest_first_name} {row.guest_last_name}
                       </div>
                       <div className="truncate">{row.event_id}</div>
-                      <div>{row.headcount}</div>
+                      <div>
+                        {config?.plus_ones_enabled ? row.headcount : 1}
+                        {!config?.plus_ones_enabled && (
+                          <span className="text-xs text-gray-500 ml-1">(Fixed)</span>
+                        )}
+                      </div>
                       <div>
                         <Badge 
                           variant="outline" 
@@ -315,9 +323,9 @@ export default function ImportCsvDialog({
                             row.status === 'accepted' 
                               ? 'bg-green-100 text-green-800 border-green-300'
                               : row.status === 'pending'
-                              ? 'bg-gray-100 text-gray-800 border-gray-300'
+                              ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
                               : row.status === 'declined'
-                              ? 'bg-red-100 text-red-800 border-red-300'
+                              ? 'bg-gray-100 text-gray-800 border-gray-300'
                               : 'bg-amber-100 text-amber-800 border-amber-300'
                           }
                         >

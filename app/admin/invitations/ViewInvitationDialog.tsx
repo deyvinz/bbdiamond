@@ -23,13 +23,15 @@ import {
   QrCode
 } from 'lucide-react'
 import { format } from 'date-fns'
-import { toast } from '@/hooks/use-toast'
+import { toast } from '@/components/ui/use-toast'
 import type { Invitation } from '@/lib/invitations-service'
+import type { ConfigValue } from '@/lib/types/config'
 
 interface ViewInvitationDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   invitation?: Invitation
+  config?: ConfigValue
 }
 
 const statusColors = {
@@ -50,6 +52,7 @@ export default function ViewInvitationDialog({
   open,
   onOpenChange,
   invitation,
+  config,
 }: ViewInvitationDialogProps) {
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
 
@@ -74,9 +77,17 @@ export default function ViewInvitationDialog({
     })
   }
 
+  const handleCopyInviteCode = (code: string) => {
+    navigator.clipboard.writeText(code)
+    toast({
+      title: "Copied!",
+      description: "Invite code copied to clipboard",
+    })
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-gold-700">
             Invitation Details
@@ -86,7 +97,7 @@ export default function ViewInvitationDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+         <div className="space-y-10">
           {/* Guest Information */}
           <Card>
             <CardHeader>
@@ -95,8 +106,8 @@ export default function ViewInvitationDialog({
                 Guest Information
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <CardContent className="space-y-6">
+               <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                 <div>
                   <label className="text-sm font-medium text-gray-500">Name</label>
                   <p className="text-lg font-semibold break-words">
@@ -106,20 +117,29 @@ export default function ViewInvitationDialog({
                     )}
                   </p>
                 </div>
-                <div>
+                <div className="xl:col-span-2">
                   <label className="text-sm font-medium text-gray-500">Email</label>
                   <p className="text-lg flex items-center gap-2 break-words">
                     <Mail className="h-4 w-4 flex-shrink-0" />
-                    <span className="break-all">{invitation.guest.email}</span>
+                    <span className="break-all min-w-0">{invitation.guest.email}</span>
                   </p>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Invite Code</label>
-                  <p className="text-lg font-mono bg-gray-100 px-2 py-1 rounded">
-                    {invitation.guest.invite_code}
-                  </p>
-                </div>
-                <div className="md:col-span-2">
+                 <div>
+                   <label className="text-sm font-medium text-gray-500">Invite Code</label>
+                   <div className="flex items-center gap-2">
+                     <p className="text-lg font-mono bg-gray-100 px-2 py-1 rounded flex-1">
+                       {invitation.guest.invite_code}
+                     </p>
+                     <Button
+                       variant="outline"
+                       size="sm"
+                       onClick={() => handleCopyInviteCode(invitation.guest.invite_code)}
+                     >
+                       <Copy className="h-4 w-4" />
+                     </Button>
+                   </div>
+                 </div>
+                <div className="xl:col-span-3">
                   <label className="text-sm font-medium text-gray-500">Invitation Token</label>
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-mono bg-gray-100 px-2 py-1 rounded flex-1 break-all">
@@ -146,24 +166,23 @@ export default function ViewInvitationDialog({
                 Events ({invitation.invitation_events.length})
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+             <CardContent className="space-y-8">
               {invitation.invitation_events.map((event, index) => (
                 <div key={event.id}>
                   <Card className="border-l-4 border-l-gold-500">
-                    <CardContent className="p-4">
+                    <CardContent className="p-6">
                       <div className="flex items-start justify-between">
-                        <div className="flex-1 space-y-3 min-w-0">
+                        <div className="flex-1 space-y-4 min-w-0">
                           <div className="flex items-center gap-3 flex-wrap">
                             <h4 className="text-lg font-semibold break-words">{event.event.name}</h4>
                             <Badge
-                              variant={statusColors[event.status] as any}
                               className={
                                 event.status === 'accepted' 
-                                  ? 'bg-gold-100 text-gold-800 border-gold-300'
+                                  ? 'bg-green-100 text-green-800 border-green-300'
                                   : event.status === 'pending'
-                                  ? 'bg-gray-100 text-gray-800 border-gray-300'
+                                  ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
                                   : event.status === 'declined'
-                                  ? 'bg-red-100 text-red-800 border-red-300'
+                                  ? 'bg-gray-100 text-gray-800 border-gray-300'
                                   : 'bg-amber-100 text-amber-800 border-amber-300'
                               }
                             >
@@ -171,40 +190,47 @@ export default function ViewInvitationDialog({
                             </Badge>
                           </div>
                           
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
+                           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                            <div className="space-y-3 min-w-0">
                               <div className="flex items-start gap-2 text-sm text-gray-600">
                                 <Calendar className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                                <span className="break-words">{format(new Date(event.event.starts_at), 'EEEE, MMMM d, yyyy')}</span>
+                                <span className="break-words min-w-0">{format(new Date(event.event.starts_at), 'EEEE, MMMM d, yyyy')}</span>
                               </div>
                               <div className="flex items-start gap-2 text-sm text-gray-600">
                                 <Clock className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                                <span className="break-words">{format(new Date(event.event.starts_at), 'h:mm a')}</span>
+                                <span className="break-words min-w-0">{format(new Date(event.event.starts_at), 'h:mm a')}</span>
                               </div>
                               <div className="flex items-start gap-2 text-sm text-gray-600">
                                 <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                                <span className="break-words">{event.event.venue}</span>
+                                <span className="break-words min-w-0">{event.event.venue}</span>
                               </div>
                               {event.event.address && (
-                                <div className="text-sm text-gray-500 ml-6 break-words">
+                                <div className="text-sm text-gray-500 ml-6 break-words min-w-0">
                                   {event.event.address}
                                 </div>
                               )}
                             </div>
                             
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <Users className="h-4 w-4 text-gray-500" />
-                                <span className="text-sm font-medium">Headcount:</span>
-                                <span className="text-sm">{event.headcount}</span>
+                            <div className="space-y-3 min-w-0">
+                              <div className="flex items-start gap-2">
+                                <Users className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                                <div className="min-w-0">
+                                  <span className="text-sm font-medium">Headcount:</span>
+                                  <span className="text-sm ml-1">
+                                    {config?.plus_ones_enabled ? event.headcount : 1}
+                                    {!config?.plus_ones_enabled && (
+                                      <span className="text-xs text-gray-500 ml-1">(Fixed - Plus-ones disabled)</span>
+                                    )}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="space-y-1">
+                              <div className="space-y-2 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <QrCode className="h-4 w-4 text-gray-500" />
+                                  <QrCode className="h-4 w-4 text-gray-500 flex-shrink-0" />
                                   <span className="text-sm font-medium">Event Token:</span>
                                 </div>
-                                <div className="flex items-center gap-1 ml-6">
-                                  <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded break-all flex-1">
+                                <div className="flex items-center gap-1 ml-6 min-w-0">
+                                  <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded break-all flex-1 min-w-0">
                                     {event.event_token}
                                   </span>
                                   <Button
@@ -224,7 +250,7 @@ export default function ViewInvitationDialog({
                           {event.latest_rsvp && (
                             <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                               <h5 className="text-sm font-medium text-gray-700 mb-2">Latest RSVP</h5>
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                                 <div className="break-words">
                                   <span className="font-medium">Response:</span> {event.latest_rsvp.response}
                                 </div>
@@ -255,8 +281,8 @@ export default function ViewInvitationDialog({
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
+             <CardContent>
+               <div className="flex flex-wrap gap-4">
                 <Button
                   variant="outline"
                   onClick={() => handleCopyInviteLink(invitation.token)}

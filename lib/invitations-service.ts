@@ -14,6 +14,7 @@ import {
   type SendEmailInput
 } from './validators'
 import { logAdminAction } from './audit'
+import { getAppConfig } from './config-service'
 
 export interface InvitationEvent {
   id: string
@@ -61,17 +62,41 @@ export interface InvitationsListResponse {
   total_pages: number
 }
 
+// Helper function to validate and enforce headcount rules
+async function validateAndEnforceHeadcount(events: Array<{ event_id: string; headcount: number; status: string }>) {
+  const config = await getAppConfig()
+  
+  return events.map(event => {
+    let headcount = event.headcount
+    
+    // If plus-ones are disabled, force headcount to 1
+    if (!config.plus_ones_enabled) {
+      headcount = 1
+    } else {
+      // If plus-ones are enabled, enforce max party size
+      const maxHeadcount = config.max_party_size || 1
+      headcount = Math.min(Math.max(headcount, 1), maxHeadcount)
+    }
+    
+    return {
+      ...event,
+      headcount
+    }
+  })
+}
+
 export async function getInvitationsPage(
   filters: InvitationFiltersInput,
   pagination: { page: number; page_size: number }
 ): Promise<InvitationsListResponse> {
-  const cacheKey = invitationsListKey({ 
-    ...filters, 
-    page: pagination.page,
-    pageSize: pagination.page_size
-  })
+  // Disable caching for now to fix filtering issues
+  // const cacheKey = invitationsListKey({ 
+  //   ...filters, 
+  //   page: pagination.page,
+  //   pageSize: pagination.page_size
+  // })
   
-  return await cacheJson(cacheKey, 120, async () => {
+  // return await cacheJson(cacheKey, 120, async () => {
   
   const supabase = await supabaseServer()
   
@@ -118,9 +143,6 @@ export async function getInvitationsPage(
     query = query.eq('invitation_events.event_id', filters.eventId)
   }
 
-  if (filters.status) {
-    query = query.eq('invitation_events.status', filters.status)
-  }
 
   if (filters.dateFrom) {
     query = query.gte('created_at', filters.dateFrom)
@@ -163,9 +185,7 @@ export async function getInvitationsPage(
     countQuery = countQuery.eq('invitation_events.event_id', filters.eventId)
   }
 
-  if (filters.status) {
-    countQuery = countQuery.eq('invitation_events.status', filters.status)
-  }
+  // Note: Status filtering is handled in the application layer for count as well
 
   if (filters.dateFrom) {
     countQuery = countQuery.gte('created_at', filters.dateFrom)
@@ -175,12 +195,13 @@ export async function getInvitationsPage(
     countQuery = countQuery.lte('created_at', filters.dateTo)
   }
 
+  // Note: Status filtering will be handled in application layer after fetching all data
+  // This ensures we get all invitations with all their events, then filter appropriately
+
   const { count } = await countQuery
 
-  // Apply pagination
-  const offset = (pagination.page - 1) * pagination.page_size
-  query = query.range(offset, offset + pagination.page_size - 1)
-
+  // For status filtering, we need to fetch all data first, then filter, then paginate
+  // This ensures we get all invitations with all their events
   const { data: invitations, error } = await query
 
   if (error) {
@@ -213,7 +234,7 @@ export async function getInvitationsPage(
   }
 
   // Attach latest RSVP to each invitation event
-  const processedInvitations = invitations?.map((invitation: any) => ({
+  const allProcessedInvitations = invitations?.map((invitation: any) => ({
     ...invitation,
     invitation_events: invitation.invitation_events?.map((event: any) => ({
       ...event,
@@ -221,17 +242,28 @@ export async function getInvitationsPage(
     })) || []
   })) || []
 
-  const totalCount = count || 0
+  // Apply status filtering in application layer
+  let filteredInvitations = allProcessedInvitations
+  if (filters.status) {
+    filteredInvitations = allProcessedInvitations.filter((invitation: any) => 
+      invitation.invitation_events?.some((event: any) => event.status === filters.status)
+    )
+  }
+
+  // Apply pagination to filtered results
+  const offset = (pagination.page - 1) * pagination.page_size
+  const processedInvitations = filteredInvitations.slice(offset, offset + pagination.page_size)
+
+  const totalCount = filters.status ? filteredInvitations.length : (count || 0)
   const totalPages = Math.ceil(totalCount / pagination.page_size)
 
-    return {
-      invitations: processedInvitations,
-      total_count: totalCount,
-      page: pagination.page,
-      page_size: pagination.page_size,
-      total_pages: totalPages
-    }
-  })
+  return {
+    invitations: processedInvitations,
+    total_count: totalCount,
+    page: pagination.page,
+    page_size: pagination.page_size,
+    total_pages: totalPages
+  }
 }
 
 export async function createInvitationsForGuests(
@@ -240,6 +272,9 @@ export async function createInvitationsForGuests(
 ): Promise<Invitation[]> {
   const supabase = await supabaseServer()
   const invitations: Invitation[] = []
+
+  // Validate and enforce headcount rules based on configuration
+  const validatedEventDefs = await validateAndEnforceHeadcount(eventDefs)
 
   for (const guestId of guestIds) {
     // Ensure guest has an invite code
@@ -295,8 +330,8 @@ export async function createInvitationsForGuests(
       invitationId = invitation.id
     }
 
-    // Create invitation events
-    const invitationEvents = eventDefs.map(eventDef => ({
+    // Create invitation events using validated event definitions
+    const invitationEvents = validatedEventDefs.map(eventDef => ({
       invitation_id: invitationId,
       event_id: eventDef.event_id,
       headcount: eventDef.headcount,
@@ -814,14 +849,22 @@ export async function importInvitationsFromCsv(csvData: CsvInvitationInput[]): P
         invitation = newInvitation
       }
 
+      // Validate and enforce headcount rules
+      const validatedEvents = await validateAndEnforceHeadcount([{
+        event_id: row.event_id,
+        headcount: row.headcount,
+        status: row.status
+      }])
+      const validatedEvent = validatedEvents[0]
+
       // Create or update invitation event
       const { error: eventError } = await supabase
         .from('invitation_events')
         .upsert({
           invitation_id: invitation.id,
-          event_id: row.event_id,
-          headcount: row.headcount,
-          status: row.status,
+          event_id: validatedEvent.event_id,
+          headcount: validatedEvent.headcount,
+          status: validatedEvent.status,
           event_token: crypto.randomUUID()
         }, {
           onConflict: 'invitation_id,event_id'

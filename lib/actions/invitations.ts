@@ -17,6 +17,7 @@ import {
   type CsvInvitationInput,
   type SendEmailInput
 } from '@/lib/invitations-service'
+import { submitRsvp } from '@/lib/rsvp-service'
 import { logInvitationAction } from '@/lib/audit'
 
 export async function createInvitationsAction(data: CreateInvitationInput) {
@@ -226,5 +227,88 @@ export async function importInvitationsAction(data: CsvInvitationInput[]) {
   } catch (error) {
     console.error('Import invitations action failed:', error)
     throw new Error(`Failed to import invitations: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
+export async function resendRsvpConfirmationAction(invitationId: string) {
+  const supabase = await supabaseServer()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect('/auth/sign-in')
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'admin' && profile?.role !== 'staff') {
+    throw new Error('Unauthorized: Only admin or staff can resend RSVP confirmations.')
+  }
+
+  try {
+    // Get invitation details
+    const { data: invitation, error: invitationError } = await supabase
+      .from('invitations')
+      .select(`
+        id,
+        token,
+        guest:guests!inner(
+          invite_code,
+          email
+        ),
+        invitation_events!inner(
+          status
+        )
+      `)
+      .eq('id', invitationId)
+      .single()
+
+    if (invitationError || !invitation) {
+      throw new Error('Invitation not found')
+    }
+
+    // Check if there are any accepted events
+    const acceptedEvents = invitation.invitation_events.filter((event: any) => event.status === 'accepted')
+    if (acceptedEvents.length === 0) {
+      throw new Error('This invitation has no accepted events to resend confirmation for')
+    }
+
+    // Prepare the data for resending
+    const rsvpData = {
+      invite_code: invitation.guest.invite_code,
+      response: 'accepted' as const,
+      email: invitation.guest.email,
+    }
+
+    // Resend the RSVP confirmation
+    console.log('Resending RSVP confirmation for invitation:', invitationId)
+    console.log('RSVP data:', rsvpData)
+    
+    const result = await submitRsvp(rsvpData, user.id)
+    
+    console.log('Submit RSVP result:', result)
+    
+    if (!result.success) {
+      throw new Error(result.message)
+    }
+    
+    // Log the action
+    await logInvitationAction(
+      'resend_rsvp_confirmation',
+      { invitationId },
+      user.id,
+      undefined,
+      undefined
+    )
+
+    revalidatePath('/admin/invitations')
+    
+    return { success: true }
+  } catch (error) {
+    console.error('Resend RSVP confirmation action failed:', error)
+    throw new Error(`Failed to resend RSVP confirmation: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }

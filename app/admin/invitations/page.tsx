@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { getInvitationsPage } from '@/lib/invitations-service'
+import { getAppConfig } from '@/lib/config-service'
 import InvitationsClient from './InvitationsClient'
 import { CardSkeleton } from '@/components/ui/skeleton'
 
@@ -38,16 +39,25 @@ export default async function InvitationsPage({ searchParams }: InvitationsPageP
   }
 
   let invitationsData
+  let config
   try {
-    invitationsData = await getInvitationsPage(filters, pagination)
+    [invitationsData, config] = await Promise.all([
+      getInvitationsPage(filters, pagination),
+      getAppConfig()
+    ])
   } catch (error) {
-    console.error('Error fetching invitations:', error)
+    console.error('Error fetching data:', error)
     invitationsData = {
       invitations: [],
       total_count: 0,
       page: 1,
       page_size: 20,
       total_pages: 0
+    }
+    config = {
+      plus_ones_enabled: false,
+      max_party_size: 1,
+      allow_guest_plus_ones: false,
     }
   }
 
@@ -75,6 +85,7 @@ export default async function InvitationsPage({ searchParams }: InvitationsPageP
           page={invitationsData.page}
           pageSize={invitationsData.page_size}
           totalPages={invitationsData.total_pages}
+          config={config}
           initialFilters={{
             q: filters.q,
             eventId: filters.eventId,

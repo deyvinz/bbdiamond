@@ -141,3 +141,9 @@ export function eventDetailKey(eventId: string): string {
   return `${namespace}:events:detail:${eventId}`
 }
 
+// Configuration cache keys
+export function appConfigKey(): string {
+  const namespace = process.env.CACHE_NAMESPACE || 'wg'
+  return `${namespace}:app_config`
+}
+
