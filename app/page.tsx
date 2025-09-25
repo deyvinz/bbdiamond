@@ -12,17 +12,22 @@ export default function Home() {
       {/* Hero */}
       <section className="pt-12 md:pt-20">
         <div className="container max-w-6xl">
-          <div className="grid items-center gap-8 md:gap-12 md:grid-cols-2">
-            <MotionItem className="text-center md:text-left">
+          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8 md:gap-12">
+            <MotionItem className="text-center flex flex-col items-center justify-center">
               <p className="uppercase tracking-wide text-xs md:text-sm text-black/60">
                 You&apos;re invited
               </p>
-              <h1 className="mt-2 font-serif text-5xl md:text-6xl leading-tight foil">
-                Brenda & Diamond
-              </h1>
-              <p className="text-sm text-black/70 italic w-full">#BrendaBagsHerDiamond</p>
+              <Image
+                  src="/images/logo.png"
+                  // "https://utumylehywfktctigkie.supabase.co/storage/v1/object/public/bdiamond/b-d.jpg"
+                  alt="Brenda & Diamond"
+                  className="object-cover rounded-2xl"
+                  width={300}
+                  height={300}
+                />
+            
               <p className="mt-3 md:mt-4 text-black/70">October 16 & 17, 2025 • Lagos, Nigeria</p>
-              <div className="mt-7 flex flex-col sm:flex-row gap-3 md:justify-start justify-center">
+              <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
                 <Link href="/rsvp">
                   <Button variant="gold" size="lg">
                     RSVP
@@ -33,17 +38,6 @@ export default function Home() {
                     Schedule
                   </Button>
                 </Link>
-              </div>
-            </MotionItem>
-            <MotionItem>
-              <div className="relative overflow-hidden aspect-[4/3] md:aspect-[5/4] rounded-2xl border border-gold-100 shadow-gold bg-white/70 transition-all duration-300 hover:scale-105 hover:rotate-1 active:scale-95">
-                <Image
-                  src="/images/logo.png"
-                  // "https://utumylehywfktctigkie.supabase.co/storage/v1/object/public/bdiamond/b-d.jpg"
-                  alt="Brenda & Diamond"
-                  fill
-                  className="object-cover rounded-2xl"
-                />
               </div>
             </MotionItem>
           </div>
