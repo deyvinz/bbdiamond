@@ -35,7 +35,7 @@
         "image": "https://utumylehywfktctigkie.supabase.co/storage/v1/object/public/bdiamond/fiazah.jpg"
     },
     {
-        "name": "Adewale Adadevoh",
+        "name": "Olawale Adadevoh",
         "role": "Groomsman",
         "image": ""
     },
@@ -73,6 +73,11 @@
         "name": "Farida Adejare",
         "role": "Bridesmaid",
         "image": "https://utumylehywfktctigkie.supabase.co/storage/v1/object/public/bdiamond/farida.jpg"
+    },
+    {
+        "name": "Ademola Ladejobi",
+        "role": "Groomsman",
+        "image": ""
     },
     {
         "name": "Teni Apata",
