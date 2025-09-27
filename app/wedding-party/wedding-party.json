@@ -27,7 +27,7 @@
     {
         "name": "Jibola Ahmadu",
         "role": "Groomsman",
-        "image": ""
+        "image": "https://utumylehywfktctigkie.supabase.co/storage/v1/object/public/bdiamond/jibola.jpg"
     },
     {
         "name": "Faizah Ijelu",
@@ -77,7 +77,7 @@
     {
         "name": "Ademola Ladejobi",
         "role": "Groomsman",
-        "image": ""
+        "image": "https://utumylehywfktctigkie.supabase.co/storage/v1/object/public/bdiamond/demola%20(1).jpg"
     },
     {
         "name": "Teni Apata",
@@ -85,8 +85,13 @@
         "image": ""
     },
     {
+        "name": "Abbey",
+        "role": "Groomsman",
+        "image": ""
+    },
+    {
         "name": "Zainab Fasisi-Adeleke",
         "role": "Bridesmaid",
-        "image": ""
+        "image": "https://utumylehywfktctigkie.supabase.co/storage/v1/object/public/bdiamond/zainab.jpg"
     }
 ]
