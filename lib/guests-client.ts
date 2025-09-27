@@ -66,8 +66,13 @@ export async function createGuest(guestData: Partial<Guest>, invitationData?: { 
   const { data: guest, error: guestError } = await supabase
     .from('guests')
     .insert({
-      ...validatedGuest,
+      first_name: validatedGuest.first_name,
+      last_name: validatedGuest.last_name,
+      email: validatedGuest.email,
+      phone: validatedGuest.phone,
       household_id: householdId,
+      is_vip: validatedGuest.is_vip,
+      gender: validatedGuest.gender,
       invite_code: inviteCode
     })
     .select(`

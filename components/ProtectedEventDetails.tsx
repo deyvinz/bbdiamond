@@ -52,7 +52,7 @@ export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEven
         const guestData = JSON.parse(savedGuest)
         setGuest(guestData)
         setIsAuthenticated(true)
-        fetchEvents()
+        // fetchGuestEvents will be called in the next useEffect when guest is set
       } catch (error) {
         console.error('Error parsing saved guest data:', error)
         sessionStorage.removeItem('schedule-guest')
@@ -60,22 +60,41 @@ export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEven
     }
   }, [])
 
-  const fetchEvents = async () => {
+  // Separate useEffect to fetch events when guest is available
+  useEffect(() => {
+    if (guest?.invite_code && isAuthenticated) {
+      fetchGuestEvents()
+    }
+  }, [guest, isAuthenticated])
+
+  const fetchGuestEvents = async () => {
+    if (!guest?.invite_code) {
+      console.log('No guest or invite code available, skipping event fetch')
+      return
+    }
+
     try {
-      const response = await fetch('/api/schedule/events')
+      const response = await fetch('/api/schedule/guest-events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ invite_code: guest.invite_code }),
+      })
+      
       const data = await response.json()
       
       if (data.success) {
         setEvents(data.events)
       } else {
-        console.error('Failed to fetch events:', data.message)
+        console.error('Failed to fetch guest events:', data.message)
       }
     } catch (error) {
-      console.error('Error fetching events:', error)
+      console.error('Error fetching guest events:', error)
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     
     if (!inviteCode.trim()) {
@@ -105,7 +124,7 @@ export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEven
         setGuest(guestData)
         setIsAuthenticated(true)
         sessionStorage.setItem('schedule-guest', JSON.stringify(guestData))
-        await fetchEvents()
+        // fetchGuestEvents will be called by the useEffect when guest is set
         
         toast({
           title: "Access Granted! 🎉",
@@ -225,51 +244,66 @@ export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEven
         </p>
       </div>
       
-      <MotionStagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 md:gap-6">
-        {events.map((event, idx) => (
-          <MotionItem key={idx}>
-            <MotionCard>
-              <Card>
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 mt-1">
-                    {getEventIcon(event.name)}
+      {events.length > 0 ? (
+        <MotionStagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 md:gap-6">
+          {events.map((event, idx) => (
+            <MotionItem key={idx}>
+              <MotionCard>
+                <Card>
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 mt-1">
+                      {getEventIcon(event.name)}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-medium text-lg">{event.name}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Calendar className="h-4 w-4 text-gold-500" />
+                        <p className="text-sm text-black/70">
+                          {new Date(event.starts_at).toLocaleDateString([], { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <MapPin className="h-4 w-4 text-gold-500" />
+                        <p className="text-sm text-black/70">{event.venue}</p>
+                      </div>
+                      {event.address && (
+                        <p className="text-sm text-black/70 mt-1">{event.address}</p>
+                      )}
+                      <div className="flex items-center gap-2 mt-2">
+                        <Calendar className="h-4 w-4 text-gold-500" />
+                        <p className="text-sm text-gold-600 font-medium">
+                          {new Date(event.starts_at).toLocaleTimeString([], { 
+                            hour: '2-digit', 
+                            minute: '2-digit', 
+                            hour12: true 
+                          })}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-medium text-lg">{event.name}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Calendar className="h-4 w-4 text-gold-500" />
-                      <p className="text-sm text-black/70">
-                        {new Date(event.starts_at).toLocaleDateString([], { 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        })}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <MapPin className="h-4 w-4 text-gold-500" />
-                      <p className="text-sm text-black/70">{event.venue}</p>
-                    </div>
-                    {event.address && (
-                      <p className="text-sm text-black/70 mt-1">{event.address}</p>
-                    )}
-                    <div className="flex items-center gap-2 mt-2">
-                      <Calendar className="h-4 w-4 text-gold-500" />
-                      <p className="text-sm text-gold-600 font-medium">
-                        {new Date(event.starts_at).toLocaleTimeString([], { 
-                          hour: '2-digit', 
-                          minute: '2-digit', 
-                          hour12: true 
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            </MotionCard>
-          </MotionItem>
-        ))}
-      </MotionStagger>
+                </Card>
+              </MotionCard>
+            </MotionItem>
+          ))}
+        </MotionStagger>
+      ) : (
+        <div className="text-center py-12">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-gold-100">
+            <Calendar className="h-10 w-10 text-gold-600" />
+          </div>
+          <h3 className="text-xl font-serif text-gray-900 mb-2">No Events Assigned</h3>
+          <p className="text-gray-600 mb-4">
+            Hi {guest?.first_name}, it looks like you don't have any specific events assigned to your invitation yet.
+          </p>
+          <p className="text-sm text-gray-500">
+            Please contact the couple directly if you believe this is an error, or check back later for updates.
+          </p>
+        </div>
+      )}
 
       <div className="mt-6 rounded-lg bg-gold-50/60 border border-gold-200 px-4 py-3">
         <p className="text-sm text-gold-900 font-medium">

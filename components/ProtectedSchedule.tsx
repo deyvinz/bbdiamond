@@ -46,25 +46,36 @@ export default function ProtectedSchedule({ guest, onLogout }: ProtectedSchedule
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchEvents = async () => {
+    const fetchGuestEvents = async () => {
       try {
-        const response = await fetch('/api/schedule/events')
+        const response = await fetch('/api/schedule/guest-events', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ invite_code: guest.invite_code }),
+        })
+        
         const data = await response.json()
         
         if (data.success) {
           setEvents(data.events)
         } else {
-          console.error('Failed to fetch events:', data.message)
+          console.error('Failed to fetch guest events:', data.message)
         }
       } catch (error) {
-        console.error('Error fetching events:', error)
+        console.error('Error fetching guest events:', error)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchEvents()
-  }, [])
+    if (guest?.invite_code) {
+      fetchGuestEvents()
+    } else {
+      setLoading(false)
+    }
+  }, [guest])
 
   const getEventIcon = (eventName: string) => {
     const name = eventName.toLowerCase()
@@ -137,44 +148,59 @@ export default function ProtectedSchedule({ guest, onLogout }: ProtectedSchedule
 
       {/* Schedule Content */}
       <Section title="Event Schedule" subtitle="Times & locations" narrow>
-        <MotionStagger className="relative ml-3 border-s border-gold-100">
-          {events.map((event, idx) => (
-            <MotionItem key={idx} className="ms-6 mb-6">
-              <span className="absolute -start-1.5 mt-4 h-3 w-3 rounded-full bg-gold-500" />
-              <MotionCard>
-                <Card>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 mt-1">
-                        {getEventIcon(event.name)}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-medium text-lg">{event.name}</h3>
-                        <div className="flex items-center gap-2 mt-1">
-                          <MapPin className="h-4 w-4 text-gold-500" />
-                          <p className="text-sm text-black/70">{event.venue} • {event.address}</p>
+        {events.length > 0 ? (
+          <MotionStagger className="relative ml-3 border-s border-gold-100">
+            {events.map((event, idx) => (
+              <MotionItem key={idx} className="ms-6 mb-6">
+                <span className="absolute -start-1.5 mt-4 h-3 w-3 rounded-full bg-gold-500" />
+                <MotionCard>
+                  <Card>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 mt-1">
+                          {getEventIcon(event.name)}
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-medium text-lg">{event.name}</h3>
+                          <div className="flex items-center gap-2 mt-1">
+                            <MapPin className="h-4 w-4 text-gold-500" />
+                            <p className="text-sm text-black/70">{event.venue} • {event.address}</p>
+                          </div>
                         </div>
                       </div>
+                      <div className="flex items-center gap-2 text-sm text-gold-600">
+                        <Clock className="h-4 w-4" />
+                        <time>
+                          {new Date(event.starts_at).toLocaleDateString([], { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric', 
+                            hour: '2-digit', 
+                            minute: '2-digit', 
+                            hour12: true 
+                          })}
+                        </time>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gold-600">
-                      <Clock className="h-4 w-4" />
-                      <time>
-                        {new Date(event.starts_at).toLocaleDateString([], { 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric', 
-                          hour: '2-digit', 
-                          minute: '2-digit', 
-                          hour12: true 
-                        })}
-                      </time>
-                    </div>
-                  </div>
-                </Card>
-              </MotionCard>
-            </MotionItem>
-          ))}
-        </MotionStagger>
+                  </Card>
+                </MotionCard>
+              </MotionItem>
+            ))}
+          </MotionStagger>
+        ) : (
+          <div className="text-center py-12">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-gold-100">
+              <Calendar className="h-10 w-10 text-gold-600" />
+            </div>
+            <h3 className="text-xl font-serif text-gray-900 mb-2">No Events Assigned</h3>
+            <p className="text-gray-600 mb-4">
+              Hi {guest.first_name}, it looks like you don't have any specific events assigned to your invitation yet.
+            </p>
+            <p className="text-sm text-gray-500">
+              Please contact the couple directly if you believe this is an error, or check back later for updates.
+            </p>
+          </div>
+        )}
       </Section>
     </MotionPage>
   )
