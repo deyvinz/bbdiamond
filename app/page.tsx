@@ -47,6 +47,11 @@ export default function Home() {
                     Schedule
                   </Button>
                 </Link>
+                <Link href="/seating">
+                  <Button variant="outline" size="lg">
+                    Seating
+                  </Button>
+                </Link>
               </div>
             </MotionItem>
           </div>
