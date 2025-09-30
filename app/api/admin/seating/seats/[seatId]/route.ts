@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { bumpNamespaceVersion } from '@/lib/cache'
 
 export async function DELETE(
   request: NextRequest,
@@ -30,6 +31,9 @@ export async function DELETE(
         message: 'Failed to remove seat assignment' 
       }, { status: 500 })
     }
+
+    // Invalidate cache to refresh seating data
+    await bumpNamespaceVersion()
 
     return NextResponse.json({
       success: true,

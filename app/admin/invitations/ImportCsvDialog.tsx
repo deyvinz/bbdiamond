@@ -397,7 +397,7 @@ export default function ImportCsvDialog({
             <Button 
               onClick={handleImport} 
               disabled={loading || csvData.length === 0}
-              className="bg-gold-600 hover:bg-gold-700"
+              className="bg-gold-600 text-white hover:bg-gold-700"
             >
               {loading ? 'Importing...' : 'Import Invitations'}
             </Button>

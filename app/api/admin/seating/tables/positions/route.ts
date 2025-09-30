@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { bumpNamespaceVersion } from '@/lib/cache'
 
 export async function PUT(request: NextRequest) {
   try {
@@ -33,6 +34,9 @@ export async function PUT(request: NextRequest) {
         message: 'Failed to update some table positions' 
       }, { status: 500 })
     }
+
+    // Invalidate cache to refresh seating data
+    await bumpNamespaceVersion()
 
     return NextResponse.json({
       success: true,

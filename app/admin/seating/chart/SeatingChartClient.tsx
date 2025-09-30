@@ -95,12 +95,17 @@ export default function SeatingChartClient() {
       const eventsData = await eventsRes.json()
       const guestsData = await guestsRes.json()
       
-      setEvents(eventsData)
-      setGuests(guestsData.guests || guestsData)
-      
-      if (eventsData.length > 0) {
-        setSelectedEvent(eventsData[0].id)
+      // Handle new events API response format
+      if (eventsData.success && eventsData.events) {
+        setEvents(eventsData.events)
+        if (eventsData.events.length > 0) {
+          setSelectedEvent(eventsData.events[0].id)
+        }
+      } else {
+        console.error('Failed to load events:', eventsData.error || 'Unknown error')
       }
+      
+      setGuests(guestsData.guests || guestsData)
     } catch (error) {
       console.error('Error loading data:', error)
       toast({
@@ -476,7 +481,7 @@ export default function SeatingChartClient() {
             <div className="flex items-center space-x-2">
               <Button
                 onClick={saveTablePositions}
-                className="bg-gold-600 hover:bg-gold-700"
+                className="bg-gold-600 text-white hover:bg-gold-700"
               >
                 <Save className="h-4 w-4 mr-2" />
                 Save Layout
@@ -620,7 +625,7 @@ export default function SeatingChartClient() {
                   </p>
                   <Button
                     onClick={() => setShowCreateTable(true)}
-                    className="bg-gold-600 hover:bg-gold-700"
+                    className="bg-gold-600 text-white hover:bg-gold-700"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Create First Table
@@ -666,7 +671,7 @@ export default function SeatingChartClient() {
               <Button variant="outline" onClick={() => setShowCreateTable(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleCreateTable} className="bg-gold-600 hover:bg-gold-700">
+              <Button onClick={handleCreateTable} className="bg-gold-600 text-white hover:bg-gold-700">
                 Create Table
               </Button>
             </div>

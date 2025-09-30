@@ -20,18 +20,15 @@ export async function GET(request: NextRequest) {
 
     // Find invitation by token or invite code
     let invitation
+    let guest = null
+    
     if (token) {
       const { data, error } = await supabase
         .from('invitations')
         .select(`
           id,
           token,
-          guest:guests!inner(
-            invite_code,
-            email,
-            first_name,
-            last_name
-          ),
+          guest_id,
           invitation_events!inner(
             status,
             event:events!inner(
@@ -53,6 +50,19 @@ export async function GET(request: NextRequest) {
         }, { status: 404 })
       }
       invitation = data
+      
+      // Fetch guest details separately
+      if (data.guest_id) {
+        const { data: guestData, error: guestError } = await supabase
+          .from('guests')
+          .select('invite_code, email, first_name, last_name')
+          .eq('id', data.guest_id)
+          .single()
+        
+        if (!guestError) {
+          guest = guestData
+        }
+      }
     } else {
       // Find by invite code
       const { data, error } = await supabase
@@ -60,12 +70,7 @@ export async function GET(request: NextRequest) {
         .select(`
           id,
           token,
-          guest:guests!inner(
-            invite_code,
-            email,
-            first_name,
-            last_name
-          ),
+          guest_id,
           invitation_events!inner(
             status,
             event:events!inner(
@@ -87,6 +92,26 @@ export async function GET(request: NextRequest) {
         }, { status: 404 })
       }
       invitation = data
+      
+      // Fetch guest details separately
+      if (data.guest_id) {
+        const { data: guestData, error: guestError } = await supabase
+          .from('guests')
+          .select('invite_code, email, first_name, last_name')
+          .eq('id', data.guest_id)
+          .single()
+        
+        if (!guestError) {
+          guest = guestData
+        }
+      }
+    }
+
+    if (!guest) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Guest not found' 
+      }, { status: 404 })
     }
 
     // Check if there are any accepted events
@@ -102,7 +127,7 @@ export async function GET(request: NextRequest) {
       overallStatus = 'declined'
     }
 
-    const guestName = `${invitation.guest.first_name} ${invitation.guest.last_name}`
+    const guestName = `${guest.first_name} ${guest.last_name}`
     
     // Format events for display
     const events = invitation.invitation_events.map((ie: any) => ({
@@ -128,7 +153,7 @@ export async function GET(request: NextRequest) {
         // Generate digital pass
         const passData = {
           guestName,
-          inviteCode: invitation.guest.invite_code,
+          inviteCode: guest.invite_code,
           token: invitation.token,
           events: acceptedEvents.map((ie: any) => ({
             name: ie.event.name,

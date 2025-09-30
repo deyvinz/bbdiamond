@@ -341,7 +341,7 @@ export default function SendEmailDialog({
           <Button 
             onClick={handleSend} 
             disabled={loading || rateLimitLoading || selectedEventIds.length === 0 || (rateLimitInfo ? !rateLimitInfo.canSend : false)}
-            className="bg-gold-600 hover:bg-gold-700"
+            className="bg-gold-600 text-white hover:bg-gold-700"
           >
             {loading ? 'Sending...' : rateLimitLoading ? 'Loading...' : 'Send Email'}
           </Button>

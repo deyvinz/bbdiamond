@@ -21,13 +21,7 @@ export async function GET(request: NextRequest) {
       .select(`
         id,
         token,
-        guest:guests!inner(
-          id,
-          first_name,
-          last_name,
-          email,
-          invite_code
-        ),
+        guest_id,
         invitation_events(
           id,
           event_id,
@@ -45,7 +39,21 @@ export async function GET(request: NextRequest) {
       .eq('token', token)
       .single()
 
-    if (error || !data) {
+    // If invitation found, fetch guest details separately
+    let guest = null
+    if (data && data.guest_id) {
+      const { data: guestData, error: guestError } = await supabase
+        .from('guests')
+        .select('id, first_name, last_name, email, invite_code')
+        .eq('id', data.guest_id)
+        .single()
+      
+      if (!guestError) {
+        guest = guestData
+      }
+    }
+
+    if (error || !data || !guest) {
       return NextResponse.json(
         { error: 'Invitation not found' },
         { status: 404 }
@@ -58,11 +66,11 @@ export async function GET(request: NextRequest) {
         id: data.id,
         token: data.token,
         guest: {
-          id: data.guest.id,
-          first_name: data.guest.first_name,
-          last_name: data.guest.last_name,
-          email: data.guest.email,
-          invite_code: data.guest.invite_code,
+          id: guest.id,
+          first_name: guest.first_name,
+          last_name: guest.last_name,
+          email: guest.email,
+          invite_code: guest.invite_code,
         },
         invitation_events: data.invitation_events.map((ie: any) => ({
           id: ie.id,

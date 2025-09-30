@@ -203,7 +203,7 @@ export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEven
               
               <Button 
                 type="submit" 
-                className="w-full bg-gold-600 hover:bg-gold-700"
+                className="w-full bg-gold-600 text-white hover:bg-gold-700"
                 disabled={isLoading}
               >
                 {isLoading ? (

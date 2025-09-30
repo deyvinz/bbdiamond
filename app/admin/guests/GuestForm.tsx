@@ -106,22 +106,19 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
   const loadEvents = async () => {
     try {
       setLoadingEvents(true)
-      const { data, error } = await supabase
-        .from('events')
-        .select('id, name')
-        .order('name')
+      const response = await fetch('/api/events')
+      const data = await response.json()
       
-      if (error) {
-        console.error('Error loading events:', error)
+      if (data.success && data.events) {
+        setEvents(data.events)
+      } else {
+        console.error('Failed to load events:', data.error || 'Unknown error')
         toast({
           title: "Error",
-          description: `Failed to load events: ${error.message}`,
+          description: `Failed to load events: ${data.error || 'Unknown error'}`,
           variant: "destructive",
         })
-        return
       }
-      
-      setEvents(data || [])
     } catch (error) {
       console.error('Error loading events:', error)
       toast({

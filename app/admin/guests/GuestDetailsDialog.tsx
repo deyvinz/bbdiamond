@@ -1,7 +1,14 @@
 "use client"
+import { useState, useEffect } from 'react'
 import { Guest } from '@/lib/types/guests'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { useToast } from '@/hooks/use-toast'
+import { createInvitationForGuest } from '@/lib/guests-client'
+import { bumpNamespaceVersion } from '@/lib/cache-client'
 import type { ConfigValue } from '@/lib/types/config'
 
 interface GuestDetailsDialogProps {
@@ -9,10 +16,134 @@ interface GuestDetailsDialogProps {
   guest?: Guest
   config?: ConfigValue
   onOpenChange: (open: boolean) => void
+  onInvitationCreated?: () => void
 }
 
-export default function GuestDetailsDialog({ open, guest, config, onOpenChange }: GuestDetailsDialogProps) {
+interface Event {
+  id: string
+  name: string
+  starts_at: string
+  venue: string
+}
+
+export default function GuestDetailsDialog({ open, guest, config, onOpenChange, onInvitationCreated }: GuestDetailsDialogProps) {
+  const [creatingInvitation, setCreatingInvitation] = useState(false)
+  const [showEventSelection, setShowEventSelection] = useState(false)
+  const [availableEvents, setAvailableEvents] = useState<Event[]>([])
+  const [selectedEvents, setSelectedEvents] = useState<string[]>([])
+  const [loadingEvents, setLoadingEvents] = useState(false)
+  const { toast } = useToast()
+
+  // Load events when dialog opens
+  useEffect(() => {
+    if (open) {
+      loadEvents()
+    }
+  }, [open])
+
   if (!guest) return null
+
+  // Check if guest has invitations to all available events
+  const hasInvitationsToAllEvents = availableEvents.length === 0
+
+  const loadEvents = async () => {
+    setLoadingEvents(true)
+    try {
+      const response = await fetch('/api/events')
+      const data = await response.json()
+      
+      if (data.success && data.events) {
+        // Filter events to only show those the guest doesn't have invitations to
+        const invitedEventIds = new Set<string>()
+        guest?.invitations?.forEach(invitation => {
+          invitation.invitation_events?.forEach(invitationEvent => {
+            invitedEventIds.add(invitationEvent.event_id)
+          })
+        })
+        
+        const availableEvents = data.events.filter((event: Event) => 
+          !invitedEventIds.has(event.id)
+        )
+        
+        setAvailableEvents(availableEvents)
+      } else {
+        console.error('Failed to load events:', data.error || 'Unknown error')
+        toast({
+          title: "Error",
+          description: "Failed to load events. Please try again.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Error loading events:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load events. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingEvents(false)
+    }
+  }
+
+  const handleCreateInvitation = () => {
+    if (!guest) return
+    
+    if (availableEvents.length === 0) {
+      toast({
+        title: "All Events Invited",
+        description: `${guest.first_name} ${guest.last_name} already has invitations to all available events.`,
+        variant: "destructive",
+      })
+      return
+    }
+    
+    setShowEventSelection(true)
+    setSelectedEvents([])
+  }
+
+  const handleEventToggle = (eventId: string) => {
+    setSelectedEvents(prev => 
+      prev.includes(eventId) 
+        ? prev.filter(id => id !== eventId)
+        : [...prev, eventId]
+    )
+  }
+
+  const handleConfirmInvitationCreation = async () => {
+    if (!guest || selectedEvents.length === 0) return
+    
+    setCreatingInvitation(true)
+    try {
+      for (const eventId of selectedEvents) {
+        await createInvitationForGuest(guest.id, eventId)
+      }
+      
+      // Invalidate cache to refresh guest data
+      await bumpNamespaceVersion()
+      
+      toast({
+        title: "Invitations Created",
+        description: `Created ${selectedEvents.length} invitation(s) successfully.`,
+      })
+      
+      setShowEventSelection(false)
+      setSelectedEvents([])
+      
+      if (onInvitationCreated) {
+        onInvitationCreated()
+      }
+    } catch (error) {
+      console.error('Error creating invitations:', error)
+      toast({
+        title: "Error",
+        description: "Failed to create invitations. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setCreatingInvitation(false)
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -58,7 +189,18 @@ export default function GuestDetailsDialog({ open, guest, config, onOpenChange }
           </section>
 
           <section>
-            <h3 className="font-medium mb-2">Invitations & Events</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-medium">Invitations & Events</h3>
+              <Button
+                onClick={handleCreateInvitation}
+                disabled={creatingInvitation || hasInvitationsToAllEvents}
+                size="sm"
+                variant="outline"
+              >
+                {creatingInvitation ? 'Creating...' : 
+                 hasInvitationsToAllEvents ? 'All Events Invited' : 'Create Invitation'}
+              </Button>
+            </div>
             <div className="space-y-3">
               {guest.invitations?.length ? guest.invitations.map((inv: any) => (
                 <div key={inv.id} className="rounded-md border p-3">
@@ -89,6 +231,74 @@ export default function GuestDetailsDialog({ open, guest, config, onOpenChange }
           </section>
         </div>
       </DialogContent>
+
+      {/* Event Selection Dialog */}
+      <Dialog open={showEventSelection} onOpenChange={setShowEventSelection}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Events for Invitation</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Choose which events to invite {guest?.first_name} {guest?.last_name} to:
+            </p>
+            
+            {loadingEvents ? (
+              <div className="text-center py-4">
+                <div className="text-sm text-gray-500">Loading events...</div>
+              </div>
+            ) : availableEvents.length === 0 ? (
+              <div className="text-center py-4">
+                <div className="text-sm text-gray-500">
+                  {guest?.first_name} {guest?.last_name} already has invitations to all available events.
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-60 overflow-y-auto">
+                {availableEvents.map((event) => (
+                  <div key={event.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`event-${event.id}`}
+                      checked={selectedEvents.includes(event.id)}
+                      onCheckedChange={() => handleEventToggle(event.id)}
+                    />
+                    <Label 
+                      htmlFor={`event-${event.id}`}
+                      className="text-sm font-normal cursor-pointer flex-1"
+                    >
+                      <div className="font-medium">{event.name}</div>
+                      <div className="text-xs text-gray-500">{event.venue}</div>
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {selectedEvents.length > 0 && (
+              <div className="text-sm text-gray-600">
+                {selectedEvents.length} event(s) selected
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowEventSelection(false)}
+              disabled={creatingInvitation}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmInvitationCreation}
+              disabled={selectedEvents.length === 0 || creatingInvitation}
+            >
+              {creatingInvitation ? 'Creating...' : `Create ${selectedEvents.length} Invitation(s)`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }

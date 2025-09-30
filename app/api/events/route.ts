@@ -4,12 +4,16 @@ import { createEventSchema } from '@/lib/validators'
 
 export async function GET(request: NextRequest) {
   try {
-    const { events } = await getEventsPage()
-    return NextResponse.json(events)
+    const { events, total_count } = await getEventsPage()
+    return NextResponse.json({
+      success: true,
+      events,
+      total_count
+    })
   } catch (error) {
     console.error('Error fetching events:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch events' },
+      { success: false, error: 'Failed to fetch events' },
       { status: 500 }
     )
   }

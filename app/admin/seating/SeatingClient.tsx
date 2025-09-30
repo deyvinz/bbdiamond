@@ -84,13 +84,17 @@ export default function SeatingClient() {
       const eventsData = await eventsRes.json()
       const guestsData = await guestsRes.json()
       
-      setEvents(eventsData)
-      setGuests(guestsData.guests || guestsData)
-      
-      // Set first event as default
-      if (eventsData.length > 0) {
-        setSelectedEvent(eventsData[0].id)
+      // Handle new events API response format
+      if (eventsData.success && eventsData.events) {
+        setEvents(eventsData.events)
+        if (eventsData.events.length > 0) {
+          setSelectedEvent(eventsData.events[0].id)
+        }
+      } else {
+        console.error('Failed to load events:', eventsData.error || 'Unknown error')
       }
+      
+      setGuests(guestsData.guests || guestsData)
     } catch (error) {
       console.error('Error loading data:', error)
       toast({
@@ -297,7 +301,7 @@ export default function SeatingClient() {
           </Button>
           <Button
             onClick={() => setShowCreateTable(true)}
-            className="bg-gold-600 hover:bg-gold-700"
+            className="bg-gold-600 text-white hover:bg-gold-700"
           >
             <Plus className="h-4 w-4 mr-2" />
             Create Table
@@ -442,7 +446,7 @@ export default function SeatingClient() {
             </p>
             <Button
               onClick={() => setShowCreateTable(true)}
-              className="bg-gold-600 hover:bg-gold-700"
+              className="bg-gold-600 text-white hover:bg-gold-700"
             >
               <Plus className="h-4 w-4 mr-2" />
               Create First Table
@@ -485,7 +489,7 @@ export default function SeatingClient() {
               <Button variant="outline" onClick={() => setShowCreateTable(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleCreateTable} className="bg-gold-600 hover:bg-gold-700">
+              <Button onClick={handleCreateTable} className="bg-gold-600 text-white hover:bg-gold-700">
                 Create Table
               </Button>
             </div>
@@ -608,7 +612,7 @@ export default function SeatingClient() {
               }}>
                 Cancel
               </Button>
-              <Button onClick={handleAssignSeat} className="bg-gold-600 hover:bg-gold-700">
+              <Button onClick={handleAssignSeat} className="bg-gold-600 text-white hover:bg-gold-700">
                 Assign Seat
               </Button>
             </div>

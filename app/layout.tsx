@@ -13,8 +13,8 @@ const inter = Inter({ subsets:['latin'], variable:'--font-inter' })
 const playfair = Playfair_Display({ subsets:['latin'], variable:'--font-playfair' })
 
 export const metadata: Metadata = {
-  title: 'Our Wedding • White & Gold',
-  description: 'Luxury, elegant & exotic wedding website'
+  title: '#BrendaBagsHerDiamond',
+  description: 'Brenda & Diamond Wedding'
 }
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {

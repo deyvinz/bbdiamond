@@ -486,7 +486,7 @@ export default function InvitationsClient({
             </Button>
             <Button
               onClick={handleCreateInvitation}
-              className="bg-gold-600 hover:bg-gold-700"
+              className="bg-gold-600 text-white hover:bg-gold-700"
             >
               <Plus className="h-4 w-4 mr-2" />
               Create Invitation

@@ -305,29 +305,6 @@ function GuestTable({
                         View
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      {guest.invitations?.map((invitation) => (
-                        <div key={invitation.id}>
-                          <DropdownMenuItem
-                            onClick={() => handleCopyToken(invitation.token)}
-                          >
-                            <Copy className="h-4 w-4 mr-2" />
-                            Copy Token ({invitation.invitation_events?.[0]?.event?.name || 'Event'})
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => onRegenerateToken(guest.id, invitation.invitation_events?.[0]?.event_id || '')}
-                          >
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Regenerate Token
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => onSendInvite(guest.id, invitation.invitation_events?.[0]?.event_id || '')}
-                          >
-                            <Mail className="h-4 w-4 mr-2" />
-                            Send Invite
-                          </DropdownMenuItem>
-                        </div>
-                      ))}
-                      <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={() => onDelete(guest.id)}
                         className="text-red-600"

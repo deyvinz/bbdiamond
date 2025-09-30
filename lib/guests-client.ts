@@ -2,6 +2,7 @@ import { supabase } from './supabase-browser'
 import { guestSchema, csvGuestSchema } from './validators'
 import { Guest } from './types/guests'
 import { CsvRow, downloadCsv } from './csv'
+import { bumpNamespaceVersion } from './cache-client'
 
 // Generate a unique human-readable invite code
 async function generateInviteCode(): Promise<string> {
@@ -132,6 +133,9 @@ export async function createGuest(guestData: Partial<Guest>, invitationData?: { 
     console.log('Invitation events created successfully')
   }
 
+  // Invalidate cache
+  await bumpNamespaceVersion()
+
   return guest
 }
 
@@ -173,6 +177,9 @@ export async function updateGuest(guestId: string, guestData: Partial<Guest>) {
     throw new Error(`Failed to update guest: ${guestError.message}`)
   }
 
+  // Invalidate cache
+  await bumpNamespaceVersion()
+
   return guest
 }
 
@@ -187,7 +194,90 @@ export async function deleteGuest(guestId: string) {
     throw new Error(`Failed to delete guest: ${error.message}`)
   }
 
+  // Invalidate cache
+  await bumpNamespaceVersion()
+
   return true
+}
+
+export async function createInvitationForGuest(guestId: string, eventId: string) {
+  // Check if invitation already exists
+  const { data: existingInvitation } = await supabase
+    .from('invitations')
+    .select('id, token, created_at')
+    .eq('guest_id', guestId)
+    .single()
+
+  if (existingInvitation) {
+    // Check if invitation event already exists
+    const { data: existingEvent } = await supabase
+      .from('invitation_events')
+      .select('id')
+      .eq('invitation_id', existingInvitation.id)
+      .eq('event_id', eventId)
+      .single()
+
+    if (!existingEvent) {
+      // Create invitation event
+      const { error: eventError } = await supabase
+        .from('invitation_events')
+        .insert({
+          invitation_id: existingInvitation.id,
+          event_id: eventId,
+          headcount: 1,
+          status: 'pending',
+          event_token: crypto.randomUUID()
+        })
+
+      if (eventError) {
+        throw new Error(`Failed to create invitation event: ${eventError.message}`)
+      }
+    }
+
+    return {
+      id: existingInvitation.id,
+      token: existingInvitation.token,
+      created_at: existingInvitation.created_at
+    }
+  }
+
+  // Create new invitation
+  const { data: invitation, error: invitationError } = await supabase
+    .from('invitations')
+    .insert({
+      guest_id: guestId,
+      token: crypto.randomUUID()
+    })
+    .select('id, token, created_at')
+    .single()
+
+  if (invitationError) {
+    throw new Error(`Failed to create invitation: ${invitationError.message}`)
+  }
+
+  // Create invitation event
+  const { error: eventError } = await supabase
+    .from('invitation_events')
+    .insert({
+      invitation_id: invitation.id,
+      event_id: eventId,
+      headcount: 1,
+      status: 'pending',
+      event_token: crypto.randomUUID()
+    })
+
+  if (eventError) {
+    throw new Error(`Failed to create invitation event: ${eventError.message}`)
+  }
+
+  // Invalidate cache
+  await bumpNamespaceVersion()
+
+  return {
+    id: invitation.id,
+    token: invitation.token,
+    created_at: invitation.created_at
+  }
 }
 
 export async function regenerateInvitationToken(guestId: string, eventId: string) {
@@ -282,7 +372,7 @@ export async function exportGuestsToCsv(guests: Guest[]) {
 
 export async function importGuestsFromCsv(csvText: string, eventIds?: string[]): Promise<{ created: number; updated: number; skipped: number; errors: string[] }> {
   const { parseCsv } = await import('./csv')
-  const { createGuest, updateGuest, createInvitationForGuest } = await import('./guests-service')
+  const { createGuest, updateGuest } = await import('./guests-service')
   const rows = parseCsv(csvText)
   const results: { created: number; updated: number; skipped: number; errors: string[] } = {
     created: 0,
