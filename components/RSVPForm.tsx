@@ -12,6 +12,7 @@ import { submitRsvpAction, type RsvpActionResult } from '@/app/rsvp/actions'
 import { RsvpConfetti } from './RsvpConfetti'
 import { toast } from '@/components/ui/use-toast'
 import type { ConfigValue } from '@/lib/types/config'
+import GuestSeatingInfo from '@/components/GuestSeatingInfo'
 
 type FormValues = { 
   invite_code: string
@@ -300,6 +301,20 @@ export default function RSVPForm(){
               )}
             </div>
 
+            {/* Seating Information */}
+            <div className="mt-8">
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-serif text-gray-900 mb-2">Your Seating Assignment</h3>
+                <p className="text-gray-600 text-sm">
+                  Check your assigned table and seat for the reception.
+                </p>
+              </div>
+              <GuestSeatingInfo 
+                inviteCode={currentRsvpStatus.guestName ? watch('invite_code') : ''} 
+                guestName={currentRsvpStatus.guestName}
+              />
+            </div>
+
             <div className="flex justify-center space-x-4">
               <a 
                 href="/"
@@ -494,6 +509,20 @@ export default function RSVPForm(){
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Seating Information */}
+              <div className="mt-8">
+                <div className="text-center mb-6">
+                  <h3 className="text-xl font-serif text-gray-900 mb-2">Your Seating Assignment</h3>
+                  <p className="text-gray-600 text-sm">
+                    Check your assigned table and seat for the reception.
+                  </p>
+                </div>
+                <GuestSeatingInfo 
+                  inviteCode={rsvpResult.guestName ? watch('invite_code') : ''} 
+                  guestName={rsvpResult.guestName}
+                />
               </div>
 
               <div className="flex justify-center space-x-4">

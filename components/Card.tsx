@@ -7,3 +7,5 @@ export default function Card({children,className='' }:{children:React.ReactNode;
     </div>
   )
 }
+
+export { Card }

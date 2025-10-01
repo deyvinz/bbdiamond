@@ -1,7 +1,7 @@
 import { GuestListResponse, Guest } from './types/guests'
 import { supabaseServer } from './supabase-server'
 import { bumpNamespaceVersion } from './cache'
-import { logInviteCodeBackfill } from './audit'
+import { logInviteCodeBackfill, logAdminAction } from './audit'
 import { guestSchema } from './validators'
 
 export interface GuestsListParams {
@@ -75,6 +75,16 @@ export async function createGuest(input: Partial<Guest>): Promise<Guest> {
     throw new Error(`Failed to create guest: ${guestError.message}`)
   }
 
+  // Invalidate cache
+  await bumpNamespaceVersion()
+
+  // Log audit
+  await logAdminAction('guest_create', {
+    guest_id: guest.id,
+    guest_name: `${guest.first_name} ${guest.last_name}`,
+    guest_email: guest.email
+  })
+
   return guest
 }
 
@@ -125,6 +135,17 @@ export async function updateGuest(id: string, input: Partial<Guest>): Promise<Gu
     throw new Error(`Failed to update guest: ${error.message}`)
   }
 
+  // Invalidate cache
+  await bumpNamespaceVersion()
+
+  // Log audit
+  await logAdminAction('guest_update', {
+    guest_id: guest.id,
+    guest_name: `${guest.first_name} ${guest.last_name}`,
+    guest_email: guest.email,
+    updated_fields: Object.keys(validatedUpdates)
+  })
+
   return guest
 }
 
@@ -150,6 +171,14 @@ export async function deleteGuest(id: string): Promise<boolean> {
     throw new Error(`Failed to delete guest: ${error.message}`)
   }
 
+  // Invalidate cache
+  await bumpNamespaceVersion()
+
+  // Log audit
+  await logAdminAction('guest_delete', {
+    guest_id: id
+  })
+
   return true
 }
 
@@ -157,20 +186,92 @@ export async function createInvitationForGuest(
   guestId: string, 
   eventId: string
 ): Promise<{ id: string; token: string; created_at: string }> {
-  const response = await fetch('/api/guests/invitations', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ guestId, eventId, headcount: 1 }),
-  })
+  const supabase = await supabaseServer()
 
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to create invitation')
+  // Check if invitation already exists
+  const { data: existingInvitation } = await supabase
+    .from('invitations')
+    .select('id, token, created_at')
+    .eq('guest_id', guestId)
+    .single()
+
+  if (existingInvitation) {
+    // Check if invitation event already exists
+    const { data: existingEvent } = await supabase
+      .from('invitation_events')
+      .select('id')
+      .eq('invitation_id', existingInvitation.id)
+      .eq('event_id', eventId)
+      .single()
+
+    if (!existingEvent) {
+      // Create invitation event
+      const { error: eventError } = await supabase
+        .from('invitation_events')
+        .insert({
+          invitation_id: existingInvitation.id,
+          event_id: eventId,
+          headcount: 1,
+          status: 'pending',
+          event_token: crypto.randomUUID()
+        })
+
+      if (eventError) {
+        throw new Error(`Failed to create invitation event: ${eventError.message}`)
+      }
+    }
+
+    return {
+      id: existingInvitation.id,
+      token: existingInvitation.token,
+      created_at: existingInvitation.created_at
+    }
   }
 
-  return response.json()
+  // Create new invitation
+  const { data: invitation, error: invitationError } = await supabase
+    .from('invitations')
+    .insert({
+      guest_id: guestId,
+      token: crypto.randomUUID()
+    })
+    .select('id, token, created_at')
+    .single()
+
+  if (invitationError) {
+    throw new Error(`Failed to create invitation: ${invitationError.message}`)
+  }
+
+  // Create invitation event
+  const { error: eventError } = await supabase
+    .from('invitation_events')
+    .insert({
+      invitation_id: invitation.id,
+      event_id: eventId,
+      headcount: 1,
+      status: 'pending',
+      event_token: crypto.randomUUID()
+    })
+
+  if (eventError) {
+    throw new Error(`Failed to create invitation event: ${eventError.message}`)
+  }
+
+  // Invalidate cache
+  await bumpNamespaceVersion()
+
+  // Log audit
+  await logAdminAction('invitation_create', {
+    guest_id: guestId,
+    event_id: eventId,
+    invitation_id: invitation.id
+  })
+
+  return {
+    id: invitation.id,
+    token: invitation.token,
+    created_at: invitation.created_at
+  }
 }
 
 export async function bulkInvalidateGuests(): Promise<void> {

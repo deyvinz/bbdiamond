@@ -3,6 +3,7 @@ import { supabase } from './supabase-browser'
 import { guestSchema, csvGuestSchema, paginationSchema, guestFiltersSchema } from './validators'
 import { Guest, GuestListResponse, GuestFilters, PaginationParams, AuditLog } from './types/guests'
 import { CsvRow, downloadCsv, parseCsv } from './csv'
+import { bumpNamespaceVersion } from './cache'
 
 // Server-side functions
 export async function getGuestsServer(
@@ -184,6 +185,9 @@ export async function createGuestServer(guestData: any, invitationData?: any) {
     }
   }
 
+  // Invalidate cache
+  await bumpNamespaceVersion()
+
   // Log audit
   await logAuditAction('guest_create', guest.id, 'guest', guest.id, { created: guest })
 
@@ -237,6 +241,9 @@ export async function updateGuestServer(guestId: string, guestData: any) {
     throw new Error(`Failed to update guest: ${guestError.message}`)
   }
 
+  // Invalidate cache
+  await bumpNamespaceVersion()
+
   // Log audit
   await logAuditAction('guest_update', guestId, 'guest', guestId, { 
     before: currentGuest, 
@@ -265,6 +272,9 @@ export async function deleteGuestServer(guestId: string) {
   if (error) {
     throw new Error(`Failed to delete guest: ${error.message}`)
   }
+
+  // Invalidate cache
+  await bumpNamespaceVersion()
 
   // Log audit
   await logAuditAction('guest_delete', guestId, 'guest', guestId, { deleted: guest })

@@ -15,12 +15,12 @@ import { Plus, Upload, RefreshCw, Settings } from 'lucide-react'
 import {
   createGuest, 
   updateGuest, 
-  deleteGuest, 
-  createInvitationForGuest
+  deleteGuest
 } from '@/lib/guests-service'
 import {
   regenerateInvitationToken,
-  exportGuestsToCsv
+  exportGuestsToCsv,
+  createInvitationForGuest
 } from '@/lib/guests-client'
 import { sendInviteEmailAction } from '@/lib/actions/invitations'
 
@@ -158,6 +158,24 @@ export default function GuestsClient({
       if (editingGuest) {
         // Update existing guest
         const updatedGuest = await updateGuest(editingGuest.id, data.guest)
+        
+        // Create invitations if specified (for both new and existing guests)
+        if (data.invitation?.event_ids && data.invitation.event_ids.length > 0) {
+          try {
+            for (const eventId of data.invitation.event_ids) {
+              await createInvitationForGuest(updatedGuest.id, eventId)
+            }
+            console.log(`Created invitations for ${data.invitation.event_ids.length} events`)
+          } catch (invitationError) {
+            console.error('Error creating invitations:', invitationError)
+            toast({
+              title: "Warning",
+              description: "Guest updated but some invitations may not have been created. Please check the guest details.",
+              variant: "destructive",
+            })
+          }
+        }
+        
         setGuests(prev => prev.map(g => g.id === editingGuest.id ? updatedGuest : g))
         toast({
           title: "✅ Guest Updated Successfully!",
@@ -168,8 +186,18 @@ export default function GuestsClient({
         const newGuest = await createGuest(data.guest)       
         // Create invitations if specified
         if (data.invitation?.event_ids && data.invitation.event_ids.length > 0) {
-          for (const eventId of data.invitation.event_ids) {
-            await createInvitationForGuest(newGuest.id, eventId)
+          try {
+            for (const eventId of data.invitation.event_ids) {
+              await createInvitationForGuest(newGuest.id, eventId)
+            }
+            console.log(`Created invitations for ${data.invitation.event_ids.length} events`)
+          } catch (invitationError) {
+            console.error('Error creating invitations:', invitationError)
+            toast({
+              title: "Warning",
+              description: "Guest created but some invitations may not have been created. Please check the guest details.",
+              variant: "destructive",
+            })
           }
         }
         
@@ -496,6 +524,7 @@ export default function GuestsClient({
         guest={viewGuest}
         config={config || undefined}
         onOpenChange={(open) => !open && setViewGuest(undefined)}
+        onInvitationCreated={() => refreshData()}
       />
     </>
   )

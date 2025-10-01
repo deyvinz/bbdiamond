@@ -275,7 +275,7 @@ export function BackfillInviteCodesDialog({ open, onOpenChange }: BackfillInvite
           <Button
             onClick={handleStart}
             disabled={isRunning || isLocked}
-            className="bg-gold-600 hover:bg-gold-700"
+            className="bg-gold-600 text-white hover:bg-gold-700"
           >
             {isRunning ? (
               <>

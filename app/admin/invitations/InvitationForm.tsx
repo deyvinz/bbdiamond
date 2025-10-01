@@ -149,11 +149,11 @@ export default function InvitationForm({
       if (!response.ok) {
         throw new Error('Failed to fetch events')
       }
-      const events = await response.json()
+      const data = await response.json()
       
-      // Handle both array response and error response
-      if (Array.isArray(events)) {
-        const eventOptions: EventOption[] = events.map((event: any) => ({
+      // Handle new events API response format
+      if (data.success && data.events && Array.isArray(data.events)) {
+        const eventOptions: EventOption[] = data.events.map((event: any) => ({
           id: event.id,
           name: event.name,
           starts_at: event.starts_at,
@@ -161,8 +161,8 @@ export default function InvitationForm({
           address: event.address
         }))
         setAvailableEvents(eventOptions)
-      } else if (events.error) {
-        throw new Error(events.error)
+      } else if (data.error) {
+        throw new Error(data.error)
       } else {
         throw new Error('Invalid response format')
       }

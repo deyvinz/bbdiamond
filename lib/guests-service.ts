@@ -78,25 +78,6 @@ export async function deleteGuest(id: string): Promise<boolean> {
   return true
 }
 
-export async function createInvitationForGuest(
-  guestId: string, 
-  eventId: string
-): Promise<{ id: string; token: string; created_at: string }> {
-  const response = await fetch('/api/guests/invitations', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ guestId, eventId, headcount: 1 }),
-  })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to create invitation')
-  }
-
-  return response.json()
-}
 
 export async function bulkInvalidateGuests(): Promise<void> {
   // For bulk operations like CSV import, this is handled server-side

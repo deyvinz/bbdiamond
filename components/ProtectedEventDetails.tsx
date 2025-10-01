@@ -203,7 +203,7 @@ export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEven
               
               <Button 
                 type="submit" 
-                className="w-full bg-gold-600 hover:bg-gold-700"
+                className="w-full bg-gold-600 text-white hover:bg-gold-700"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -310,6 +310,10 @@ export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEven
           Kindly note:{' '}
           <span className="font-semibold">White and ivory outfits are not permitted</span> for
           guests. Please choose other colors to let the couple stand out on their special day.
+        </p>
+        <p className="text-sm text-gold-900 font-medium">
+          Kindly note:{' '}
+          <span className="font-semibold">No kids allowed. This is an adult only event.</span>
         </p>
       </div>
     </Section>
