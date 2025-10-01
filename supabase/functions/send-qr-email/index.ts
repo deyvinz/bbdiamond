@@ -132,7 +132,7 @@ async function generateEmailHTML({
         </p>
 
       <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
-        • We will also be sharing a separate email with details Ofi & Caps, so be on the lookout for that.
+        • We will also be sharing a separate email with details on Ofi & Caps, so be on the lookout for that.
       </p>
       <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
         • Hashtag: #BrendaBagsHerDiamond
