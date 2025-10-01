@@ -71,9 +71,9 @@ export async function POST(request: NextRequest) {
       
       try {
         // Check if guest has any RSVP with accepted or declined status
-        const hasResponded = guest.invitations?.some(invitation => 
-          invitation.invitation_events?.some(ie => 
-            ie.rsvps_v2?.some(rsvp => 
+        const hasResponded = guest.invitations?.some((invitation: any) => 
+          invitation.invitation_events?.some((ie: any) => 
+            ie.rsvps_v2?.some((rsvp: any) => 
               rsvp.response === 'accepted' || rsvp.response === 'declined'
             )
           )
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
         if (guest.invitations && guest.invitations.length > 0) {
           const invitation = guest.invitations[0]
           invitationId = invitation.id
-          existingEventIds = invitation.invitation_events?.map(ie => ie.event_id) || []
+          existingEventIds = invitation.invitation_events?.map((ie: any) => ie.event_id) || []
           
           // Check if guest has invitations for any of the specified events
           hasInvitationsForEvents = eventIds.some(eventId => existingEventIds.includes(eventId))
