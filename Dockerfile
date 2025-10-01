@@ -33,6 +33,10 @@ ENV SUPABASE_SERVICE_ROLE=$SUPABASE_SERVICE_ROLE
 
 RUN npm run build
 
+# Debug: List the standalone output to verify API routes are included
+RUN ls -la .next/standalone/
+RUN find .next/standalone -name "*.js" | head -10
+
 # Production image, copy all the files and run next
 FROM base AS runner
 WORKDIR /app
