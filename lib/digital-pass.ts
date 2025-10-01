@@ -39,11 +39,13 @@ export async function generateDigitalPass(
         year: 'numeric',
         month: 'long',
         day: 'numeric',
+        timeZone: 'Africa/Lagos',
       })
       const eventTime = new Date(event.startsAtISO).toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
         hour12: true,
+        timeZone: 'Africa/Lagos',
       })
       
       return {

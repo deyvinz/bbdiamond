@@ -58,11 +58,13 @@ export function RsvpConfirmationEmail({
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      timeZone: 'Africa/Lagos',
     })
     const eventTime = new Date(startsAtISO).toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
+      timeZone: 'Africa/Lagos',
     })
     return `${eventDate} · ${eventTime}`
   }
@@ -230,11 +232,13 @@ export function renderRsvpConfirmationText(props: RsvpConfirmationEmailProps): s
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      timeZone: 'Africa/Lagos',
     })
     const eventTime = new Date(startsAtISO).toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
+      timeZone: 'Africa/Lagos',
     })
     return `${eventDate} · ${eventTime}`
   }

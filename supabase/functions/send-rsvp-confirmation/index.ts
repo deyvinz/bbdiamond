@@ -63,11 +63,13 @@ async function generateRsvpConfirmationHTML({
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      timeZone: 'Africa/Lagos',
     });
     const eventTime = new Date(startsAtISO).toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
+      timeZone: 'Africa/Lagos',
     });
     return `${eventDate} · ${eventTime}`;
   };
@@ -282,11 +284,13 @@ function generateRsvpConfirmationText({
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      timeZone: 'Africa/Lagos',
     });
     const eventTime = new Date(startsAtISO).toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
+      timeZone: 'Africa/Lagos',
     });
     return `${eventDate} · ${eventTime}`;
   };

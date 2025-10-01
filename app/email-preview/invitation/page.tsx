@@ -81,11 +81,13 @@ export default async function EmailPreviewPage({ searchParams }: EmailPreviewPag
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      timeZone: 'Africa/Lagos',
     })
     const eventTime = new Date(event.event.starts_at).toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
+      timeZone: 'Africa/Lagos',
     })
     const formattedEventDate = `${eventDate} · ${eventTime}`
     

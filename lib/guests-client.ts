@@ -370,9 +370,44 @@ export async function exportGuestsToCsv(guests: Guest[]) {
   downloadCsv(csvData, `guests-${new Date().toISOString().split('T')[0]}.csv`)
 }
 
+export async function sendInvitesToAllGuests(eventIds: string[]): Promise<{ 
+  processed: number; 
+  sent: number; 
+  skipped: number; 
+  errors: string[] 
+}> {
+  console.log('sendInvitesToAllGuests called with eventIds:', eventIds)
+  
+  try {
+    // Call the server-side bulk invite API
+    const response = await fetch('/api/admin/invitations/send-bulk-invite-all', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        eventIds,
+        ignoreRateLimit: true
+      })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Failed to send bulk invites')
+    }
+
+    const results = await response.json()
+    console.log('Bulk invite results:', results)
+    return results
+
+  } catch (error) {
+    console.error('Error in sendInvitesToAllGuests:', error)
+    throw new Error(`Failed to send invites to all guests: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
 export async function importGuestsFromCsv(csvText: string, eventIds?: string[]): Promise<{ created: number; updated: number; skipped: number; errors: string[] }> {
   const { parseCsv } = await import('./csv')
-  const { createGuest, updateGuest } = await import('./guests-service')
   const rows = parseCsv(csvText)
   const results: { created: number; updated: number; skipped: number; errors: string[] } = {
     created: 0,

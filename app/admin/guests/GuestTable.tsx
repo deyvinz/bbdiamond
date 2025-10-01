@@ -52,6 +52,7 @@ interface GuestTableProps {
   onSendInvite: (guestId: string, eventId: string) => void
   onExport: () => void
   onBulkAction?: (action: string, guestIds: string[]) => void
+  onSendInvitesToAll?: () => void
   onView: (guest: Guest) => void
   loading?: boolean
 }
@@ -71,6 +72,7 @@ function GuestTable({
   onSendInvite,
   onExport,
   onBulkAction,
+  onSendInvitesToAll,
   onView,
   loading = false,
 }: GuestTableProps) {
@@ -151,6 +153,18 @@ function GuestTable({
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
+          {onSendInvitesToAll && (
+            <Button 
+              onClick={onSendInvitesToAll} 
+              variant="default" 
+              size="sm" 
+              className="bg-gold-600 text-white hover:bg-gold-700"
+              disabled={loading}
+            >
+              <Mail className="h-4 w-4 mr-2" />
+              {loading ? 'Sending...' : 'Send Invites to All'}
+            </Button>
+          )}
         </div>
       </div>
 

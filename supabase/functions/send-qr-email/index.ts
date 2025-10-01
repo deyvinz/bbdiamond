@@ -150,11 +150,13 @@ async function generateEmailHTML({
           year: 'numeric',
           month: 'long',
           day: 'numeric',
+          timeZone: 'Africa/Lagos',
         });
         const eventTime = new Date(event.startsAtISO).toLocaleTimeString('en-US', {
           hour: 'numeric',
           minute: '2-digit',
           hour12: true,
+          timeZone: 'Africa/Lagos',
         });
         const eventMapUrl = event.address ? `https://maps.google.com/maps?q=${encodeURIComponent(event.address)}` : undefined;
         const formattedEventDateTime = `${eventDate} · ${eventTime}`;
@@ -182,11 +184,11 @@ async function generateEmailHTML({
 
       <!-- RSVP Button -->
       <div style="text-align: center; margin: 32px 0;">
-        <a href="${rsvpUrl}" style="background-color: #C7A049; border-radius: 8px; color: #111111; font-size: 18px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 14px 32px; border: none; cursor: pointer; min-height: 44px; min-width: 44px; line-height: 1.2;">
+        <a href="${rsvpUrl}" style="background-color: #C7A049; border-radius: 8px; color: #111111; font-size: 18px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 12px 24px; border: none; cursor: pointer; line-height: 1.2;">
           RSVP Now
         </a>
         <p style="color: #666666; font-size: 14px; margin: 16px 0 0 0; font-family: monospace; word-break: break-all;">
-          Can't click the button? Copy this link: ${rsvpUrl}
+          Can't click the button? Copy this link: <a href="${rsvpUrl}" style="color: #C7A049; text-decoration: underline;">${rsvpUrl}</a>
         </p>
       </div>
 
@@ -259,11 +261,13 @@ function generateEmailText({
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      timeZone: 'Africa/Lagos',
     });
     const eventTime = new Date(event.startsAtISO).toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
+      timeZone: 'Africa/Lagos',
     });
     const formattedEventDateTime = `${eventDate} · ${eventTime}`;
     

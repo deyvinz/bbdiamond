@@ -104,6 +104,7 @@ export const sendEmailSchema = z.object({
   eventIds: z.array(z.string().uuid()).min(1, 'At least one event must be selected'),
   to: z.string().email().optional(),
   includeQr: z.boolean().default(true),
+  ignoreRateLimit: z.boolean().default(false),
 })
 
 // Event schemas

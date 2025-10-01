@@ -13,6 +13,14 @@ import { RsvpConfetti } from './RsvpConfetti'
 import { toast } from '@/components/ui/use-toast'
 import type { ConfigValue } from '@/lib/types/config'
 import GuestSeatingInfo from '@/components/GuestSeatingInfo'
+import { 
+  resolveInvitationByToken, 
+  resolveInvitationByInviteCode, 
+  getRSVPStatus,
+  submitRSVP,
+  type InvitationData,
+  type RSVPStatus 
+} from '@/lib/rsvp-service-direct'
 
 type FormValues = { 
   invite_code: string
@@ -51,18 +59,8 @@ export default function RSVPForm(){
   const [isLoadingInvitation, setIsLoadingInvitation] = useState(false)
   const [invitationError, setInvitationError] = useState<string | null>(null)
   const [prefilledInviteCode, setPrefilledInviteCode] = useState<string | null>(null)
-  const [currentRsvpStatus, setCurrentRsvpStatus] = useState<{
-    status: 'accepted' | 'declined' | 'pending'
-    guestName: string
-    events: Array<{
-      name: string
-      startsAtISO: string
-      venue: string
-      address?: string
-    }>
-    qrImageUrl?: string
-    passUrl?: string
-  } | null>(null)
+  const [invitationData, setInvitationData] = useState<InvitationData | null>(null)
+  const [currentRsvpStatus, setCurrentRsvpStatus] = useState<RSVPStatus | null>(null)
 
   const response = watch('response')
   const inviteCode = watch('invite_code')
@@ -81,39 +79,33 @@ export default function RSVPForm(){
       setIsLoadingInvitation(true)
       setInvitationError(null)
       
-      // Fetch invitation details and RSVP status
-      Promise.all([
-        fetch(`/api/rsvp/resolve-invitation?token=${encodeURIComponent(token)}`)
-          .then(async res => {
-            if (!res.ok) {
-              throw new Error(`HTTP ${res.status}: ${res.statusText}`)
-            }
-            return res.json()
-          }),
-        fetch(`/api/rsvp/status?token=${encodeURIComponent(token)}`)
-          .then(async res => {
-            if (!res.ok) {
-              throw new Error(`HTTP ${res.status}: ${res.statusText}`)
-            }
-            return res.json()
-          })
-      ])
-        .then(([invitationData, statusData]) => {
-          if (invitationData.success && invitationData.invitation) {
-            setValue('invite_code', invitationData.invitation.guest.invite_code)
-            setValue('email', invitationData.invitation.guest.email)
-            setPrefilledInviteCode(invitationData.invitation.guest.invite_code)
+      // Use direct database service instead of API calls
+      resolveInvitationByToken(token)
+        .then(async invitationData => {
+          if (invitationData) {
+            console.log('Invitation data found by token:', invitationData)
+            // Set form values
+            setValue('invite_code', invitationData.guest.invite_code)
+            setValue('email', invitationData.guest.email)
+            setPrefilledInviteCode(invitationData.guest.invite_code)
+            setInvitationData(invitationData)
+            
+            // Get RSVP status
+            const rsvpStatus = await getRSVPStatus(invitationData)
+            setCurrentRsvpStatus(rsvpStatus)
           } else {
-            // If not found, use token as invite code
-            setValue('invite_code', token)
-            setPrefilledInviteCode(token)
+            // If not found by token, try using token as invite code
+            console.log('Token not found, trying as invite code:', token)
+            const inviteCodeData = await resolveInvitationByInviteCode(token)
+            if (inviteCodeData) {
+              setValue('invite_code', inviteCodeData.guest.invite_code)
+              setValue('email', inviteCodeData.guest.email)
+              setPrefilledInviteCode(inviteCodeData.guest.invite_code)
+              setInvitationData(inviteCodeData)
+              const rsvpStatus = await getRSVPStatus(inviteCodeData)
+              setCurrentRsvpStatus(rsvpStatus)
+            }
           }
-
-          // Set RSVP status if available
-          if (statusData.success && statusData.rsvpStatus) {
-            setCurrentRsvpStatus(statusData.rsvpStatus)
-          }
-          
           setIsLoadingInvitation(false)
         })
         .catch(error => {
@@ -195,11 +187,13 @@ export default function RSVPForm(){
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',
+                    timeZone: 'Africa/Lagos',
                   })
                   const eventTime = new Date(event.startsAtISO).toLocaleTimeString('en-US', {
                     hour: 'numeric',
                     minute: '2-digit',
                     hour12: true,
+                    timeZone: 'Africa/Lagos',
                   })
                   
                   return (

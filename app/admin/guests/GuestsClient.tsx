@@ -20,7 +20,8 @@ import {
 import {
   regenerateInvitationToken,
   exportGuestsToCsv,
-  createInvitationForGuest
+  createInvitationForGuest,
+  sendInvitesToAllGuests
 } from '@/lib/guests-client'
 import { sendInviteEmailAction } from '@/lib/actions/invitations'
 
@@ -294,15 +295,19 @@ export default function GuestsClient({
     try {
       // Find the guest and their invitation for this event
       const guest = guests.find(g => g.id === guestId)
-      if (!guest?.invitations?.[0]) {
-        throw new Error('No invitation found for this guest')
+      if (!guest) {
+        throw new Error('Guest not found')
+      }
+      
+      if (!guest.invitations || guest.invitations.length === 0) {
+        throw new Error(`No invitations found for ${guest.first_name} ${guest.last_name}`)
       }
       
       const invitation = guest.invitations[0]
       const invitationEvent = invitation.invitation_events?.find(ie => ie.event_id === eventId)
       
       if (!invitationEvent) {
-        throw new Error('No invitation found for this event')
+        throw new Error(`No invitation found for this event for ${guest.first_name} ${guest.last_name}`)
       }
       
       await sendInviteEmailAction({
@@ -313,11 +318,12 @@ export default function GuestsClient({
       
       toast({
         title: "Success",
-        description: "Invitation email sent successfully",
+        description: `Invitation email sent to ${guest.first_name} ${guest.last_name}`,
       })
       // Refresh data to get updated state
       await refreshData()
     } catch (error) {
+      console.error('Error sending invite:', error)
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "An error occurred",
@@ -350,25 +356,59 @@ export default function GuestsClient({
       switch (action) {
         case 'send_invite':
           // Send invites for all selected guests
+          let successCount = 0
+          let errorCount = 0
+          
           for (const guestId of guestIds) {
-            const guest = guests.find(g => g.id === guestId)
-            if (guest?.invitations?.[0]) {
+            try {
+              const guest = guests.find(g => g.id === guestId)
+              if (!guest) {
+                console.error(`Guest not found: ${guestId}`)
+                errorCount++
+                continue
+              }
+              
+              // Check if guest has invitations
+              if (!guest.invitations || guest.invitations.length === 0) {
+                console.error(`No invitations found for guest: ${guest.first_name} ${guest.last_name}`)
+                errorCount++
+                continue
+              }
+              
               const invitation = guest.invitations[0]
               const eventIds = invitation.invitation_events?.map(ie => ie.event_id) || []
               
-              if (eventIds.length > 0) {
-                await sendInviteEmailAction({
-                  invitationId: invitation.id,
-                  eventIds,
-                  includeQr: true
-                })
+              if (eventIds.length === 0) {
+                console.error(`No events found for invitation: ${invitation.id}`)
+                errorCount++
+                continue
               }
+              
+              await sendInviteEmailAction({
+                invitationId: invitation.id,
+                eventIds,
+                includeQr: true
+              })
+              successCount++
+            } catch (error) {
+              console.error(`Failed to send invite for guest ${guestId}:`, error)
+              errorCount++
             }
           }
-          toast({
-            title: "Success",
-            description: `Invitations sent to ${guestIds.length} guests`,
-          })
+          
+          if (successCount > 0) {
+            toast({
+              title: "Success",
+              description: `Invitations sent to ${successCount} guests${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
+            })
+          } else {
+            toast({
+              title: "Error",
+              description: `Failed to send invitations to all ${guestIds.length} guests`,
+              variant: "destructive",
+            })
+          }
+          
           // Refresh data after bulk action
           await refreshData()
           break
@@ -435,6 +475,88 @@ export default function GuestsClient({
     await refreshData()
   }
 
+  const handleSendInvitesToAll = async () => {
+    // First, we need to get the available events
+    try {
+      const eventsResponse = await fetch('/api/events')
+      const eventsData = await eventsResponse.json()
+      
+      if (!eventsData.success || !eventsData.events || eventsData.events.length === 0) {
+        toast({
+          title: "Error",
+          description: "No events found. Please create events first.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const eventIds = eventsData.events.map((event: any) => event.id)
+      
+      // Show confirmation dialog
+      const confirmed = confirm(
+        `This will send invitation emails to ALL guests in the database for ${eventIds.length} event(s).\n\n` +
+        `Guests who have already RSVP'd (accepted/declined) will be skipped.\n` +
+        `Guests without invitations will have them created automatically.\n\n` +
+        `Are you sure you want to continue?`
+      )
+
+      if (!confirmed) {
+        return
+      }
+
+      setLoading(true)
+      
+      try {
+        const results = await sendInvitesToAllGuests(eventIds)
+        
+        // Show results
+        if (results.sent > 0) {
+          toast({
+            title: "✅ Bulk Invites Sent Successfully!",
+            description: `Processed ${results.processed} guests: ${results.sent} emails sent, ${results.skipped} skipped${results.errors.length > 0 ? `, ${results.errors.length} errors` : ''}`,
+          })
+        } else {
+          toast({
+            title: "No Emails Sent",
+            description: `Processed ${results.processed} guests: ${results.skipped} skipped${results.errors.length > 0 ? `, ${results.errors.length} errors` : ''}`,
+            variant: "destructive",
+          })
+        }
+
+        // Show errors if any
+        if (results.errors.length > 0) {
+          console.error('Bulk invite errors:', results.errors)
+          toast({
+            title: "Some Errors Occurred",
+            description: `Check console for details. ${results.errors.length} guests had errors.`,
+            variant: "destructive",
+          })
+        }
+
+        // Refresh data to get updated state
+        await refreshData()
+
+      } catch (error) {
+        console.error('Error in bulk invite:', error)
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "An error occurred during bulk invite",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+
+    } catch (error) {
+      console.error('Error fetching events:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch events. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
     <>
       <div className="space-y-6">
@@ -496,6 +618,7 @@ export default function GuestsClient({
           onSendInvite={handleSendInvite}
           onExport={handleExport}
           onBulkAction={handleBulkAction}
+          onSendInvitesToAll={handleSendInvitesToAll}
           onView={handleView}
           loading={loading || refreshing}
         />

@@ -636,16 +636,19 @@ export async function sendInviteEmail(params: SendEmailInput): Promise<{ success
     throw new Error('No valid events found for invitation')
   }
 
-  // Check rate limit
-  const today = new Date().toISOString().split('T')[0]
-  const { data: mailLogs } = await supabase
-    .from('mail_logs')
-    .select('*')
-    .eq('token', invitation.token)
-    .gte('sent_at', `${today}T00:00:00.000Z`)
+  // Check rate limit (unless ignored)
+  if (!params.ignoreRateLimit) {
+    const today = new Date().toISOString().split('T')[0]
+    const { data: mailLogs } = await supabase
+      .from('mail_logs')
+      .select('*')
+      .eq('token', invitation.token)
+      .gte('sent_at', `${today}T00:00:00.000Z`)
 
-  if (mailLogs && mailLogs.length >= 3) {
-    throw new Error('Daily email limit exceeded for this invitation')
+    if (mailLogs && mailLogs.length >= 3) {
+      console.log('Daily email limit exceeded for this invitation')
+      throw new Error('Daily email limit exceeded for this invitation')
+    }
   }
 
   // Prepare email data
@@ -658,11 +661,13 @@ export async function sendInviteEmail(params: SendEmailInput): Promise<{ success
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone: 'Africa/Lagos',
   })
   const eventTime = new Date(primaryEvent.event.starts_at).toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone: 'Africa/Lagos',
   })
   const formattedEventDate = `${eventDate} · ${eventTime}`
   
