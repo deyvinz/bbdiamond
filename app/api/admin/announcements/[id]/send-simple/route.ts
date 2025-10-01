@@ -83,17 +83,19 @@ export async function POST(
       } catch (error) {
         console.error(`Error processing recipient ${recipient.email}:`, error)
         
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        
         // Mark as failed
         await supabase
           .from('announcement_recipients')
           .update({
             status: 'failed',
-            error_message: error.message
+            error_message: errorMessage
           })
           .eq('id', recipient.id)
 
         results.failed++
-        results.errors.push(`${recipient.email}: ${error.message}`)
+        results.errors.push(`${recipient.email}: ${errorMessage}`)
       }
     }
 
