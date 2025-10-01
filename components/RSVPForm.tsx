@@ -83,8 +83,20 @@ export default function RSVPForm(){
       
       // Fetch invitation details and RSVP status
       Promise.all([
-        fetch(`/api/rsvp/resolve-invitation?token=${encodeURIComponent(token)}`).then(res => res.json()),
-        fetch(`/api/rsvp/status?token=${encodeURIComponent(token)}`).then(res => res.json())
+        fetch(`/api/rsvp/resolve-invitation?token=${encodeURIComponent(token)}`)
+          .then(async res => {
+            if (!res.ok) {
+              throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+            }
+            return res.json()
+          }),
+        fetch(`/api/rsvp/status?token=${encodeURIComponent(token)}`)
+          .then(async res => {
+            if (!res.ok) {
+              throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+            }
+            return res.json()
+          })
       ])
         .then(([invitationData, statusData]) => {
           if (invitationData.success && invitationData.invitation) {
@@ -106,7 +118,8 @@ export default function RSVPForm(){
         })
         .catch(error => {
           console.error('Error loading invitation:', error)
-          setInvitationError('Failed to load invitation details. Please enter your invite code manually.')
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+          setInvitationError(`Failed to load invitation details (${errorMessage}). Please enter your invite code manually.`)
           setValue('invite_code', token)
           setIsLoadingInvitation(false)
         })
