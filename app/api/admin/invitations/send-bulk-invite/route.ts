@@ -75,19 +75,16 @@ export async function POST(request: NextRequest) {
     
     // For multiple events, use the first event for the main subject and RSVP URL
     const primaryEvent = selectedEvents[0]
-    const eventDate = new Date(primaryEvent.event.starts_at).toLocaleDateString('en-US', {
+    // Parse text field: "2024-10-16 10:00:00" -> "Wednesday, October 16, 2024 · 10:00"
+    const [datePart, timePart] = primaryEvent.event.starts_at.split(' ')
+    const [year, month, day] = datePart.split('-')
+    const eventDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      timeZone: 'Africa/Lagos',
     })
-    const eventTime = new Date(primaryEvent.event.starts_at).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'Africa/Lagos',
-    })
+    const eventTime = timePart ? timePart.substring(0, 5) : '00:00' // Extract HH:MM
     const formattedEventDate = `${eventDate} · ${eventTime}`
 
     // Generate RSVP URL
@@ -186,29 +183,49 @@ function generateIcsAttachment({
   address?: string
   rsvpUrl: string
 }): string {
-  const startDate = new Date(startsAt)
-  const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000) // 2 hours later
-  
-  const formatDate = (date: Date) => {
-    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+  // Format for iCal - convert text field to iCal format for all-day events
+  const formatDate = (dateString: string) => {
+    // Convert "2024-10-16 10:00:00" to "20241016" (date only for all-day events)
+    if (!dateString) return '20240101' // Default fallback
+    
+    const [datePart] = dateString.split(' ')
+    if (!datePart) return '20240101' // Safety check
+    
+    return datePart.replace(/-/g, '') // "2024-10-16" -> "20241016"
   }
+
+  // Calculate next day for DTEND (all-day events end on the next day)
+  const getNextDay = (dateString: string) => {
+    if (!dateString) return '20240102' // Default fallback
+    
+    const [datePart] = dateString.split(' ')
+    if (!datePart) return '20240102' // Safety check
+    
+    const [year, month, day] = datePart.split('-').map(Number)
+    const nextDay = new Date(year, month - 1, day + 1)
+    return `${nextDay.getFullYear()}${String(nextDay.getMonth() + 1).padStart(2, '0')}${String(nextDay.getDate()).padStart(2, '0')}`
+  }
+
+  const location = address ? `${venue}, ${address}` : venue
+  
+  // Generate unique UID based on event name and start time
+  const eventId = Buffer.from(`${eventName}-${startsAt}`).toString('base64').replace(/[^a-zA-Z0-9]/g, '')
 
   const ics = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Wedding Invitation//EN',
+    'PRODID:-//Brenda & Diamond//Wedding//EN',
     'BEGIN:VEVENT',
-    `UID:${crypto.randomUUID()}@wedding.com`,
-    `DTSTART:${formatDate(startDate)}`,
-    `DTEND:${formatDate(endDate)}`,
+    `UID:${eventId}@brendabagsherdiamond.com`,
+    `DTSTAMP:${formatDate(new Date().toISOString().replace('T', ' ').substring(0, 19))}`,
+    `DTSTART;VALUE=DATE:${formatDate(startsAt)}`,
+    `DTEND;VALUE=DATE:${getNextDay(startsAt)}`,
     `SUMMARY:${eventName}`,
-    `LOCATION:${venue}${address ? `, ${address}` : ''}`,
-    `DESCRIPTION:You're invited to ${eventName}. RSVP at: ${rsvpUrl}`,
-    'STATUS:CONFIRMED',
-    'SEQUENCE:0',
+    `LOCATION:${location}`,
+    `URL:${rsvpUrl}`,
     'END:VEVENT',
     'END:VCALENDAR'
   ].join('\r\n')
-  
+
   return Buffer.from(ics).toString('base64')
 }

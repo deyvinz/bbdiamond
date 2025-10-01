@@ -76,19 +76,16 @@ export default async function EmailPreviewPage({ searchParams }: EmailPreviewPag
 
     // Prepare email props
     const guestName = `${invitation.guest.first_name} ${invitation.guest.last_name}`
-    const eventDate = new Date(event.event.starts_at).toLocaleDateString('en-US', {
+    // Parse text field: "2024-10-16 10:00:00" -> "Wednesday, October 16, 2024 · 10:00"
+    const [datePart, timePart] = event.event.starts_at.split(' ')
+    const [year, month, day] = datePart.split('-')
+    const eventDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      timeZone: 'Africa/Lagos',
     })
-    const eventTime = new Date(event.event.starts_at).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'Africa/Lagos',
-    })
+    const eventTime = timePart ? timePart.substring(0, 5) : '00:00' // Extract HH:MM
     const formattedEventDate = `${eventDate} · ${eventTime}`
     
     const rsvpUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://brendabagsherdiamond.com'}/rsvp?token=${invitation.token}&eventId=${event.event_id}`

@@ -53,20 +53,18 @@ export function RsvpConfirmationEmail({
     : `Thank you for your response`
 
   const formatEventDateTime = (startsAtISO: string) => {
-    const eventDate = new Date(startsAtISO).toLocaleDateString('en-US', {
+    // Parse text field: "2024-10-16 10:00:00" -> "Wednesday, October 16, 2024 · 10:00"
+    const [datePart, timePart] = startsAtISO.split(' ')
+    const [year, month, day] = datePart.split('-')
+    const eventDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      timeZone: 'Africa/Lagos',
     })
-    const eventTime = new Date(startsAtISO).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'Africa/Lagos',
-    })
-    return `${eventDate} · ${eventTime}`
+    const eventTime = timePart ? timePart.substring(0, 5) : '00:00' // Extract HH:MM
+    const formattedEventDateTime = `${eventDate} · ${eventTime}`
+    return formattedEventDateTime
   }
 
   return (
@@ -227,20 +225,18 @@ export function renderRsvpConfirmationText(props: RsvpConfirmationEmailProps): s
   const { guestName, inviteCode, rsvpUrl, events, isAccepted, goodwillMessage } = props
   
   const formatEventDateTime = (startsAtISO: string) => {
-    const eventDate = new Date(startsAtISO).toLocaleDateString('en-US', {
+    // Parse text field: "2024-10-16 10:00:00" -> "Wednesday, October 16, 2024 · 10:00"
+    const [datePart, timePart] = startsAtISO.split(' ')
+    const [year, month, day] = datePart.split('-')
+    const eventDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      timeZone: 'Africa/Lagos',
     })
-    const eventTime = new Date(startsAtISO).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'Africa/Lagos',
-    })
-    return `${eventDate} · ${eventTime}`
+    const eventTime = timePart ? timePart.substring(0, 5) : '00:00' // Extract HH:MM
+    const formattedEventDateTime = `${eventDate} · ${eventTime}`
+    return formattedEventDateTime
   }
 
   const lines = [

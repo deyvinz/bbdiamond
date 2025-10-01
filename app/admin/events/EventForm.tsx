@@ -43,11 +43,11 @@ export default function EventForm({
   // Initialize form with existing event data
   useEffect(() => {
     if (event) {
-      // Format datetime-local input (remove timezone info)
-      const startsAt = new Date(event.starts_at)
-      const localDateTime = new Date(startsAt.getTime() - startsAt.getTimezoneOffset() * 60000)
-        .toISOString()
-        .slice(0, 16)
+      // For timestamp (no timezone): Display the stored time as-is without conversion
+      // Convert database format (YYYY-MM-DD HH:MM:SS) to form format (YYYY-MM-DDTHH:MM)
+      const [datePart, timePart] = event.starts_at.split(' ')
+      const [hours, minutes] = timePart.split(':')
+      const localDateTime = `${datePart}T${hours}:${minutes}`
       
       setFormData({
         name: event.name,
@@ -125,8 +125,10 @@ export default function EventForm({
       return
     }
 
-    // Convert local datetime to ISO string
-    const startsAt = new Date(formData.starts_at).toISOString()
+    // For timestamp (no timezone): Store the datetime exactly as entered
+    // Parse the datetime-local input format (YYYY-MM-DDTHH:MM) directly
+    const [datePart, timePart] = formData.starts_at.split('T')
+    const startsAt = `${datePart} ${timePart}:00`
 
     const eventData = {
       name: formData.name.trim(),

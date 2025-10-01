@@ -313,7 +313,9 @@ export default function GuestsClient({
       await sendInviteEmailAction({
         invitationId: invitation.id,
         eventIds: [eventId],
-        includeQr: true
+        includeQr: true,
+        ignoreRateLimit: true,
+        to: guest.email
       })
       
       toast({
@@ -387,7 +389,9 @@ export default function GuestsClient({
               await sendInviteEmailAction({
                 invitationId: invitation.id,
                 eventIds,
-                includeQr: true
+                includeQr: true,
+                ignoreRateLimit: true,
+                to: guest.email
               })
               successCount++
             } catch (error) {

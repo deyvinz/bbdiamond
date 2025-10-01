@@ -253,9 +253,12 @@ export default function InvitationsClient({
   }) => {
     setSendingEmail(true)
     try {
+      console.log('Sending email to:', data.to)
       await sendInviteEmailAction({
         ...data,
         includeQr: data.includeQr ?? true,
+        ignoreRateLimit: true,
+        to: data.to || undefined,
       })
       toast({
         title: "Success",
@@ -388,7 +391,9 @@ export default function InvitationsClient({
               await sendInviteEmailAction({
                 invitationId,
                 eventIds: invitation.invitation_events.map(event => event.event_id),
-                includeQr: true
+                includeQr: true,
+                ignoreRateLimit: true,
+                to: invitation.guest.email
               })
             }
           }

@@ -182,19 +182,16 @@ export default function RSVPForm(){
               <h3 className="text-lg font-semibold">Your Confirmed Events:</h3>
               <div className="space-y-3">
                 {currentRsvpStatus.events.map((event, index) => {
-                  const eventDate = new Date(event.startsAtISO).toLocaleDateString('en-US', {
+                  // Parse text field: "2024-10-16 10:00:00" -> "Wednesday, October 16, 2024 · 10:00"
+                  const [datePart, timePart] = event.startsAtISO.split(' ')
+                  const [year, month, day] = datePart.split('-')
+                  const eventDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString('en-US', {
                     weekday: 'long',
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',
-                    timeZone: 'Africa/Lagos',
                   })
-                  const eventTime = new Date(event.startsAtISO).toLocaleTimeString('en-US', {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true,
-                    timeZone: 'Africa/Lagos',
-                  })
+                  const eventTime = timePart ? timePart.substring(0, 5) : '00:00' // Extract HH:MM
                   
                   return (
                     <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
