@@ -25,7 +25,7 @@ export async function generateInvitationQR(
   options: QRCodeOptions = {}
 ): Promise<QRCodeResult> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://brendabagsherdiamond.com'
-  const checkinUrl = `${baseUrl}/checkin?token=${token}`
+  const checkinUrl = `${baseUrl}/admin/checkin?token=${token}`
   
   const defaultOptions: QRCodeOptions = {
     width: 300,
@@ -85,7 +85,7 @@ export async function generateEmailQR(
   options: QRCodeOptions = {}
 ): Promise<QRCodeResult> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://brendabagsherdiamond.com'
-  const checkinUrl = `${baseUrl}/checkin?token=${token}`
+  const checkinUrl = `${baseUrl}/admin/checkin?token=${token}`
   
   const emailOptions: QRCodeOptions = {
     width: 150,
