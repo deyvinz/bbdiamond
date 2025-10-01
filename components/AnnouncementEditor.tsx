@@ -35,6 +35,9 @@ interface AnnouncementEditorProps {
 
 export default function AnnouncementEditor({ content, onChange, placeholder = "Start writing your announcement..." }: AnnouncementEditorProps) {
   const [isMounted, setIsMounted] = useState(false)
+  const [showLinkDialog, setShowLinkDialog] = useState(false)
+  const [linkUrl, setLinkUrl] = useState('')
+  const [linkText, setLinkText] = useState('')
 
   useEffect(() => {
     setIsMounted(true)
@@ -92,6 +95,32 @@ export default function AnnouncementEditor({ content, onChange, placeholder = "S
     )
   }
 
+  const handleAddLink = () => {
+    const { from, to } = editor.state.selection
+    const text = editor.state.doc.textBetween(from, to, ' ')
+    
+    setLinkText(text)
+    setLinkUrl('')
+    setShowLinkDialog(true)
+  }
+
+  const handleConfirmLink = () => {
+    if (linkUrl) {
+      if (linkText) {
+        editor.chain().focus().insertContent(`<a href="${linkUrl}">${linkText}</a>`).run()
+      } else {
+        editor.chain().focus().setLink({ href: linkUrl }).run()
+      }
+    }
+    setShowLinkDialog(false)
+    setLinkUrl('')
+    setLinkText('')
+  }
+
+  const handleRemoveLink = () => {
+    editor.chain().focus().unsetLink().run()
+  }
+
   const MenuButton = ({ onClick, isActive, children, title }: { 
     onClick: () => void
     isActive?: boolean
@@ -138,6 +167,23 @@ export default function AnnouncementEditor({ content, onChange, placeholder = "S
           >
             <Strikethrough className="h-4 w-4" />
           </MenuButton>
+
+          <MenuButton
+            onClick={handleAddLink}
+            isActive={editor.isActive('link')}
+            title="Add Link"
+          >
+            <LinkIcon className="h-4 w-4" />
+          </MenuButton>
+
+          {editor.isActive('link') && (
+            <MenuButton
+              onClick={handleRemoveLink}
+              title="Remove Link"
+            >
+              <LinkIcon className="h-4 w-4 text-red-500" />
+            </MenuButton>
+          )}
 
           <Separator orientation="vertical" className="h-6 mx-1" />
 
@@ -241,6 +287,59 @@ export default function AnnouncementEditor({ content, onChange, placeholder = "S
           className="prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none p-4"
         />
       </div>
+
+      {/* Link Dialog */}
+      {showLinkDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">Add Link</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Link Text
+                </label>
+                <input
+                  type="text"
+                  value={linkText}
+                  onChange={(e) => setLinkText(e.target.value)}
+                  placeholder="Link text (optional)"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  URL *
+                </label>
+                <input
+                  type="url"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-2 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setShowLinkDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmLink}
+                disabled={!linkUrl.trim()}
+              >
+                Add Link
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

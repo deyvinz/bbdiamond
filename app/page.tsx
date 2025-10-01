@@ -8,6 +8,7 @@ import Image from 'next/image';
 import { MotionPage, MotionStagger, MotionItem, MotionCard } from '@/components/ui/motion';
 import ProtectedEventDetails from '@/components/ProtectedEventDetails';
 import { Heart, Church, UtensilsCrossed, Calendar, MapPin, Users } from 'lucide-react';
+import CountdownTimer from '@/components/CountdownTimer';
 
 export default function Home() {
   const handleAccessGranted = (guest: any) => {
@@ -52,9 +53,25 @@ export default function Home() {
                     Seating
                   </Button>
                 </Link>
+                <Link href="/travel">
+                  <Button variant="outline" size="lg">
+                    Travel & Hotels
+                  </Button>
+                </Link>
               </div>
             </MotionItem>
           </div>
+        </div>
+      </section>
+
+      {/* Countdown Timer */}
+      <section className="py-12 md:py-16">
+        <div className="container max-w-6xl">
+          <CountdownTimer 
+            targetDate="2025-10-16T00:00:00"
+            title="Countdown to Our Wedding"
+            subtitle="The big day is approaching!"
+          />
         </div>
       </section>
 

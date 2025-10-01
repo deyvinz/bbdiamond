@@ -121,7 +121,7 @@ serve(async (req) => {
         
         <div class="footer">
             <p>This message was sent to you as part of our wedding celebration.</p>
-            <p>If you have any questions, please don't hesitate to contact us.</p>
+            <p>If you have any questions, please don't hesitate to contact us. <a href="mailto:bidiamond2025@gmail.com">bidiamond2025@gmail.com</a></p>
         </div>
     </div>
 </body>
@@ -136,7 +136,7 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'Wedding Announcements <noreply@yourdomain.com>',
+            from: 'Wedding Announcements <noreply@brendabagsherdiamond.com>',
             to: [recipient.email],
             subject: announcement.subject,
             html: emailHtml,
