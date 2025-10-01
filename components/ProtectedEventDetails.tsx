@@ -311,6 +311,10 @@ export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEven
           <span className="font-semibold">White and ivory outfits are not permitted</span> for
           guests. Please choose other colors to let the couple stand out on their special day.
         </p>
+        <p className="text-sm text-gold-900 font-medium">
+          Kindly note:{' '}
+          <span className="font-semibold">No kids allowed. This is an adult only event.</span>
+        </p>
       </div>
     </Section>
   )
