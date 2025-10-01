@@ -1,55 +1,53 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
 interface AnnouncementEmailData {
-  announcement_id: string
-  batch_id: string
+  announcement_id: string;
+  batch_id: string;
   recipients: Array<{
-    id: string
-    email: string
-    guest_name: string
-  }>
+    id: string;
+    email: string;
+    guest_name: string;
+  }>;
   announcement: {
-    title: string
-    subject: string
-    content: string
-  }
+    title: string;
+    subject: string;
+    content: string;
+  };
 }
 
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const { announcement_id, batch_id, recipients, announcement }: AnnouncementEmailData = await req.json()
+    const { announcement_id, batch_id, recipients, announcement }: AnnouncementEmailData =
+      await req.json();
 
     if (!announcement_id || !batch_id || !recipients || !announcement) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+      return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const results = {
       sent: 0,
       failed: 0,
-      errors: [] as string[]
-    }
+      errors: [] as string[],
+    };
 
     // Process each recipient
     for (const recipient of recipients) {
@@ -110,9 +108,11 @@ serve(async (req) => {
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1 class="title">${announcement.title}</h1>
-        </div>
+         <!-- Logo Header -->
+    <div style="background-color: #000000; padding: 30px 20px; text-align: center;">
+      <img src="https://utumylehywfktctigkie.supabase.co/storage/v1/object/public/bdiamond/logo.png" alt="Brenda & Diamond" style="max-width: 150px; height: auto; margin: 0 auto; display: block;">
+    </div>
+
         
         <div class="content">
             <p class="greeting">Dear ${recipient.guest_name || 'Guest'},</p>
@@ -125,14 +125,14 @@ serve(async (req) => {
         </div>
     </div>
 </body>
-</html>`
+</html>`;
 
         // Send email using Supabase Edge Function (you'll need to set up email service)
         // For now, we'll simulate the email sending
         const emailResult = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${Deno.env.get('RESEND_API_KEY')}`,
+            Authorization: `Bearer ${Deno.env.get('RESEND_API_KEY')}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -141,7 +141,7 @@ serve(async (req) => {
             subject: announcement.subject,
             html: emailHtml,
           }),
-        })
+        });
 
         if (emailResult.ok) {
           // Update recipient status to sent
@@ -149,104 +149,96 @@ serve(async (req) => {
             .from('announcement_recipients')
             .update({
               status: 'sent',
-              sent_at: new Date().toISOString()
+              sent_at: new Date().toISOString(),
             })
-            .eq('id', recipient.id)
+            .eq('id', recipient.id);
 
-          results.sent++
+          results.sent++;
         } else {
-          const errorText = await emailResult.text()
-          throw new Error(`Email API error: ${errorText}`)
+          const errorText = await emailResult.text();
+          throw new Error(`Email API error: ${errorText}`);
         }
-
       } catch (error) {
-        console.error(`Error sending email to ${recipient.email}:`, error)
-        
+        console.error(`Error sending email to ${recipient.email}:`, error);
+
         // Update recipient status to failed
         await supabase
           .from('announcement_recipients')
           .update({
             status: 'failed',
-            error_message: error.message
+            error_message: error.message,
           })
-          .eq('id', recipient.id)
+          .eq('id', recipient.id);
 
-        results.failed++
-        results.errors.push(`${recipient.email}: ${error.message}`)
+        results.failed++;
+        results.errors.push(`${recipient.email}: ${error.message}`);
       }
     }
 
     // Update batch status
-    const batchStatus = results.failed === recipients.length ? 'failed' : 'completed'
+    const batchStatus = results.failed === recipients.length ? 'failed' : 'completed';
     await supabase
       .from('announcement_batches')
       .update({
         status: batchStatus,
         sent_count: results.sent,
         failed_count: results.failed,
-        completed_at: new Date().toISOString()
+        completed_at: new Date().toISOString(),
       })
-      .eq('id', batch_id)
+      .eq('id', batch_id);
 
     // Update announcement statistics
     await supabase
       .from('announcements')
       .update({
-        sent_count: supabase.rpc('increment', { 
-          column: 'sent_count', 
-          amount: results.sent 
+        sent_count: supabase.rpc('increment', {
+          column: 'sent_count',
+          amount: results.sent,
         }),
-        failed_count: supabase.rpc('increment', { 
-          column: 'failed_count', 
-          amount: results.failed 
-        })
+        failed_count: supabase.rpc('increment', {
+          column: 'failed_count',
+          amount: results.failed,
+        }),
       })
-      .eq('id', announcement_id)
+      .eq('id', announcement_id);
 
     // Check if all recipients have been processed
     const { data: remainingRecipients } = await supabase
       .from('announcement_recipients')
       .select('id')
       .eq('announcement_id', announcement_id)
-      .eq('status', 'pending')
+      .eq('status', 'pending');
 
     if (!remainingRecipients || remainingRecipients.length === 0) {
       // All recipients processed, update announcement status
-      await supabase
-        .from('announcements')
-        .update({ status: 'sent' })
-        .eq('id', announcement_id)
+      await supabase.from('announcements').update({ status: 'sent' }).eq('id', announcement_id);
     } else {
       // Still have pending recipients, keep as sending
-      await supabase
-        .from('announcements')
-        .update({ status: 'sending' })
-        .eq('id', announcement_id)
+      await supabase.from('announcements').update({ status: 'sending' }).eq('id', announcement_id);
     }
 
     return new Response(
       JSON.stringify({
         success: true,
         message: `Processed ${recipients.length} recipients`,
-        results
+        results,
       }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
-    )
-
+    );
   } catch (error) {
-    console.error('Error in send-announcement-emails function:', error)
+    console.error('Error in send-announcement-emails function:', error);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: 'Internal server error',
-        details: error.message 
+        details: error.message,
       }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
-    )
+    );
   }
-})
+});

@@ -121,13 +121,24 @@ async function generateEmailHTML({
     <!-- Main Content -->
     <div style="background-color: #FFFFFF; padding: 40px 20px;">
       <p style="color: #111111; font-size: 24px; font-weight: bold; margin: 0 0 20px 0;">Dear ${guestName},</p>
-      
+
       <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
-        We are delighted to invite you to celebrate our special day with us!
+       The countdown is on until we say <strong>“I do,”</strong> and we are so excited to celebrate with you!
       </p>
 
       <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
-        Your presence would make our wedding celebration even more meaningful.
+        On this <a href="https://brendabagsherdiamond.com" style="color: #C7A049; text-decoration: underline;">site</a>, you will find all the details. </br>
+        And of course, don't forget to RSVP—we can't wait to see you!
+        </p>
+
+      <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+        • We will also be sharing a separate email with details Ofi & Caps, so be on the lookout for that.
+      </p>
+      <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+        • Hashtag: #BrendaBagsHerDiamond
+      </p>
+      <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+        • Website: <a href="https://brendabagsherdiamond.com" style="color: #C7A049; text-decoration: underline;">brendabagsherdiamond.com</a>
       </p>
 
             <!-- Event Details Cards -->
@@ -171,7 +182,7 @@ async function generateEmailHTML({
 
       <!-- RSVP Button -->
       <div style="text-align: center; margin: 32px 0;">
-        <a href="${rsvpUrl}" style="background-color: #C7A049; border-radius: 8px; color: #111111; font-size: 18px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 14px 32px 18px 32px; border: none; cursor: pointer; min-height: 44px; min-width: 44px; line-height: 1.2;">
+        <a href="${rsvpUrl}" style="background-color: #C7A049; border-radius: 8px; color: #111111; font-size: 18px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 14px 32px; border: none; cursor: pointer; min-height: 44px; min-width: 44px; line-height: 1.2;">
           RSVP Now
         </a>
         <p style="color: #666666; font-size: 14px; margin: 16px 0 0 0; font-family: monospace; word-break: break-all;">
