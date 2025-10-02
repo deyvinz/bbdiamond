@@ -143,34 +143,34 @@ function GuestTable({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="flex items-center space-x-2">
-          <h1 className="text-2xl font-serif">Guests</h1>
+          <h1 className="text-xl lg:text-2xl font-serif">Guests</h1>
           <Badge variant="outline">{filteredGuests.length} of {totalCount}</Badge>
         </div>
-        <div className="flex items-center space-x-2">
-          <Button onClick={onExport} variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={onExport} variant="outline" size="sm" className="flex-1 sm:flex-none">
+            <Download className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Export CSV</span>
           </Button>
           {onSendInvitesToAll && (
             <Button 
               onClick={onSendInvitesToAll} 
               variant="default" 
               size="sm" 
-              className="bg-gold-600 text-white hover:bg-gold-700"
+              className="bg-gold-600 text-white hover:bg-gold-700 flex-1 sm:flex-none"
               disabled={loading}
             >
-              <Mail className="h-4 w-4 mr-2" />
-              {loading ? 'Sending...' : 'Send Invites to All'}
+              <Mail className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">{loading ? 'Sending...' : 'Send Invites to All'}</span>
             </Button>
           )}
         </div>
       </div>
 
       {/* Search and Filters */}
-      <div className="flex items-center space-x-4">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Search guests..."
@@ -180,73 +180,82 @@ function GuestTable({
           />
         </div>
         
-        <select
-          value={filters.rsvp_status || ''}
-          onChange={(e) => handleFilterChange('rsvp_status', e.target.value || undefined)}
-          className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-        >
-          <option value="">All Status</option>
-          <option value="pending">Pending</option>
-          <option value="accepted">Accepted</option>
-          <option value="declined">Declined</option>
-          <option value="waitlist">Waitlist</option>
-        </select>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <select
+            value={filters.rsvp_status || ''}
+            onChange={(e) => handleFilterChange('rsvp_status', e.target.value || undefined)}
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+          >
+            <option value="">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="accepted">Accepted</option>
+            <option value="declined">Declined</option>
+            <option value="waitlist">Waitlist</option>
+          </select>
 
-        <select
-          value={filters.is_vip === undefined ? '' : filters.is_vip.toString()}
-          onChange={(e) => handleFilterChange('is_vip', e.target.value === '' ? undefined : e.target.value === 'true')}
-          className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-        >
-          <option value="">All VIP Status</option>
-          <option value="true">VIP Only</option>
-          <option value="false">Non-VIP Only</option>
-        </select>
+          <select
+            value={filters.is_vip === undefined ? '' : filters.is_vip.toString()}
+            onChange={(e) => handleFilterChange('is_vip', e.target.value === '' ? undefined : e.target.value === 'true')}
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+          >
+            <option value="">All VIP Status</option>
+            <option value="true">VIP Only</option>
+            <option value="false">Non-VIP Only</option>
+          </select>
+        </div>
       </div>
 
       {/* Bulk Actions */}
       {selectedGuests.length > 0 && (
-        <div className="flex items-center space-x-2 p-3 bg-gold-50 rounded-lg border border-gold-200">
-          <span className="text-sm text-gold-700">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-gold-50 rounded-lg border border-gold-200">
+          <span className="text-sm text-gold-700 font-medium">
             {selectedGuests.length} selected
           </span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onBulkAction?.('send_invite', selectedGuests)}
-          >
-            <Mail className="h-4 w-4 mr-2" />
-            Send Invites
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onBulkAction?.('regenerate_tokens', selectedGuests)}
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Regenerate Tokens
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onBulkAction?.('export', selectedGuests)}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Export Selected
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={() => onBulkAction?.('delete', selectedGuests)}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onBulkAction?.('send_invite', selectedGuests)}
+              className="flex-1 sm:flex-none"
+            >
+              <Mail className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Send Invites</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onBulkAction?.('regenerate_tokens', selectedGuests)}
+              className="flex-1 sm:flex-none"
+            >
+              <RefreshCw className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Regenerate</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onBulkAction?.('export', selectedGuests)}
+              className="flex-1 sm:flex-none"
+            >
+              <Download className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => onBulkAction?.('delete', selectedGuests)}
+              className="flex-1 sm:flex-none"
+            >
+              <Trash2 className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Delete</span>
+            </Button>
+          </div>
         </div>
       )}
 
       {/* Table */}
       <div className="border border-gold-100 rounded-lg overflow-hidden">
-        <Table>
+        <div className="overflow-x-auto">
+          <Table>
           <TableHeader>
             <TableRow className="bg-gold-50">
               <TableHead className="w-12">
@@ -334,14 +343,15 @@ function GuestTable({
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-gray-500">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="text-sm text-gray-500 text-center sm:text-left">
           Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, totalCount)} of {totalCount} guests
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center justify-center space-x-2">
           <Button
             variant="outline"
             size="sm"

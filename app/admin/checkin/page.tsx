@@ -248,13 +248,13 @@ export default function CheckInPage() {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-4xl font-serif text-gray-900 mb-2">Guest Check-In</h1>
-          <p className="text-lg text-gray-600">Scan QR codes or manually check in guests</p>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-serif text-gray-900 mb-2">Guest Check-In</h1>
+          <p className="text-base sm:text-lg text-gray-600">Scan QR codes or manually check in guests</p>
         </div>
 
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -293,7 +293,7 @@ export default function CheckInPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {/* QR Code Scanner */}
           <Card>
             <CardHeader>

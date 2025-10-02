@@ -284,27 +284,30 @@ export default function SeatingClient() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-serif">Seating Management</h1>
+          <h1 className="text-2xl lg:text-3xl font-serif">Seating Management</h1>
           <p className="text-gray-600 mt-1">
             Manage table layouts and seat assignments for your wedding events
           </p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             onClick={() => window.open('/admin/seating/chart', '_blank')}
             variant="outline"
+            size="sm"
+            className="flex-1 sm:flex-none"
           >
-            <MapPin className="h-4 w-4 mr-2" />
-            Visual Chart
+            <MapPin className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Visual Chart</span>
           </Button>
           <Button
             onClick={() => setShowCreateTable(true)}
-            className="bg-gold-600 text-white hover:bg-gold-700"
+            className="bg-gold-600 text-white hover:bg-gold-700 flex-1 sm:flex-none"
+            size="sm"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Create Table
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Create Table</span>
           </Button>
         </div>
       </div>
@@ -318,7 +321,7 @@ export default function SeatingClient() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center space-x-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1">
               <Label htmlFor="event-select">Event</Label>
               <Select value={selectedEvent} onValueChange={setSelectedEvent}>
@@ -349,7 +352,7 @@ export default function SeatingClient() {
       {/* Search and Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center space-x-4">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-4">
             <div className="flex-1">
               <Label htmlFor="search">Search Tables</Label>
               <div className="relative">
@@ -368,6 +371,7 @@ export default function SeatingClient() {
                 variant="outline"
                 onClick={() => setShowAssignSeat(true)}
                 disabled={!selectedEvent}
+                className="w-full sm:w-auto"
               >
                 <UserPlus className="h-4 w-4 mr-2" />
                 Assign Seat

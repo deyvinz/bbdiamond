@@ -146,13 +146,13 @@ export default function AnnouncementsPage() {
 
       {(viewMode === 'create' || viewMode === 'edit') && (
         <div className="space-y-6">
-          <div className="flex items-center space-x-4">
-            <Button variant="outline" onClick={handleBackToList}>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <Button variant="outline" onClick={handleBackToList} className="w-full sm:w-auto">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to List
             </Button>
             <div>
-              <h2 className="text-2xl font-bold">
+              <h2 className="text-xl sm:text-2xl font-bold">
                 {viewMode === 'create' ? 'Create New Announcement' : 'Edit Announcement'}
               </h2>
               <p className="text-gray-600">
@@ -175,24 +175,24 @@ export default function AnnouncementsPage() {
 
       {viewMode === 'view' && selectedAnnouncement && (
         <div className="space-y-6">
-          <div className="flex items-center space-x-4">
-            <Button variant="outline" onClick={handleBackToList}>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <Button variant="outline" onClick={handleBackToList} className="w-full sm:w-auto">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to List
             </Button>
             <div className="flex-1">
-              <h2 className="text-2xl font-bold">{selectedAnnouncement.title}</h2>
+              <h2 className="text-xl sm:text-2xl font-bold">{selectedAnnouncement.title}</h2>
               <p className="text-gray-600">Announcement Details</p>
             </div>
-            <Button onClick={() => handleEdit(selectedAnnouncement)}>
+            <Button onClick={() => handleEdit(selectedAnnouncement)} className="w-full sm:w-auto">
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             {/* Announcement Details */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="xl:col-span-2 space-y-6">
               <Card className="p-6">
                 <h3 className="text-lg font-semibold mb-4">Content</h3>
                 <div className="prose prose-sm max-w-none">

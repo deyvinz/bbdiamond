@@ -564,45 +564,52 @@ export default function GuestsClient({
   return (
     <>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-serif">Guests Management</h1>
+            <h1 className="text-2xl lg:text-3xl font-serif">Guests Management</h1>
             <p className="text-gray-600 mt-1">
               Manage your wedding guest list, invitations, and RSVPs
             </p>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               onClick={refreshData}
               variant="outline"
               disabled={refreshing}
+              size="sm"
+              className="flex-1 sm:flex-none"
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Refreshing...' : 'Refresh'}
+              <RefreshCw className={`h-4 w-4 sm:mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
             </Button>
             <Button
               onClick={() => setShowImportDialog(true)}
               variant="outline"
+              size="sm"
+              className="flex-1 sm:flex-none"
             >
-              <Upload className="h-4 w-4 mr-2" />
-              Import CSV
+              <Upload className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Import CSV</span>
             </Button>
             <Button
               onClick={() => setShowBackfillDialog(true)}
               variant="outline"
-              className="bg-gold-50 border-gold-200 text-gold-700 hover:bg-gold-100"
+              size="sm"
+              className="bg-gold-50 border-gold-200 text-gold-700 hover:bg-gold-100 flex-1 sm:flex-none"
             >
-              <Settings className="h-4 w-4 mr-2" />
-              Backfill Invite Codes
+              <Settings className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Backfill</span>
             </Button>
             <Button
               onClick={() => {
                 setEditingGuest(undefined)
                 setShowGuestForm(true)
               }}
+              size="sm"
+              className="flex-1 sm:flex-none"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Guest
+              <Plus className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Add Guest</span>
             </Button>
           </div>
         </div>

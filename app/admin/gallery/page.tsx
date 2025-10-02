@@ -166,20 +166,20 @@ export default function GalleryAdminPage() {
   return (
     <div className="container max-w-6xl mx-auto p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <Link href="/admin">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Admin
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-gold-800">Gallery Management</h1>
+            <h1 className="text-2xl lg:text-3xl font-bold text-gold-800">Gallery Management</h1>
             <p className="text-gold-600">Manage your wedding gallery images</p>
           </div>
         </div>
-        <Button onClick={() => setShowForm(true)}>
+        <Button onClick={() => setShowForm(true)} className="w-full sm:w-auto">
           <Plus className="w-4 h-4 mr-2" />
           Add Image
         </Button>
@@ -226,11 +226,11 @@ export default function GalleryAdminPage() {
                 Lower numbers appear first in the gallery
               </p>
             </div>
-            <div className="flex gap-2">
-              <Button type="submit">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button type="submit" className="flex-1 sm:flex-none">
                 {editingImage ? 'Update Image' : 'Add Image'}
               </Button>
-              <Button type="button" variant="outline" onClick={handleCancel}>
+              <Button type="button" variant="outline" onClick={handleCancel} className="flex-1 sm:flex-none">
                 Cancel
               </Button>
             </div>
@@ -266,7 +266,7 @@ export default function GalleryAdminPage() {
                 {image.caption && (
                   <p className="text-sm text-gray-600 mb-2">{image.caption}</p>
                 )}
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <span className="text-xs text-gray-500">
                     Order: {image.sort_order}
                   </span>
@@ -275,16 +275,19 @@ export default function GalleryAdminPage() {
                       size="sm"
                       variant="outline"
                       onClick={() => handleEdit(image)}
+                      className="flex-1 sm:flex-none"
                     >
-                      <Edit className="w-3 h-3" />
+                      <Edit className="w-3 h-3 sm:mr-2" />
+                      <span className="hidden sm:inline">Edit</span>
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => handleDelete(image.id)}
-                      className="text-red-600 hover:text-red-700"
+                      className="text-red-600 hover:text-red-700 flex-1 sm:flex-none"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-3 h-3 sm:mr-2" />
+                      <span className="hidden sm:inline">Delete</span>
                     </Button>
                   </div>
                 </div>
