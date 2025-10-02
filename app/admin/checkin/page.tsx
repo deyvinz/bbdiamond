@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { Html5QrcodeScanner } from 'html5-qrcode'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
-import { QrCode, UserCheck, Users, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { QrCode, UserCheck, Users, Clock, CheckCircle, XCircle, AlertCircle, ArrowLeft } from 'lucide-react'
 
 interface CheckInStats {
   total_invited: number
@@ -247,9 +248,19 @@ export default function CheckInPage() {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div className="text-center">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-serif text-gray-900 mb-2">Guest Check-In</h1>
-          <p className="text-base sm:text-lg text-gray-600">Scan QR codes or manually check in guests</p>
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <Link href="/admin">
+              <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Admin
+              </Button>
+            </Link>
+            <div className="text-center lg:text-left">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-serif text-gray-900 mb-2">Guest Check-In</h1>
+              <p className="text-base sm:text-lg text-gray-600">Scan QR codes or manually check in guests</p>
+            </div>
+          </div>
         </div>
 
         {/* Stats Cards */}

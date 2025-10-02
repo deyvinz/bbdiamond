@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import Link from 'next/link'
 import { useToast } from '@/components/ui/use-toast'
 import AnnouncementsList from '@/components/AnnouncementsList'
 import AnnouncementForm from '@/components/AnnouncementForm'
@@ -136,6 +137,24 @@ export default function AnnouncementsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <Link href="/admin">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Admin
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-serif">Announcements</h1>
+            <p className="text-gray-600 mt-1">
+              Send announcements to your wedding guests
+            </p>
+          </div>
+        </div>
+      </div>
+
       {viewMode === 'list' && (
         <AnnouncementsList
           onCreateNew={handleCreateNew}

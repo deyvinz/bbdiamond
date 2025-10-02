@@ -165,12 +165,12 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
             )}
           </div>
 
-          <div className="flex gap-3 pt-4 border-t">
-            <Button onClick={handleSave} disabled={loading}>
+          <div className="flex flex-col md:flex-row gap-3 pt-4 border-t">
+            <Button onClick={handleSave} disabled={loading} className="flex-1 sm:flex-none">
               <Save className="h-4 w-4 mr-2" />
               {loading ? 'Saving...' : 'Save Configuration'}
             </Button>
-            <Button variant="outline" onClick={handleReset} disabled={loading}>
+            <Button variant="outline" onClick={handleReset} disabled={loading} className="flex-1 sm:flex-none">
               <RotateCcw className="h-4 w-4 mr-2" />
               Reset to Defaults
             </Button>

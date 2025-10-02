@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,7 +23,10 @@ import {
   Move,
   UserPlus,
   UserMinus,
-  AlertTriangle
+  AlertTriangle,
+  ArrowLeft,
+  Menu,
+  X
 } from 'lucide-react'
 import type { SeatingTable, Seat } from '@/lib/types/seating'
 
@@ -62,6 +66,7 @@ export default function SeatingChartClient() {
   const [newTable, setNewTable] = useState({ name: '', capacity: 8 })
   const [tablePositions, setTablePositions] = useState<Map<string, TablePosition>>(new Map())
   const [conflicts, setConflicts] = useState<string[]>([])
+  const [showSidebar, setShowSidebar] = useState(false)
   const canvasRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
 
@@ -380,14 +385,42 @@ export default function SeatingChartClient() {
   }
 
   return (
-    <div className="flex h-screen">
-      {/* Guest List Sidebar */}
-      <div className="w-1/3 border-r bg-gray-50 flex flex-col">
-        <div className="p-4 border-b bg-white">
-          <h2 className="text-lg font-semibold mb-2">Guest List</h2>
-          <p className="text-sm text-gray-600 mb-4">
-            Drag guests to assign them to seats. {unassignedGuests.length} guests are unassigned.
+    <div className="flex flex-col lg:flex-row h-screen">
+      {/* Mobile Header */}
+      <div className="lg:hidden p-4 border-b bg-white">
+        <div className="flex items-center justify-between">
+          <Link href="/admin">
+            <Button variant="outline" size="sm">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Admin
+            </Button>
+          </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSidebar(!showSidebar)}
+          >
+            {showSidebar ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            Guest List
+          </Button>
+        </div>
+        <div className="mt-4">
+          <h1 className="text-xl font-serif">Visual Seating Chart</h1>
+          <p className="text-sm text-gray-600">
+            Drag guests to assign seats visually
           </p>
+        </div>
+      </div>
+
+      {/* Guest List Sidebar */}
+      <div className={`${showSidebar ? 'block' : 'hidden'} lg:block w-full lg:w-1/3 border-r bg-gray-50 flex flex-col`}>
+        <div className="p-4 border-b bg-white">
+          <div className="hidden lg:block">
+            <h2 className="text-lg font-semibold mb-2">Guest List</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Drag guests to assign them to seats. {unassignedGuests.length} guests are unassigned.
+            </p>
+          </div>
           <div className="space-y-3">
             <Select value={selectedEvent} onValueChange={setSelectedEvent}>
               <SelectTrigger className="w-full">
@@ -469,14 +502,22 @@ export default function SeatingChartClient() {
 
       {/* Seating Chart Main Area */}
       <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b bg-white">
+        {/* Desktop Header */}
+        <div className="hidden lg:block p-4 border-b bg-white">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-serif">Visual Seating Chart</h1>
-              <p className="text-gray-600 mt-1">
-                Drag guests from the sidebar to assign seats visually
-              </p>
+            <div className="flex items-center gap-4">
+              <Link href="/admin">
+                <Button variant="outline" size="sm">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Admin
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-2xl font-serif">Visual Seating Chart</h1>
+                <p className="text-gray-600 mt-1">
+                  Drag guests from the sidebar to assign seats visually
+                </p>
+              </div>
             </div>
             <div className="flex items-center space-x-2">
               <Button
@@ -498,8 +539,31 @@ export default function SeatingChartClient() {
           </div>
         </div>
 
+        {/* Mobile Action Buttons */}
+        <div className="lg:hidden p-4 border-b bg-white">
+          <div className="flex gap-2">
+            <Button
+              onClick={saveTablePositions}
+              className="bg-gold-600 text-white hover:bg-gold-700 flex-1"
+              size="sm"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Layout
+            </Button>
+            <Button
+              onClick={() => setShowCreateTable(true)}
+              variant="outline"
+              size="sm"
+              className="flex-1"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Table
+            </Button>
+          </div>
+        </div>
+
         {/* Canvas */}
-        <div className="flex-1 p-4">
+        <div className="flex-1 p-2 lg:p-4">
           <div 
             ref={canvasRef}
             className="relative h-full bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg overflow-hidden"
@@ -543,9 +607,9 @@ export default function SeatingChartClient() {
                   }}
                 >
                   {/* Table Header */}
-                  <div className="p-3 border-b border-gold-200 bg-gold-50 rounded-t-lg">
+                  <div className="p-2 lg:p-3 border-b border-gold-200 bg-gold-50 rounded-t-lg">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-medium text-sm">{table.name}</h3>
+                      <h3 className="font-medium text-xs lg:text-sm">{table.name}</h3>
                       <Badge variant="outline" className="text-xs">
                         {table.capacity} seats
                       </Badge>
@@ -553,8 +617,8 @@ export default function SeatingChartClient() {
                   </div>
                   
                   {/* Seats Grid */}
-                  <div className="p-3">
-                    <div className="grid grid-cols-4 gap-2">
+                  <div className="p-2 lg:p-3">
+                    <div className="grid grid-cols-4 gap-1 lg:gap-2">
                       {Array.from({ length: table.capacity }, (_, index) => {
                         const seatNumber = index + 1
                         const seat = table.seats?.find(s => s.seat_number === seatNumber)
@@ -564,7 +628,7 @@ export default function SeatingChartClient() {
                           <div
                             key={seatNumber}
                             className={`
-                              w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-medium cursor-pointer transition-colors
+                              w-6 h-6 lg:w-8 lg:h-8 rounded-full border-2 flex items-center justify-center text-xs font-medium cursor-pointer transition-colors
                               ${isOccupied 
                                 ? 'bg-gold-200 border-gold-400 text-gold-800' 
                                 : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-gold-100 hover:border-gold-300'
@@ -596,7 +660,7 @@ export default function SeatingChartClient() {
                             {isOccupied ? (
                               <div className="flex items-center justify-center">
                                 <UserMinus 
-                                  className="h-3 w-3 text-gold-600 cursor-pointer"
+                                  className="h-2 w-2 lg:h-3 lg:w-3 text-gold-600 cursor-pointer"
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     if (seat.id) handleRemoveSeat(seat.id)

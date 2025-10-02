@@ -207,7 +207,7 @@ export default function AnnouncementsList({ onCreateNew, onEdit, onView }: Annou
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">Announcements</h2>
           <p className="text-gray-600">Manage and send announcements to your guests</p>

@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/use-toast'
-import { Plus, Upload } from 'lucide-react'
+import { Plus, Upload, ArrowLeft } from 'lucide-react'
 import InvitationsTable from './InvitationsTable'
 import InvitationForm from './InvitationForm'
 import SendEmailDialog from './SendEmailDialog'
@@ -468,33 +469,44 @@ export default function InvitationsClient({
   return (
     <>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-serif">Invitations Management</h1>
-            <p className="text-gray-600 mt-1">
-              Manage wedding invitations and RSVPs
-            </p>
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <Link href="/admin">
+              <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Admin
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-serif">Invitations Management</h1>
+              <p className="text-gray-600 mt-1">
+                Manage wedding invitations and RSVPs
+              </p>
+            </div>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-wrap items-center gap-2">
             {isRefreshing && (
               <div className="flex items-center gap-2 text-sm text-gray-600">
                 <div className="animate-spin h-4 w-4 border-2 border-gold-600 border-t-transparent rounded-full"></div>
-                Refreshing...
+                <span className="hidden sm:inline">Refreshing...</span>
               </div>
             )}
             <Button
               onClick={() => setShowImportDialog(true)}
               variant="outline"
+              size="sm"
+              className="flex-1 sm:flex-none"
             >
-              <Upload className="h-4 w-4 mr-2" />
-              Import CSV
+              <Upload className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Import CSV</span>
             </Button>
             <Button
               onClick={handleCreateInvitation}
-              className="bg-gold-600 text-white hover:bg-gold-700"
+              className="bg-gold-600 text-white hover:bg-gold-700 flex-1 sm:flex-none"
+              size="sm"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Create Invitation
+              <Plus className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Create Invitation</span>
             </Button>
           </div>
         </div>
