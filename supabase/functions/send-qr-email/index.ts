@@ -215,7 +215,8 @@ async function generateEmailHTML({
           Can't click the button? Copy this link: <a href="${rsvpUrl}" style="color: #C7A049; text-decoration: underline;">${rsvpUrl}</a>
         </p>
       </div>
-
+      <p>Kindly note that this email is a perosnalized invitation, and not a confirmation of your RSVP. This invitation is for 1 person only.</p>
+      <p>RSVP is required for all events. Deadline for RSVP is 13th October 2025.</p>
       <!-- Invite Code -->
       <div style="background-color: #FFFFFF; border: 1px solid #EFE7D7; border-radius: 6px; padding: 20px; margin: 24px 0; text-align: center;">
         <p style="color: #666666; font-size: 14px; margin: 0 0 8px 0; font-weight: 500;">Your Invite Code:</p>
