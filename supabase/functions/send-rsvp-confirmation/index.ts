@@ -1,12 +1,12 @@
 // supabase functions new send-rsvp-confirmation
 // supabase functions deploy send-rsvp-confirmation
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { Resend } from "npm:resend@3.2.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { Resend } from 'npm:resend@3.2.0';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY")!);
-const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const resend = new Resend(Deno.env.get('RESEND_API_KEY')!);
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -61,13 +61,25 @@ async function generateRsvpConfirmationHTML({
     // Parse text field: "2024-10-16 10:00:00" -> "Wednesday, October 16, 2024 · 10:00"
     const [datePart, timePart] = startsAtISO.split(' ');
     const [year, month, day] = datePart.split('-');
-    const eventDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString('en-US', {
+    const eventDate = new Date(
+      parseInt(year),
+      parseInt(month) - 1,
+      parseInt(day)
+    ).toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
     });
-    const eventTime = timePart ? timePart.substring(0, 5) : '00:00'; // Extract HH:MM
+    let eventTime = '00:00 AM';
+    if (timePart) {
+      const [hourStr, minuteStr] = timePart.split(':');
+      let hour = parseInt(hourStr, 10);
+      const minute = minuteStr ? minuteStr.padStart(2, '0') : '00';
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      hour = hour % 12 || 12; // Convert 0/12/24 to 12-hour format
+      eventTime = `${hour}:${minute} ${ampm}`;
+    }
     const formattedEventDateTime = `${eventDate} · ${eventTime}`;
     return formattedEventDateTime;
   };
@@ -110,12 +122,13 @@ async function generateRsvpConfirmationHTML({
           Your Confirmed Events
         </h2>
         
-        ${events.map(event => {
-          const eventMapUrl = event.address 
-            ? `https://maps.google.com/maps?q=${encodeURIComponent(event.address)}` 
-            : undefined;
-          
-          return `
+        ${events
+          .map((event) => {
+            const eventMapUrl = event.address
+              ? `https://maps.google.com/maps?q=${encodeURIComponent(event.address)}`
+              : undefined;
+
+            return `
           <div style="background-color: #FFFFFF; border: 2px solid #C7A049; border-radius: 8px; padding: 24px; margin: 16px 0;">
             <h3 style="color: #111111; font-size: 18px; font-weight: bold; margin: 0 0 16px 0; text-align: center;">${event.name}</h3>
             
@@ -126,15 +139,20 @@ async function generateRsvpConfirmationHTML({
               <span style="font-weight: 600; color: #111111; margin-right: 8px;">📍 Venue:</span>
               ${eventMapUrl ? `<a href="${eventMapUrl}" style="color: #C7A049; text-decoration: underline;">${event.venue}</a>` : event.venue}
             </p>
-            ${event.address ? `
+            ${
+              event.address
+                ? `
             <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 8px 0;">
               <span style="font-weight: 600; color: #111111; margin-right: 8px;">🏠 Address:</span>
               ${eventMapUrl ? `<a href="${eventMapUrl}" style="color: #C7A049; text-decoration: underline;">${event.address}</a>` : event.address}
             </p>
-            ` : ''}
+            `
+                : ''
+            }
           </div>
           `;
-        }).join('')}
+          })
+          .join('')}
       </div>
 
       <!-- QR Code Note -->
@@ -144,9 +162,16 @@ async function generateRsvpConfirmationHTML({
           Check the attached files for your QR code and digital access pass. 
           Save these to your phone or print them out for easy access to all events.
         </p>
-        <a href="${rsvpUrl}" style="background-color: #C7A049; border-radius: 8px; color: #111111; font-size: 16px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 12px 24px; border: none; cursor: pointer;">
+         <div style="text-align: center;">
+         <a href="${rsvpUrl}" style="background-color: #C7A049; border-radius: 8px; color: #111111; font-size: 16px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 12px 24px; border: none; cursor: pointer;">
           View RSVP Details
         </a>
+         <span style="display: inline-block; margin-right: 16px;"> </span>
+        <a href="https://brendabagsherdiamond.com/registry" style="background-color: #C7A049; border-radius: 8px; color: #111111; font-size: 18px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 12px 24px; border: none; cursor: pointer; line-height: 1.2;">
+          Registry
+        </a>
+        </div>
+       
       </div>
 
       <!-- Invite Code -->
@@ -176,7 +201,7 @@ async function generateRsvpConfirmationHTML({
         <a href="https://brendabagsherdiamond.com" style="color: #C7A049; text-decoration: underline;">Visit our website</a>
       </p>
       <p style="color: #666666; font-size: 14px; line-height: 20px; margin: 0;">
-        Questions? Contact us at <a href="mailto:hello@brendabagsherdiamond.com" style="color: #C7A049; text-decoration: underline;">hello@brendabagsherdiamond.com</a>
+        Questions? Contact us at <a href="mailto:bidiamond2025@gmail.com" style="color: #C7A049; text-decoration: underline;">bidiamond2025@gmail.com</a>
       </p>
     </div>
   </div>
@@ -211,12 +236,16 @@ async function generateRsvpConfirmationHTML({
         We'll miss you, but we completely understand.
       </p>
 
-      ${goodwillMessage ? `
+      ${
+        goodwillMessage
+          ? `
       <div style="background-color: #f8f9fa; border: 1px solid #EFE7D7; border-radius: 8px; padding: 20px; margin: 24px 0;">
         <p style="color: #111111; font-size: 14px; font-weight: bold; margin: 0 0 8px 0;">Your message to the couple:</p>
         <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0; font-style: italic;">"${goodwillMessage}"</p>
       </div>
-      ` : ''}
+      `
+          : ''
+      }
 
       <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 20px 0;">
         We hope to celebrate with you in other ways soon. 
@@ -245,7 +274,7 @@ async function generateRsvpConfirmationHTML({
         <a href="https://brendabagsherdiamond.com" style="color: #C7A049; text-decoration: underline;">Visit our website</a>
       </p>
       <p style="color: #666666; font-size: 14px; line-height: 20px; margin: 0;">
-        Questions? Contact us at <a href="mailto:hello@brendabagsherdiamond.com" style="color: #C7A049; text-decoration: underline;">hello@brendabagsherdiamond.com</a>
+        Questions? Contact us at <a href="mailto:bidiamond2025@gmail.com" style="color: #C7A049; text-decoration: underline;">bidiamond2025@gmail.com</a>
       </p>
     </div>
   </div>
@@ -280,56 +309,61 @@ function generateRsvpConfirmationText({
     // Parse text field: "2024-10-16 10:00:00" -> "Wednesday, October 16, 2024 · 10:00"
     const [datePart, timePart] = startsAtISO.split(' ');
     const [year, month, day] = datePart.split('-');
-    const eventDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString('en-US', {
+    const eventDate = new Date(
+      parseInt(year),
+      parseInt(month) - 1,
+      parseInt(day)
+    ).toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
     });
-    const eventTime = timePart ? timePart.substring(0, 5) : '00:00'; // Extract HH:MM
+    let eventTime = '00:00 AM';
+    if (timePart) {
+      const [hourStr, minuteStr] = timePart.split(':');
+      let hour = parseInt(hourStr, 10);
+      const minute = minuteStr ? minuteStr.padStart(2, '0') : '00';
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      hour = hour % 12 || 12; // Convert 0/12/24 to 12-hour format
+      eventTime = `${hour}:${minute} ${ampm}`;
+    }
     const formattedEventDateTime = `${eventDate} · ${eventTime}`;
     return formattedEventDateTime;
   };
 
-  const lines = [
-    'Brenda & Diamond — RSVP Confirmation',
-    '',
-    `Dear ${guestName},`,
-    '',
-  ];
+  const lines = ['Brenda & Diamond — RSVP Confirmation', '', `Dear ${guestName},`, ''];
 
   if (isAccepted) {
     lines.push(
-      'You\'re confirmed! ✨ We\'re so excited that you\'ll be joining us for our special day.',
+      "You're confirmed! ✨ We're so excited that you'll be joining us for our special day.",
       '',
       'Your Confirmed Events:',
-      ...events.map(event => [
-        event.name,
-        formatEventDateTime(event.startsAtISO),
-        event.venue,
-        event.address || '',
-        ''
-      ]).flat(),
+      ...events
+        .map((event) => [
+          event.name,
+          formatEventDateTime(event.startsAtISO),
+          event.venue,
+          event.address || '',
+          '',
+        ])
+        .flat(),
       `RSVP Details: ${rsvpUrl}`,
       `Invite Code: ${inviteCode}`,
       '',
-      'We can\'t wait to celebrate with you!'
+      "We can't wait to celebrate with you!"
     );
   } else {
     lines.push(
-      'Thank you for letting us know that you won\'t be able to join us.',
-      'We\'ll miss you, but we completely understand.',
+      "Thank you for letting us know that you won't be able to join us.",
+      "We'll miss you, but we completely understand.",
       ''
     );
-    
+
     if (goodwillMessage) {
-      lines.push(
-        'Your message to the couple:',
-        `"${goodwillMessage}"`,
-        ''
-      );
+      lines.push('Your message to the couple:', `"${goodwillMessage}"`, '');
     }
-    
+
     lines.push(
       'We hope to celebrate with you in other ways soon.',
       'Thank you for being part of our lives.',
@@ -342,29 +376,37 @@ function generateRsvpConfirmationText({
   lines.push(
     '',
     'Visit our website: https://brendabagsherdiamond.com',
-    'Questions? Contact us at hello@brendabagsherdiamond.com'
+    'Questions? Contact us at bidiamond2025@gmail.com'
   );
-  
-  return lines.filter(line => line.trim()).join('\n');
+
+  return lines.filter((line) => line.trim()).join('\n');
 }
 
 serve(async (req: Request) => {
   try {
     console.log('Edge function called with method:', req.method);
     const payload: RsvpConfirmationPayload = await req.json();
-    console.log('Payload received:', { to: payload.to, subject: payload.subject, hasMeta: !!payload.meta });
-    
+    console.log('Payload received:', {
+      to: payload.to,
+      subject: payload.subject,
+      hasMeta: !!payload.meta,
+    });
+
     // Validate payload
     if (!payload.to || !payload.subject || !payload.meta) {
-      console.error('Invalid payload:', { to: payload.to, subject: payload.subject, hasMeta: !!payload.meta });
-      return new Response(JSON.stringify({ error: "Invalid payload" }), { 
+      console.error('Invalid payload:', {
+        to: payload.to,
+        subject: payload.subject,
+        hasMeta: !!payload.meta,
+      });
+      return new Response(JSON.stringify({ error: 'Invalid payload' }), {
         status: 400,
-        headers: { "Content-Type": "application/json" }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
     const { meta, attachments = [] } = payload;
-    
+
     // Check rate limit (max 3 emails per day per invitation) - skip if table doesn't exist
     let rateLimitExceeded = false;
     try {
@@ -388,12 +430,15 @@ serve(async (req: Request) => {
     }
 
     if (rateLimitExceeded) {
-      return new Response(JSON.stringify({ 
-        error: "Rate limit exceeded. Maximum 3 emails per day per invitation." 
-      }), { 
-        status: 429,
-        headers: { "Content-Type": "application/json" }
-      });
+      return new Response(
+        JSON.stringify({
+          error: 'Rate limit exceeded. Maximum 3 emails per day per invitation.',
+        }),
+        {
+          status: 429,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     // Generate email HTML and text
@@ -418,12 +463,12 @@ serve(async (req: Request) => {
     // Send email
     console.log('Sending email to:', payload.to, 'with subject:', payload.subject);
     const { data, error } = await resend.emails.send({
-      from: "Brenda & Diamond <hello@brendabagsherdiamond.com>",
+      from: 'Brenda & Diamond <hello@brendabagsherdiamond.com>',
       to: payload.to,
       subject: payload.subject,
       html,
       text,
-      attachments: attachments.map(att => ({
+      attachments: attachments.map((att) => ({
         filename: att.filename,
         content: att.content,
         content_type: att.contentType,
@@ -431,10 +476,10 @@ serve(async (req: Request) => {
     });
 
     if (error) {
-      console.error("Resend error:", error);
-      return new Response(JSON.stringify({ error: "Failed to send email" }), { 
+      console.error('Resend error:', error);
+      return new Response(JSON.stringify({ error: 'Failed to send email' }), {
         status: 500,
-        headers: { "Content-Type": "application/json" }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -442,21 +487,22 @@ serve(async (req: Request) => {
 
     // Log successful email send (if mail_logs table exists and has the right structure)
     try {
-      const { error: logError } = await supabase
-        .from('mail_logs')
-        .insert({
-          invitation_id: meta.invitationId,
-          sent_at: new Date().toISOString(),
-          meta: {
-            to: payload.to,
-            subject: payload.subject,
-            events: meta.events,
-            isAccepted: meta.isAccepted,
-          }
-        });
+      const { error: logError } = await supabase.from('mail_logs').insert({
+        invitation_id: meta.invitationId,
+        sent_at: new Date().toISOString(),
+        meta: {
+          to: payload.to,
+          subject: payload.subject,
+          events: meta.events,
+          isAccepted: meta.isAccepted,
+        },
+      });
 
       if (logError) {
-        console.warn('Failed to log email send (table may not exist or have wrong structure):', logError);
+        console.warn(
+          'Failed to log email send (table may not exist or have wrong structure):',
+          logError
+        );
         // Don't fail the request for logging errors
       }
     } catch (error) {
@@ -464,17 +510,20 @@ serve(async (req: Request) => {
       // Don't fail the request for logging errors
     }
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      messageId: data?.id 
-    }), { 
-      headers: { "Content-Type": "application/json" } 
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        messageId: data?.id,
+      }),
+      {
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
   } catch (e) {
-    console.error("Edge function error:", e);
-    return new Response(JSON.stringify({ error: String(e) }), { 
+    console.error('Edge function error:', e);
+    return new Response(JSON.stringify({ error: String(e) }), {
       status: 500,
-      headers: { "Content-Type": "application/json" }
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 });

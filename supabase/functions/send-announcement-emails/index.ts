@@ -119,6 +119,13 @@ serve(async (req) => {
             ${announcement.content}
         </div>
         
+        <div class="content">
+            <p> Quick Links:</p>
+            <ul>
+                <li><a href="https://brendabagsherdiamond.com/registry">Registry</a></li>
+                <li><a href="https://brendabagsherdiamond.com/rsvp">RSVP</a></li>
+            </ul>
+        </div>
         <div class="footer">
             <p>This message was sent to you as part of our wedding celebration.</p>
             <p>If you have any questions, please don't hesitate to contact us. <a href="mailto:bidiamond2025@gmail.com">bidiamond2025@gmail.com</a></p>

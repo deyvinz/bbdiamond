@@ -85,7 +85,16 @@ export default async function EmailPreviewPage({ searchParams }: EmailPreviewPag
       month: 'long',
       day: 'numeric',
     })
-    const eventTime = timePart ? timePart.substring(0, 5) : '00:00' // Extract HH:MM
+    // Extract HH:MM and format with AM/PM
+    let eventTime = '00:00 AM'
+    if (timePart) {
+      const [hourStr, minuteStr] = timePart.split(':')
+      let hour = parseInt(hourStr, 10)
+      const minute = minuteStr ? minuteStr.padStart(2, '0') : '00'
+      const ampm = hour >= 12 ? 'PM' : 'AM'
+      hour = hour % 12 || 12 // Convert 0/12/24 to 12-hour format
+      eventTime = `${hour}:${minute} ${ampm}`
+    }
     const formattedEventDate = `${eventDate} · ${eventTime}`
     
     const rsvpUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://brendabagsherdiamond.com'}/rsvp?token=${invitation.token}&eventId=${event.event_id}`
@@ -101,8 +110,8 @@ export default async function EmailPreviewPage({ searchParams }: EmailPreviewPag
       eventAddress: event.event.address,
       qrImageUrl,
       addToCalendarUrl: rsvpUrl,
-      contactEmail: "hello@brendabagsherdiamond.com",
-      replyToEmail: "hello@brendabagsherdiamond.com",
+      contactEmail: "bidiamond2025@gmail.com",
+      replyToEmail: "bidiamond2025@gmail.com",
     }
 
     // Render email

@@ -43,7 +43,15 @@ export async function generateDigitalPass(
         month: 'long',
         day: 'numeric',
       })
-      const eventTime = timePart ? timePart.substring(0, 5) : '00:00' // Extract HH:MM
+      let eventTime = '00:00 AM'
+    if (timePart) {
+      const [hourStr, minuteStr] = timePart.split(':')
+      let hour = parseInt(hourStr, 10)
+      const minute = minuteStr ? minuteStr.padStart(2, '0') : '00'
+      const ampm = hour >= 12 ? 'PM' : 'AM'
+      hour = hour % 12 || 12 // Convert 0/12/24 to 12-hour format
+      eventTime = `${hour}:${minute} ${ampm}`
+    }// Extract HH:MM
       const formattedEventDateTime = `${eventDate} · ${eventTime}`
       
       return {

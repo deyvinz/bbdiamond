@@ -1,10 +1,10 @@
 // supabase functions new send-qr-email
 // supabase functions deploy send-qr-email
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { Resend } from "npm:resend@3.2.0";
-import QRCode from "npm:qrcode@1.5.3";
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { Resend } from 'npm:resend@3.2.0';
+import QRCode from 'npm:qrcode@1.5.3';
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY")!);
+const resend = new Resend(Deno.env.get('RESEND_API_KEY')!);
 
 interface EmailPayload {
   to: string;
@@ -51,8 +51,8 @@ async function generateQRCodeBuffer(text: string): Promise<Buffer> {
       margin: 2,
       color: {
         dark: '#111111',
-        light: '#FFFFFF'
-      }
+        light: '#FFFFFF',
+      },
     });
     console.log('QR code generated successfully, size:', qrCodeBuffer.length);
     return qrCodeBuffer;
@@ -93,8 +93,10 @@ async function generateEmailHTML({
   eventDate: string;
   includeQr?: boolean;
 }): Promise<string> {
-  const mapUrl = primaryEvent.address ? `https://maps.google.com/maps?q=${encodeURIComponent(primaryEvent.address)}` : undefined;
-  
+  const mapUrl = primaryEvent.address
+    ? `https://maps.google.com/maps?q=${encodeURIComponent(primaryEvent.address)}`
+    : undefined;
+
   return `
 <!DOCTYPE html>
 <html>
@@ -144,21 +146,35 @@ async function generateEmailHTML({
             <!-- Event Details Cards -->
             ${events
               .sort((a, b) => new Date(a.startsAtISO).getTime() - new Date(b.startsAtISO).getTime())
-              .map(event => {
-        // Parse text field: "2024-10-16 10:00:00" -> "Wednesday, October 16, 2024 · 10:00"
-        const [datePart, timePart] = event.startsAtISO.split(' ');
-        const [year, month, day] = datePart.split('-');
-        const eventDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString('en-US', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        });
-        const eventTime = timePart ? timePart.substring(0, 5) : '00:00'; // Extract HH:MM
-        const eventMapUrl = event.address ? `https://maps.google.com/maps?q=${encodeURIComponent(event.address)}` : undefined;
-        const formattedEventDateTime = `${eventDate} · ${eventTime}`;
-        
-        return `
+              .map((event) => {
+                // Parse text field: "2024-10-16 10:00:00" -> "Wednesday, October 16, 2024 · 10:00"
+                const [datePart, timePart] = event.startsAtISO.split(' ');
+                const [year, month, day] = datePart.split('-');
+                const eventDate = new Date(
+                  parseInt(year),
+                  parseInt(month) - 1,
+                  parseInt(day)
+                ).toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                });
+                let eventTime = '00:00 AM';
+                if (timePart) {
+                  const [hourStr, minuteStr] = timePart.split(':');
+                  let hour = parseInt(hourStr, 10);
+                  const minute = minuteStr ? minuteStr.padStart(2, '0') : '00';
+                  const ampm = hour >= 12 ? 'PM' : 'AM';
+                  hour = hour % 12 || 12; // Convert 0/12/24 to 12-hour format
+                  eventTime = `${hour}:${minute} ${ampm}`;
+                }
+                const eventMapUrl = event.address
+                  ? `https://maps.google.com/maps?q=${encodeURIComponent(event.address)}`
+                  : undefined;
+                const formattedEventDateTime = `${eventDate} · ${eventTime}`;
+
+                return `
         <div style="background-color: #FFFFFF; border: 2px solid #C7A049; border-radius: 8px; padding: 24px; margin: 24px 0;">
           <h2 style="color: #111111; font-size: 20px; font-weight: bold; margin: 0 0 16px 0; text-align: center;">${event.name}</h2>
           
@@ -169,21 +185,32 @@ async function generateEmailHTML({
             <span style="font-weight: 600; color: #111111; margin-right: 8px;">📍 Venue:</span>
             ${eventMapUrl ? `<a href="${eventMapUrl}" style="color: #C7A049; text-decoration: underline;">${event.venue}</a>` : event.venue}
           </p>
-          ${event.address ? `
+          ${
+            event.address
+              ? `
           <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 8px 0;">
             <span style="font-weight: 600; color: #111111; margin-right: 8px;">🏠 Address:</span>
             ${eventMapUrl ? `<a href="${eventMapUrl}" style="color: #C7A049; text-decoration: underline;">${event.address}</a>` : event.address}
           </p>
-          ` : ''}
+          `
+              : ''
+          }
         </div>
         `;
-      }).join('')}
+              })
+              .join('')}
 
       <!-- RSVP Button -->
       <div style="text-align: center; margin: 32px 0;">
+       <div style="text-align: center;">
         <a href="${rsvpUrl}" style="background-color: #C7A049; border-radius: 8px; color: #111111; font-size: 18px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 12px 24px; border: none; cursor: pointer; line-height: 1.2;">
           RSVP Now
         </a>
+         <span style="display: inline-block; margin-right: 16px;"> </span>
+        <a href="https://brendabagsherdiamond.com/registry" style="background-color: #C7A049; border-radius: 8px; color: #111111; font-size: 18px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 12px 24px; border: none; cursor: pointer; line-height: 1.2;">
+          Registry
+        </a>
+        </div>
         <p style="color: #666666; font-size: 14px; margin: 16px 0 0 0; font-family: monospace; word-break: break-all;">
           Can't click the button? Copy this link: <a href="${rsvpUrl}" style="color: #C7A049; text-decoration: underline;">${rsvpUrl}</a>
         </p>
@@ -195,12 +222,16 @@ async function generateEmailHTML({
         <p style="color: #111111; font-size: 24px; font-weight: bold; margin: 0; font-family: monospace; letter-spacing: 2px;">${inviteCode}</p>
       </div>
 
-            ${includeQr ? `
+            ${
+              includeQr
+                ? `
             <!-- QR Code -->
             <div style="text-align: center; margin: 24px 0;">
               <p style="color: #666666; font-size: 14px; margin: 0 0 12px 0; font-weight: 500;">Show this at check-in (see attached QR code image):</p>
             </div>
-            ` : ''}
+            `
+                : ''
+            }
 
       <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 20px 0;">
         Please RSVP by clicking the button above or visiting our website.
@@ -220,10 +251,10 @@ async function generateEmailHTML({
         We can't wait to celebrate with you ✨
       </p>
       <p style="margin: 0 0 16px 0;">
-        <a href="https://brendabagsherdiamond.com" style="color: #C7A049; text-decoration: underline;">Visit our website</a>
+        <a href="https://brendabagsherdiamond.com/registry" style="color: #C7A049; text-decoration: underline;">Visit our website</a>
       </p>
       <p style="color: #666666; font-size: 14px; line-height: 20px; margin: 0;">
-        Questions? Contact us at <a href="mailto:hello@brendabagsherdiamond.com" style="color: #C7A049; text-decoration: underline;">hello@brendabagsherdiamond.com</a>
+        Questions? Contact us at <a href="mailto:bidiamond2025@gmail.com" style="color: #C7A049; text-decoration: underline;">bidiamond2025@gmail.com</a>
       </p>
     </div>
   </div>
@@ -252,27 +283,34 @@ function generateEmailText({
 }): string {
   const eventDetails = events
     .sort((a, b) => new Date(a.startsAtISO).getTime() - new Date(b.startsAtISO).getTime())
-    .map(event => {
-    // Parse text field: "2024-10-16 10:00:00" -> "Wednesday, October 16, 2024 · 10:00"
-    const [datePart, timePart] = event.startsAtISO.split(' ');
-    const [year, month, day] = datePart.split('-');
-    const eventDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-    const eventTime = timePart ? timePart.substring(0, 5) : '00:00'; // Extract HH:MM
-    const formattedEventDateTime = `${eventDate} · ${eventTime}`;
-    
-    return [
-      event.name,
-      formattedEventDateTime,
-      event.venue,
-      event.address || '',
-      '',
-    ];
-  }).flat();
+    .map((event) => {
+      // Parse text field: "2024-10-16 10:00:00" -> "Wednesday, October 16, 2024 · 10:00"
+      const [datePart, timePart] = event.startsAtISO.split(' ');
+      const [year, month, day] = datePart.split('-');
+      const eventDate = new Date(
+        parseInt(year),
+        parseInt(month) - 1,
+        parseInt(day)
+      ).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+      let eventTime = '00:00 AM';
+      if (timePart) {
+        const [hourStr, minuteStr] = timePart.split(':');
+        let hour = parseInt(hourStr, 10);
+        const minute = minuteStr ? minuteStr.padStart(2, '0') : '00';
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        hour = hour % 12 || 12; // Convert 0/12/24 to 12-hour format
+        eventTime = `${hour}:${minute} ${ampm}`;
+      }
+      const formattedEventDateTime = `${eventDate} · ${eventTime}`;
+
+      return [event.name, formattedEventDateTime, event.venue, event.address || '', ''];
+    })
+    .flat();
 
   const lines = [
     'Brenda & Diamond — Invitation',
@@ -285,24 +323,24 @@ function generateEmailText({
     '',
     "We can't wait to celebrate with you.",
   ];
-  
-  return lines.filter(line => line.trim()).join('\n');
+
+  return lines.filter((line) => line.trim()).join('\n');
 }
 
 serve(async (req: Request) => {
   try {
     const payload: EmailPayload = await req.json();
-    
+
     // Validate payload
     if (!payload.to || !payload.subject || !payload.meta) {
-      return new Response(JSON.stringify({ error: "Invalid payload" }), { 
+      return new Response(JSON.stringify({ error: 'Invalid payload' }), {
         status: 400,
-        headers: { "Content-Type": "application/json" }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
     const { meta, attachments = [] } = payload;
-    
+
     // Generate QR code as attachment if requested
     let finalAttachments = [...attachments];
     if (meta.includeQr) {
@@ -338,12 +376,12 @@ serve(async (req: Request) => {
 
     // Send email
     const { data, error } = await resend.emails.send({
-      from: "Brenda & Diamond <hello@brendabagsherdiamond.com>",
+      from: 'Brenda & Diamond <hello@brendabagsherdiamond.com>',
       to: payload.to,
       subject: payload.subject,
       html,
       text,
-      attachments: finalAttachments.map(att => ({
+      attachments: finalAttachments.map((att) => ({
         filename: att.filename,
         content: att.content,
         content_type: att.contentType,
@@ -351,24 +389,27 @@ serve(async (req: Request) => {
     });
 
     if (error) {
-      console.error("Resend error:", error);
-      return new Response(JSON.stringify({ error: "Failed to send email" }), { 
+      console.error('Resend error:', error);
+      return new Response(JSON.stringify({ error: 'Failed to send email' }), {
         status: 500,
-        headers: { "Content-Type": "application/json" }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      messageId: data?.id 
-    }), { 
-      headers: { "Content-Type": "application/json" } 
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        messageId: data?.id,
+      }),
+      {
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
   } catch (e) {
-    console.error("Edge function error:", e);
-    return new Response(JSON.stringify({ error: String(e) }), { 
+    console.error('Edge function error:', e);
+    return new Response(JSON.stringify({ error: String(e) }), {
       status: 500,
-      headers: { "Content-Type": "application/json" }
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 });
