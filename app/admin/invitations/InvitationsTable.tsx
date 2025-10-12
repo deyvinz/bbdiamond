@@ -41,6 +41,7 @@ import {
   Edit,
   Plus,
   QrCode,
+  Bell,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from '@/components/ui/use-toast'
@@ -272,6 +273,15 @@ export default function InvitationsTable({
             <Button
               size="sm"
               variant="outline"
+              onClick={() => handleBulkAction('send_rsvp_reminder')}
+              className="border-red-200 text-red-700 hover:bg-red-50"
+            >
+              <Bell className="h-4 w-4 mr-2" />
+              Send RSVP Reminders
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
               onClick={() => handleBulkAction('regenerate_tokens')}
             >
               <RefreshCw className="h-4 w-4 mr-2" />
@@ -335,7 +345,13 @@ export default function InvitationsTable({
                   </TableCell>
                 </TableRow>
               ) : (
-                invitations.map((invitation) => (
+                invitations.map((invitation) => {
+                  // Safety check for null guest
+                  if (!invitation.guest) {
+                    console.error('Invitation with null guest:', invitation.id)
+                    return null
+                  }
+                  return (
                   <TableRow key={invitation.id}>
                     <TableCell>
                       <Checkbox
@@ -452,7 +468,8 @@ export default function InvitationsTable({
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))
+                  )
+                })
               )}
             </TableBody>
           </Table>

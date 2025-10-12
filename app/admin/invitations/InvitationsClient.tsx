@@ -5,12 +5,13 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/use-toast'
-import { Plus, Upload, ArrowLeft } from 'lucide-react'
+import { Plus, Upload, ArrowLeft, Bell } from 'lucide-react'
 import InvitationsTable from './InvitationsTable'
 import InvitationForm from './InvitationForm'
 import SendEmailDialog from './SendEmailDialog'
 import ImportCsvDialog from './ImportCsvDialog'
 import ViewInvitationDialog from './ViewInvitationDialog'
+import SendRsvpRemindersDialog from './SendRsvpRemindersDialog'
 import {
   createInvitationsAction,
   updateInvitationAction,
@@ -21,6 +22,7 @@ import {
   importInvitationsAction,
   resendRsvpConfirmationAction,
 } from '@/lib/actions/invitations'
+import { sendRsvpReminderAction } from '@/lib/actions/rsvp-reminders'
 import type { Invitation, InvitationEvent } from '@/lib/invitations-service'
 import type { ConfigValue } from '@/lib/types/config'
 
@@ -62,6 +64,7 @@ export default function InvitationsClient({
   const [showSendEmailDialog, setShowSendEmailDialog] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [showViewDialog, setShowViewDialog] = useState(false)
+  const [showRsvpRemindersDialog, setShowRsvpRemindersDialog] = useState(false)
   const [editingInvitation, setEditingInvitation] = useState<Invitation | undefined>()
   const [selectedInvitation, setSelectedInvitation] = useState<Invitation | undefined>()
   const [viewingInvitation, setViewingInvitation] = useState<Invitation | undefined>()
@@ -403,6 +406,47 @@ export default function InvitationsClient({
             description: `Emails sent to ${invitationIds.length} invitations`,
           })
           break
+        case 'send_rsvp_reminder':
+          // Send RSVP reminders for all selected invitations
+          let successCount = 0
+          let skippedCount = 0
+          let errorCount = 0
+          
+          for (const invitationId of invitationIds) {
+            const invitation = invitations.find(inv => inv.id === invitationId)
+            if (!invitation) {
+              errorCount++
+              continue
+            }
+            
+            // Check if any events are pending
+            const hasPendingEvents = invitation.invitation_events.some(
+              event => event.status === 'pending'
+            )
+            
+            if (!hasPendingEvents) {
+              skippedCount++
+              continue
+            }
+            
+            try {
+              await sendRsvpReminderAction({
+                invitationId,
+                to: invitation.guest.email
+              })
+              successCount++
+            } catch (error) {
+              console.error(`Failed to send reminder for invitation ${invitationId}:`, error)
+              errorCount++
+            }
+          }
+          
+          toast({
+            title: successCount > 0 ? "RSVP Reminders Sent" : "No Reminders Sent",
+            description: `${successCount} sent, ${skippedCount} skipped (already RSVP'd)${errorCount > 0 ? `, ${errorCount} errors` : ''}`,
+            variant: successCount > 0 ? "default" : "destructive",
+          })
+          break
         case 'regenerate_tokens':
           // Regenerate tokens for all selected invitations
           for (const invitationId of invitationIds) {
@@ -492,6 +536,15 @@ export default function InvitationsClient({
               </div>
             )}
             <Button
+              onClick={() => setShowRsvpRemindersDialog(true)}
+              variant="outline"
+              size="sm"
+              className="flex-1 sm:flex-none border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+            >
+              <Bell className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Send RSVP Reminders</span>
+            </Button>
+            <Button
               onClick={() => setShowImportDialog(true)}
               variant="outline"
               size="sm"
@@ -567,6 +620,12 @@ export default function InvitationsClient({
         onOpenChange={setShowViewDialog}
         invitation={viewingInvitation}
         config={config}
+      />
+
+      <SendRsvpRemindersDialog
+        open={showRsvpRemindersDialog}
+        onOpenChange={setShowRsvpRemindersDialog}
+        onComplete={refreshData}
       />
     </>
   )

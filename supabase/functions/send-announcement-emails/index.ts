@@ -134,8 +134,7 @@ serve(async (req) => {
 </body>
 </html>`;
 
-        // Send email using Supabase Edge Function (you'll need to set up email service)
-        // For now, we'll simulate the email sending
+        // Send email with high priority headers
         const emailResult = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
@@ -147,6 +146,11 @@ serve(async (req) => {
             to: [recipient.email],
             subject: announcement.subject,
             html: emailHtml,
+            headers: {
+              'X-Priority': '1',
+              'X-MSMail-Priority': 'High',
+              'Importance': 'high',
+            },
           }),
         });
 

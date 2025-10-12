@@ -460,10 +460,10 @@ serve(async (req: Request) => {
       goodwillMessage: meta.goodwillMessage,
     });
 
-    // Send email
+    // Send email with high priority headers
     console.log('Sending email to:', payload.to, 'with subject:', payload.subject);
     const { data, error } = await resend.emails.send({
-      from: 'Brenda & Diamond <hello@brendabagsherdiamond.com>',
+      from: 'RSVP Confirmation <rsvpconfirmation@brendabagsherdiamond.com>',
       to: payload.to,
       subject: payload.subject,
       html,
@@ -473,6 +473,11 @@ serve(async (req: Request) => {
         content: att.content,
         content_type: att.contentType,
       })),
+      headers: {
+        'X-Priority': '1',
+        'X-MSMail-Priority': 'High',
+        'Importance': 'high',
+      },
     });
 
     if (error) {

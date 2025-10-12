@@ -9,9 +9,10 @@ import GuestForm from './GuestForm'
 import ImportCsvDialog from './ImportCsvDialog'
 import GuestDetailsDialog from './GuestDetailsDialog'
 import { BackfillInviteCodesDialog } from './BackfillInviteCodesDialog'
+import CleanupDuplicatesDialog from './CleanupDuplicatesDialog'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
-import { Plus, Upload, RefreshCw, Settings } from 'lucide-react'
+import { Plus, Upload, RefreshCw, Settings, Trash2 } from 'lucide-react'
 import {
   createGuest, 
   updateGuest, 
@@ -49,6 +50,7 @@ export default function GuestsClient({
   const [showGuestForm, setShowGuestForm] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [showBackfillDialog, setShowBackfillDialog] = useState(false)
+  const [showCleanupDialog, setShowCleanupDialog] = useState(false)
   const [editingGuest, setEditingGuest] = useState<Guest | undefined>()
   const [viewGuest, setViewGuest] = useState<Guest | undefined>()
   const [loading, setLoading] = useState(false)
@@ -601,6 +603,15 @@ export default function GuestsClient({
               <span className="hidden sm:inline">Backfill</span>
             </Button>
             <Button
+              onClick={() => setShowCleanupDialog(true)}
+              variant="outline"
+              size="sm"
+              className="border-orange-200 text-orange-700 hover:bg-orange-50 flex-1 sm:flex-none"
+            >
+              <Trash2 className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Clean Duplicates</span>
+            </Button>
+            <Button
               onClick={() => {
                 setEditingGuest(undefined)
                 setShowGuestForm(true)
@@ -651,6 +662,12 @@ export default function GuestsClient({
       <BackfillInviteCodesDialog
         open={showBackfillDialog}
         onOpenChange={setShowBackfillDialog}
+      />
+
+      <CleanupDuplicatesDialog
+        open={showCleanupDialog}
+        onOpenChange={setShowCleanupDialog}
+        onComplete={refreshData}
       />
 
       <GuestDetailsDialog

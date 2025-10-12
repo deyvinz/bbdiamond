@@ -34,6 +34,21 @@ export async function createGuest(input: Partial<Guest>): Promise<Guest> {
     throw error
   }
 
+  // Check for duplicate email (case-insensitive)
+  if (validatedGuest.email) {
+    const { data: existingGuest, error: checkError } = await supabase
+      .from('guests')
+      .select('id, email, first_name, last_name')
+      .ilike('email', validatedGuest.email)
+      .single()
+
+    if (existingGuest && !checkError) {
+      throw new Error(
+        `A guest with email "${existingGuest.email}" already exists: ${existingGuest.first_name} ${existingGuest.last_name}`
+      )
+    }
+  }
+
   // Create household if needed
   let householdId = validatedGuest.household_id
   if (validatedGuest.household_name && !householdId) {
@@ -445,6 +460,190 @@ export async function backfillInviteCodes(params: {
   // Invalidate cache if not dry run
   if (!dryRun && result.updated > 0) {
     await bumpNamespaceVersion()
+  }
+
+  return result
+}
+
+/**
+ * Find duplicate email addresses in the guests table (case-insensitive)
+ */
+export async function findDuplicateEmails(): Promise<Array<{
+  email: string
+  count: number
+  guests: Array<{
+    id: string
+    email: string
+    first_name: string
+    last_name: string
+    created_at: string
+  }>
+}>> {
+  const supabase = await supabaseServer()
+
+  // Get all guests with emails
+  const { data: allGuests, error } = await supabase
+    .from('guests')
+    .select('id, email, first_name, last_name, created_at')
+    .not('email', 'is', null)
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    throw new Error(`Failed to fetch guests: ${error.message}`)
+  }
+
+  if (!allGuests || allGuests.length === 0) {
+    return []
+  }
+
+  // Group by lowercase email
+  const emailGroups = new Map<string, typeof allGuests>()
+  
+  for (const guest of allGuests) {
+    const emailLower = guest.email!.toLowerCase()
+    const group = emailGroups.get(emailLower) || []
+    group.push(guest)
+    emailGroups.set(emailLower, group)
+  }
+
+  // Filter to only duplicates
+  const duplicates: Array<{
+    email: string
+    count: number
+    guests: typeof allGuests
+  }> = []
+
+  for (const [email, guests] of emailGroups) {
+    if (guests.length > 1) {
+      duplicates.push({
+        email,
+        count: guests.length,
+        guests: guests.sort((a: any, b: any) => {
+          // Sort: uppercase emails first (to be removed), then by creation date
+          const aIsUppercase = a.email === a.email!.toUpperCase()
+          const bIsUppercase = b.email === b.email!.toUpperCase()
+          
+          if (aIsUppercase && !bIsUppercase) return -1
+          if (!aIsUppercase && bIsUppercase) return 1
+          
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        })
+      })
+    }
+  }
+
+  return duplicates.sort((a, b) => b.count - a.count)
+}
+
+export interface CleanupDuplicatesResult {
+  duplicatesFound: number
+  guestsRemoved: number
+  guestsKept: number
+  errors: Array<{ guestId: string; error: string }>
+  details: Array<{
+    email: string
+    removed: Array<{ id: string; email: string; name: string }>
+    kept: { id: string; email: string; name: string }
+  }>
+}
+
+/**
+ * Remove duplicate email addresses from the guests table
+ * Priority: Remove uppercase emails first, then keep the oldest guest (by created_at)
+ */
+export async function cleanupDuplicateEmails(dryRun: boolean = false): Promise<CleanupDuplicatesResult> {
+  const supabase = await supabaseServer()
+  const duplicates = await findDuplicateEmails()
+
+  const result: CleanupDuplicatesResult = {
+    duplicatesFound: duplicates.length,
+    guestsRemoved: 0,
+    guestsKept: 0,
+    errors: [],
+    details: []
+  }
+
+  for (const duplicate of duplicates) {
+    const [toKeep, ...toRemove] = duplicate.guests
+
+    const detail = {
+      email: duplicate.email,
+      removed: toRemove.map(g => ({
+        id: g.id,
+        email: g.email!,
+        name: `${g.first_name} ${g.last_name}`
+      })),
+      kept: {
+        id: toKeep.id,
+        email: toKeep.email!,
+        name: `${toKeep.first_name} ${toKeep.last_name}`
+      }
+    }
+
+    result.details.push(detail)
+    result.guestsKept++
+
+    if (!dryRun) {
+      // Remove duplicate guests
+      for (const guest of toRemove) {
+        try {
+          // Delete invitations first (cascade should handle this, but be explicit)
+          const { error: invError } = await supabase
+            .from('invitations')
+            .delete()
+            .eq('guest_id', guest.id)
+
+          if (invError) {
+            console.error(`Error deleting invitations for guest ${guest.id}:`, invError)
+          }
+
+          // Delete the guest
+          const { error: deleteError } = await supabase
+            .from('guests')
+            .delete()
+            .eq('id', guest.id)
+
+          if (deleteError) {
+            result.errors.push({
+              guestId: guest.id,
+              error: deleteError.message
+            })
+          } else {
+            result.guestsRemoved++
+            
+            // Log audit
+            await logAdminAction('guest_duplicate_removed', {
+              guest_id: guest.id,
+              guest_email: guest.email,
+              guest_name: `${guest.first_name} ${guest.last_name}`,
+              kept_guest_id: toKeep.id,
+              reason: 'Duplicate email cleanup'
+            })
+          }
+        } catch (error) {
+          result.errors.push({
+            guestId: guest.id,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          })
+        }
+      }
+    } else {
+      // Dry run - just count
+      result.guestsRemoved += toRemove.length
+    }
+  }
+
+  // Invalidate cache if changes were made
+  if (!dryRun && result.guestsRemoved > 0) {
+    await bumpNamespaceVersion()
+
+    // Log overall cleanup action
+    await logAdminAction('guest_duplicates_cleanup', {
+      duplicates_found: result.duplicatesFound,
+      guests_removed: result.guestsRemoved,
+      guests_kept: result.guestsKept,
+      errors: result.errors.length
+    })
   }
 
   return result

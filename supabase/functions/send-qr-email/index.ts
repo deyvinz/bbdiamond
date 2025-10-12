@@ -375,9 +375,9 @@ serve(async (req: Request) => {
       events: meta.events,
     });
 
-    // Send email
+    // Send email with high priority headers
     const { data, error } = await resend.emails.send({
-      from: 'Brenda & Diamond <hello@brendabagsherdiamond.com>',
+      from: 'Wedding Invitation <invitation@brendabagsherdiamond.com>',
       to: payload.to,
       subject: payload.subject,
       html,
@@ -387,6 +387,11 @@ serve(async (req: Request) => {
         content: att.content,
         content_type: att.contentType,
       })),
+      headers: {
+        'X-Priority': '1',
+        'X-MSMail-Priority': 'High',
+        'Importance': 'high',
+      },
     });
 
     if (error) {

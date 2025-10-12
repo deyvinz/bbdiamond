@@ -181,15 +181,6 @@ export default function TravelPage() {
                     <Mail className="h-4 w-4" />
                     <span>{data.contact.email}</span>
                   </a>
-                  <a 
-                    href={`https://wa.me/${data.contact.whatsapp.replace(/[^0-9]/g, '')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-green-600 hover:text-green-800"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    <span>WhatsApp</span>
-                  </a>
                 </div>
               </div>
             </Card>

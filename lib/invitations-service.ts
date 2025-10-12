@@ -108,7 +108,7 @@ export async function getInvitationsPage(
       guest_id,
       token,
       created_at,
-      guest:guests(
+      guest:guests!inner(
         id,
         first_name,
         last_name,
@@ -136,7 +136,15 @@ export async function getInvitationsPage(
 
   // Apply filters
   if (filters.q) {
-    query = query.or(`guest.first_name.ilike.%${filters.q}%,guest.last_name.ilike.%${filters.q}%,guest.email.ilike.%${filters.q}%,guest.invite_code.ilike.%${filters.q}%`)
+    const searchTerm = `%${filters.q}%`
+    // Use proper Supabase JS OR syntax - no dots in the column references inside or()
+    query = query.or(
+      `first_name.ilike.${searchTerm},` +
+      `last_name.ilike.${searchTerm},` +
+      `email.ilike.${searchTerm},` +
+      `invite_code.ilike.${searchTerm}`,
+      { foreignTable: 'guest' }
+    )
   }
 
   if (filters.eventId) {
@@ -162,7 +170,7 @@ export async function getInvitationsPage(
     .from('invitations')
     .select(`
       id,
-      guest:guests(
+      guest:guests!inner(
         id,
         first_name,
         last_name,
@@ -178,7 +186,14 @@ export async function getInvitationsPage(
 
   // Apply same filters to count query
   if (filters.q) {
-    countQuery = countQuery.or(`guest.first_name.ilike.%${filters.q}%,guest.last_name.ilike.%${filters.q}%,guest.email.ilike.%${filters.q}%,guest.invite_code.ilike.%${filters.q}%`)
+    const searchTerm = `%${filters.q}%`
+    countQuery = countQuery.or(
+      `first_name.ilike.${searchTerm},` +
+      `last_name.ilike.${searchTerm},` +
+      `email.ilike.${searchTerm},` +
+      `invite_code.ilike.${searchTerm}`,
+      { foreignTable: 'guest' }
+    )
   }
 
   if (filters.eventId) {
@@ -198,7 +213,12 @@ export async function getInvitationsPage(
   // Note: Status filtering will be handled in application layer after fetching all data
   // This ensures we get all invitations with all their events, then filter appropriately
 
-  const { count } = await countQuery
+  const { count, error: countError } = await countQuery
+  
+  if (countError) {
+    console.error('Count query error:', countError)
+    console.error('Count error details:', JSON.stringify(countError, null, 2))
+  }
 
   // For status filtering, we need to fetch all data first, then filter, then paginate
   // This ensures we get all invitations with all their events
@@ -206,7 +226,13 @@ export async function getInvitationsPage(
 
   if (error) {
     console.error('Invitations query error:', error)
-    throw new Error(`Failed to fetch invitations: ${error.message}`)
+    console.error('Error details:', JSON.stringify(error, null, 2))
+    throw new Error(`Failed to fetch invitations: ${error.message || JSON.stringify(error)}`)
+  }
+
+  if (!invitations) {
+    console.error('No invitations data returned, but no error either')
+    throw new Error('Failed to fetch invitations: No data returned')
   }
 
 
