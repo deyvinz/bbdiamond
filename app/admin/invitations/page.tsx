@@ -58,6 +58,9 @@ export default async function InvitationsPage({ searchParams }: InvitationsPageP
       plus_ones_enabled: false,
       max_party_size: 1,
       allow_guest_plus_ones: false,
+      rsvp_enabled: true,
+      rsvp_cutoff_date: undefined,
+      rsvp_cutoff_timezone: 'America/New_York',
     }
   }
 
