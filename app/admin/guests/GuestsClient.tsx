@@ -10,6 +10,7 @@ import ImportCsvDialog from './ImportCsvDialog'
 import GuestDetailsDialog from './GuestDetailsDialog'
 import { BackfillInviteCodesDialog } from './BackfillInviteCodesDialog'
 import CleanupDuplicatesDialog from './CleanupDuplicatesDialog'
+import ExportDialog from './ExportDialog'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { Plus, Upload, RefreshCw, Settings, Trash2 } from 'lucide-react'
@@ -33,6 +34,7 @@ interface GuestsClientProps {
   pageSize: number
   totalPages: number
   config?: ConfigValue | null
+  events: any[]
   initialFilters: GuestFilters
 }
 
@@ -43,6 +45,7 @@ export default function GuestsClient({
   pageSize,
   totalPages,
   config,
+  events,
   initialFilters
 }: GuestsClientProps) {
   const [guests, setGuests] = useState(initialGuests)
@@ -51,6 +54,7 @@ export default function GuestsClient({
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [showBackfillDialog, setShowBackfillDialog] = useState(false)
   const [showCleanupDialog, setShowCleanupDialog] = useState(false)
+  const [showExportDialog, setShowExportDialog] = useState(false)
   const [editingGuest, setEditingGuest] = useState<Guest | undefined>()
   const [viewGuest, setViewGuest] = useState<Guest | undefined>()
   const [loading, setLoading] = useState(false)
@@ -339,19 +343,7 @@ export default function GuestsClient({
   }
 
   const handleExport = () => {
-    try {
-      exportGuestsToCsv(guests)
-      toast({
-        title: "Success",
-        description: "Guests exported to CSV",
-      })
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: "Failed to export guests",
-        variant: "destructive",
-      })
-    }
+    setShowExportDialog(true)
   }
 
   const handleBulkAction = async (action: string, guestIds: string[]) => {
@@ -668,6 +660,12 @@ export default function GuestsClient({
         open={showCleanupDialog}
         onOpenChange={setShowCleanupDialog}
         onComplete={refreshData}
+      />
+
+      <ExportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        events={events}
       />
 
       <GuestDetailsDialog

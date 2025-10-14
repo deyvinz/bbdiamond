@@ -53,6 +53,7 @@ interface InvitationsTableProps {
   page: number
   pageSize: number
   totalPages: number
+  events: any[]
   initialFilters: {
     q?: string
     eventId?: string
@@ -99,6 +100,7 @@ export default function InvitationsTable({
   page,
   pageSize,
   totalPages,
+  events,
   initialFilters,
   onPageChange,
   onFiltersChange,
@@ -221,7 +223,11 @@ export default function InvitationsTable({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Events</SelectItem>
-              {/* TODO: Add event options */}
+              {events.map((event) => (
+                <SelectItem key={event.id} value={event.id}>
+                  {event.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 

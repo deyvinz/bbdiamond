@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { getInvitationsPage } from '@/lib/invitations-service'
 import { getAppConfig } from '@/lib/config-service'
+import { getEventsPage } from '@/lib/events-service'
 import InvitationsClient from './InvitationsClient'
 import { CardSkeleton } from '@/components/ui/skeleton'
 
@@ -40,10 +41,12 @@ export default async function InvitationsPage({ searchParams }: InvitationsPageP
 
   let invitationsData
   let config
+  let eventsResponse
   try {
-    [invitationsData, config] = await Promise.all([
+    [invitationsData, config, eventsResponse] = await Promise.all([
       getInvitationsPage(filters, pagination),
-      getAppConfig()
+      getAppConfig(),
+      getEventsPage()
     ])
   } catch (error) {
     console.error('Error fetching data:', error)
@@ -62,7 +65,10 @@ export default async function InvitationsPage({ searchParams }: InvitationsPageP
       rsvp_cutoff_date: undefined,
       rsvp_cutoff_timezone: 'America/New_York',
     }
+    eventsResponse = { events: [] }
   }
+
+  const events = eventsResponse.events
 
   return (
     <Suspense fallback={
@@ -79,6 +85,7 @@ export default async function InvitationsPage({ searchParams }: InvitationsPageP
         pageSize={invitationsData.page_size}
         totalPages={invitationsData.total_pages}
         config={config}
+        events={events}
         initialFilters={{
           q: filters.q,
           eventId: filters.eventId,

@@ -12,6 +12,7 @@ import SendEmailDialog from './SendEmailDialog'
 import ImportCsvDialog from './ImportCsvDialog'
 import ViewInvitationDialog from './ViewInvitationDialog'
 import SendRsvpRemindersDialog from './SendRsvpRemindersDialog'
+import ExportDialog from './ExportDialog'
 import {
   createInvitationsAction,
   updateInvitationAction,
@@ -33,6 +34,7 @@ interface InvitationsClientProps {
   pageSize: number
   totalPages: number
   config?: ConfigValue
+  events: any[]
   initialFilters: {
     q?: string
     eventId?: string
@@ -53,6 +55,7 @@ export default function InvitationsClient({
   pageSize,
   totalPages,
   config,
+  events,
   initialFilters,
 }: InvitationsClientProps) {
   const router = useRouter()
@@ -65,6 +68,7 @@ export default function InvitationsClient({
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [showViewDialog, setShowViewDialog] = useState(false)
   const [showRsvpRemindersDialog, setShowRsvpRemindersDialog] = useState(false)
+  const [showExportDialog, setShowExportDialog] = useState(false)
   const [editingInvitation, setEditingInvitation] = useState<Invitation | undefined>()
   const [selectedInvitation, setSelectedInvitation] = useState<Invitation | undefined>()
   const [viewingInvitation, setViewingInvitation] = useState<Invitation | undefined>()
@@ -366,21 +370,8 @@ export default function InvitationsClient({
     URL.revokeObjectURL(url)
   }
 
-  const handleExport = async () => {
-    try {
-      exportInvitationsToCsv(invitations)
-      toast({
-        title: "Success",
-        description: "Invitations exported to CSV",
-      })
-    } catch (error) {
-      console.error('Error exporting invitations:', error)
-      toast({
-        title: "Error",
-        description: "Failed to export invitations",
-        variant: "destructive",
-      })
-    }
+  const handleExport = () => {
+    setShowExportDialog(true)
   }
 
   const handleBulkAction = async (action: string, invitationIds: string[]) => {
@@ -571,6 +562,7 @@ export default function InvitationsClient({
         page={page}
         pageSize={pageSize}
         totalPages={totalPages}
+        events={events}
         initialFilters={initialFilters}
         onPageChange={handlePageChange}
         onFiltersChange={handleFiltersChange}
@@ -585,7 +577,7 @@ export default function InvitationsClient({
         onExport={handleExport}
         onBulkAction={handleBulkAction}
         loading={loading || isRefreshing}
-        />
+      />
       </div>
 
       {/* Dialogs */}
@@ -626,6 +618,12 @@ export default function InvitationsClient({
         open={showRsvpRemindersDialog}
         onOpenChange={setShowRsvpRemindersDialog}
         onComplete={refreshData}
+      />
+
+      <ExportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        events={events}
       />
     </>
   )

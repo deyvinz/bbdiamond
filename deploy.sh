@@ -26,7 +26,7 @@ if [ ! -f .env.local ]; then
     exit 1
 fi
 
-# Create SSL directory if it doesn't exist
+# Create SSL directory if it doesn't exist...
 mkdir -p ssl
 
 # Stop existing containers

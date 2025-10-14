@@ -70,7 +70,6 @@ async function generateEmailHTML({
   events,
   primaryEvent,
   eventDate,
-  qrImageUrl,
   includeQr,
 }: {
   guestName: string;
