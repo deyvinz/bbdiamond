@@ -150,7 +150,7 @@ function generateEmailHTML(payload: EmailPayload): string {
                   <!-- Urgency Message -->
                   <div style="background: #fffbeb; border: 2px solid #f59e0b; padding: 20px; margin: 24px 0; border-radius: 8px; text-align: center;">
                     <p style="margin: 0 0 8px 0; color: #92400e; font-size: 18px; font-weight: 700;">
-                      ⏱️ RSVP CLOSES IN 12 HOURS
+                      ⏱️ RSVP CLOSES at 11:59 PM WAT on October 14, 2025
                     </p>
                     <p style="margin: 0; color: #78350f; font-size: 14px;">
                       We need to confirm final numbers with our vendors immediately
