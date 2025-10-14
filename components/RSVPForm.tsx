@@ -21,6 +21,7 @@ import {
   type InvitationData,
   type RSVPStatus 
 } from '@/lib/rsvp-service-direct'
+import { isRsvpAllowed, getFormattedCutoffDate, getTimeUntilCutoff } from '@/lib/utils/rsvp-check'
 
 type FormValues = { 
   invite_code: string
@@ -570,9 +571,70 @@ export default function RSVPForm(){
     }
   }
 
+  // Check if RSVP is allowed based on configuration
+  const rsvpCheck = config ? isRsvpAllowed(config) : { allowed: true }
+  const timeRemaining = config ? getTimeUntilCutoff(config) : { hasDeadline: false, isPast: false }
+
+  // If RSVP is not allowed, show a message
+  if (!rsvpCheck.allowed && config) {
+    return (
+      <Section title="RSVP" subtitle="RSVP is currently closed" narrow>
+        <Card>
+          <div role="status" aria-live="polite" className="text-center space-y-6 py-8">
+            <div className="space-y-4">
+              <div className="text-6xl">🔒</div>
+              <h2 className="text-2xl font-bold text-gray-700">RSVP is Closed</h2>
+              <p className="text-gray-600 max-w-md mx-auto">
+                {rsvpCheck.reason}
+              </p>
+              <p className="text-gray-500 text-sm">
+                If you have any questions or special circumstances, please contact us directly.
+              </p>
+            </div>
+
+            <div className="flex justify-center space-x-4">
+              <a 
+                href="/"
+                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+              >
+                Back to Home
+              </a>
+              <a 
+                href="mailto:bidiamond2025@gmail.com"
+                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+              >
+                Contact Us
+              </a>
+            </div>
+          </div>
+        </Card>
+      </Section>
+    )
+  }
+
   return (
     <Section title="RSVP" subtitle="Enter the invite code from your card or email" narrow>
       <Card>
+        {/* RSVP Deadline Warning */}
+        {timeRemaining.hasDeadline && !timeRemaining.isPast && timeRemaining.formattedTime && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <div className="text-2xl">⏰</div>
+              <div>
+                <p className="font-semibold text-amber-900">RSVP Deadline Approaching</p>
+                <p className="text-amber-800 text-sm mt-1">
+                  Please respond within <strong>{timeRemaining.formattedTime}</strong>.
+                  {config?.rsvp_cutoff_date && (
+                    <span className="block mt-1">
+                      Deadline: {getFormattedCutoffDate(config)}
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Loading State */}
         {isLoadingInvitation && (
           <div className="text-center py-8">

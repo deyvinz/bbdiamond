@@ -40,3 +40,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 VPS-SETUP-GUIDE.md
+SELECTED-RSVP-REMINDERS.md
+RSVP-REMINDER-SETUP.md
+.gitignore
+EMAIL-PRIORITY-HEADERS.md
+deploy.sh
+deploy-email-functions.sh
+deploy-email-functions.ps1
+deploy.sh

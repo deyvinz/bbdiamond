@@ -124,6 +124,9 @@ export const updateConfigSchema = z.object({
   plus_ones_enabled: z.boolean().optional(),
   max_party_size: z.number().int().min(1).max(20).optional(),
   allow_guest_plus_ones: z.boolean().optional(),
+  rsvp_enabled: z.boolean().optional(),
+  rsvp_cutoff_date: z.string().optional(),
+  rsvp_cutoff_timezone: z.string().optional(),
 })
 
 // RSVP schemas

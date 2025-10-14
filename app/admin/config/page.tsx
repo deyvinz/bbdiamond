@@ -4,9 +4,14 @@ import { ArrowLeft } from 'lucide-react'
 import { getAppConfig } from '@/lib/config-service'
 import ConfigClient from './ConfigClient'
 
+// Force dynamic rendering to always fetch fresh data
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function ConfigPage() {
   try {
     const config = await getAppConfig()
+    console.log('🔍 [ConfigPage] Fetched config:', config)
 
     return (
       <div className="space-y-6">
@@ -56,6 +61,9 @@ export default async function ConfigPage() {
           plus_ones_enabled: false,
           max_party_size: 1,
           allow_guest_plus_ones: false,
+          rsvp_enabled: true,
+          rsvp_cutoff_date: undefined,
+          rsvp_cutoff_timezone: 'America/New_York',
         }} />
       </div>
     )

@@ -112,6 +112,18 @@ function generateEmailHTML(payload: EmailPayload): string {
                     <span style="color: #dc2626;">Please Confirm Your RSVP</span>
                   </h2>
 
+                   <!-- CTA Button -->
+                  <table role="presentation" style="margin: 32px auto; border-collapse: collapse;">
+                    <tr>
+                      <td style="border-radius: 8px; background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);">
+                        <a href="${rsvpUrl}" 
+                           style="display: inline-block; padding: 20px 55px; color: #ffffff; text-decoration: none; font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; border: 1.5px solid #ffffff; border-radius: 8px;">
+                          🔴 RSVP NOW - URGENT
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+
                   <p style="margin: 0 0 20px 0; color: #333; font-size: 16px; line-height: 1.6;">
                     Dear <strong style="color: #D4AF37;">${guestName}</strong>,
                   </p>
@@ -138,7 +150,7 @@ function generateEmailHTML(payload: EmailPayload): string {
                   <!-- Urgency Message -->
                   <div style="background: #fffbeb; border: 2px solid #f59e0b; padding: 20px; margin: 24px 0; border-radius: 8px; text-align: center;">
                     <p style="margin: 0 0 8px 0; color: #92400e; font-size: 18px; font-weight: 700;">
-                      ⏱️ Please Respond Within 48 Hours
+                      ⏱️ RSVP CLOSES IN 12 HOURS
                     </p>
                     <p style="margin: 0; color: #78350f; font-size: 14px;">
                       We need to confirm final numbers with our vendors immediately
@@ -150,7 +162,7 @@ function generateEmailHTML(payload: EmailPayload): string {
                     <tr>
                       <td style="border-radius: 8px; background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);">
                         <a href="${rsvpUrl}" 
-                           style="display: inline-block; padding: 20px 55px; color: #ffffff; text-decoration: none; font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; border-radius: 8px;">
+                           style="display: inline-block; padding: 20px 55px; color: #ffffff; text-decoration: none; font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; border: 1.5px solid #ffffff; border-radius: 8px;">
                           🔴 RSVP NOW - URGENT
                         </a>
                       </td>

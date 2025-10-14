@@ -23,6 +23,7 @@ export async function PUT(request: NextRequest) {
     const validatedData = updateConfigSchema.parse(body)
     
     const config = await updateAppConfig(validatedData)
+    
     return NextResponse.json(config)
   } catch (error) {
     console.error('Error updating config:', error)
