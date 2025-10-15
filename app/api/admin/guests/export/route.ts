@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     }
 
     const selectedColumns = columnsParam.split(',')
-    const supabase = supabaseServer()
+    const supabase = await supabaseServer()
 
     // Build the query
     let query = supabase
