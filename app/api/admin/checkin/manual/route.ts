@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
           invite_code
         ),
         invitation_events!inner(
+          id,
           event_id,
           status
         )

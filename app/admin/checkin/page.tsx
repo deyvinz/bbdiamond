@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Html5QrcodeScanner } from 'html5-qrcode'
+import QrScanner from 'qr-scanner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,7 +34,6 @@ interface Event {
 
 export default function CheckInPage() {
   const [isScanning, setIsScanning] = useState(false)
-  const [scanner, setScanner] = useState<Html5QrcodeScanner | null>(null)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
   const [stats, setStats] = useState<CheckInStats | null>(null)
@@ -45,11 +44,26 @@ export default function CheckInPage() {
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
 
-  const qrCodeRegionId = 'qr-reader'
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const scannerRef = useRef<QrScanner | null>(null)
 
   useEffect(() => {
     loadEvents()
     loadStats()
+  }, [])
+
+  // Cleanup scanner on component unmount
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current) {
+        try {
+          scannerRef.current.destroy()
+        } catch (error) {
+          console.warn('Error destroying scanner on unmount:', error)
+        }
+        scannerRef.current = null
+      }
+    }
   }, [])
 
   const loadEvents = async () => {
@@ -83,42 +97,88 @@ export default function CheckInPage() {
     }
   }
 
-  const startScanning = () => {
-    if (scanner) {
-      scanner.clear()
+  const startScanning = async () => {
+    if (!videoRef.current) {
+      console.error('Video element not found')
+      return
     }
 
-    const newScanner = new Html5QrcodeScanner(
-      qrCodeRegionId,
-      {
-        qrbox: { width: 250, height: 250 },
-        fps: 5,
-        aspectRatio: 1.0,
-      },
-      false
-    )
-
-    newScanner.render(
-      (decodedText) => {
-        handleCheckIn(decodedText)
-        newScanner.clear()
-        setIsScanning(false)
-        setScanner(null)
-      },
-      (error) => {
-        // Handle scan errors silently
+    try {
+      // Check if we're on mobile and request camera permissions
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+      
+      if (isMobile) {
+        // Request camera permission explicitly on mobile
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+              facingMode: 'environment', // Use back camera on mobile
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            } 
+          })
+          // Stop the stream immediately - we just needed permission
+          stream.getTracks().forEach(track => track.stop())
+        } catch (permissionError) {
+          console.error('Camera permission denied:', permissionError)
+          setMessage('✗ Camera access denied. Please allow camera permissions and try again.')
+          setMessageType('error')
+          return
+        }
       }
-    )
 
-    setScanner(newScanner)
-    setIsScanning(true)
+      // Create QR scanner
+      const scanner = new QrScanner(
+        videoRef.current,
+        (result) => {
+          handleCheckIn(result.data)
+          stopScanning()
+        },
+        {
+          onDecodeError: (error) => {
+            // Only log errors that aren't 'No QR code found' (which is normal)
+            const errorMessage = typeof error === 'string' ? error : error.message
+            if (!errorMessage.includes('No QR code found')) {
+              console.error('QR scan error:', error)
+            }
+          },
+          highlightScanRegion: true,
+          highlightCodeOutline: true,
+          preferredCamera: 'environment', // Use back camera on mobile
+        }
+      )
+
+      await scanner.start()
+      scannerRef.current = scanner
+      setIsScanning(true)
+    } catch (error) {
+      console.error('Failed to start scanner:', error)
+      
+      // Check if it's an HTTPS error
+      if (error instanceof Error && error.message.includes('https')) {
+        setMessage('✗ Camera access requires HTTPS. Please use a secure connection.')
+        setMessageType('error')
+      } else if (error instanceof Error && error.message.includes('permission')) {
+        setMessage('✗ Camera permission denied. Please allow camera access and try again.')
+        setMessageType('error')
+      } else {
+        setMessage('✗ Failed to start camera. Please check permissions and try again.')
+        setMessageType('error')
+      }
+    }
   }
 
-  const stopScanning = () => {
-    if (scanner) {
-      scanner.clear()
-      setScanner(null)
+  const stopScanning = async () => {
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop()
+        scannerRef.current.destroy()
+      } catch (error) {
+        console.warn('Error stopping scanner:', error)
+      }
+      scannerRef.current = null
     }
+    
     setIsScanning(false)
   }
 
@@ -318,26 +378,57 @@ export default function CheckInPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {!isScanning ? (
-                <Button 
-                  onClick={startScanning}
-                  className="w-full"
-                  size="lg"
-                >
-                  <QrCode className="h-4 w-4 mr-2" />
-                  Start Scanning
-                </Button>
+                <div className="space-y-3">
+                  <Button 
+                    onClick={startScanning}
+                    className="w-full"
+                    size="lg"
+                  >
+                    <QrCode className="h-4 w-4 mr-2" />
+                    Start Scanning
+                  </Button>
+                  <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+                    <p className="font-medium mb-1">📱 Mobile Tips:</p>
+                    <ul className="text-xs space-y-1">
+                      <li>• Ensure you're using HTTPS (secure connection)</li>
+                      <li>• Allow camera permissions when prompted</li>
+                      <li>• Ensure good lighting for better scanning</li>
+                      <li>• Hold device steady and at appropriate distance</li>
+                      <li>• Use the back camera for best results</li>
+                    </ul>
+                  </div>
+                </div>
               ) : (
-                <Button 
-                  onClick={stopScanning}
-                  variant="destructive"
-                  className="w-full"
-                  size="lg"
-                >
-                  Stop Scanning
-                </Button>
+                <div className="space-y-3">
+                  <Button 
+                    onClick={stopScanning}
+                    variant="destructive"
+                    className="w-full"
+                    size="lg"
+                  >
+                    Stop Scanning
+                  </Button>
+                  <div className="text-sm text-gray-600 bg-green-50 p-3 rounded-lg">
+                    <p className="font-medium mb-1">📷 Camera Active:</p>
+                    <p className="text-xs">Point your camera at a QR code to scan</p>
+                  </div>
+                </div>
               )}
 
-              <div id={qrCodeRegionId} className="w-full"></div>
+              <div className="w-full min-h-[300px] bg-gray-100 rounded-lg flex items-center justify-center relative">
+                <video
+                  ref={videoRef}
+                  className={`w-full h-full object-cover rounded-lg ${isScanning ? 'block' : 'hidden'}`}
+                  playsInline
+                  muted
+                />
+                {!isScanning && (
+                  <div className="text-center text-gray-500">
+                    <QrCode className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Camera will appear here when scanning starts</p>
+                  </div>
+                )}
+              </div>
 
               {message && (
                 <div className={`p-4 rounded-lg border flex items-center gap-2 ${getMessageColor()}`}>
