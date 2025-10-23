@@ -109,22 +109,16 @@ serve(async (req) => {
 <body>
     <div class="container">
          <!-- Logo Header -->
-    <div style="background-color: #000000; padding: 30px 20px; text-align: center;">
+    <div style="padding: 30px 20px; text-align: center;">
       <img src="https://utumylehywfktctigkie.supabase.co/storage/v1/object/public/bdiamond/logo.png" alt="Brenda & Diamond" style="max-width: 150px; height: auto; margin: 0 auto; display: block;">
-    </div>
-
-        
+    </div>  
         <div class="content">
             <p class="greeting">Dear ${recipient.guest_name || 'Guest'},</p>
-            ${announcement.content}
+            <div class="content">${announcement.content}</div>
         </div>
         
         <div class="content">
-            <p> Quick Links:</p>
-            <ul>
-                <li><a href="https://brendabagsherdiamond.com/registry">Registry</a></li>
-                <li><a href="https://brendabagsherdiamond.com/rsvp">RSVP</a></li>
-            </ul>
+           <a href="https://brendabagsherdiamond.com/registry">Visit our registry</a>
         </div>
         <div class="footer">
             <p>This message was sent to you as part of our wedding celebration.</p>
@@ -142,7 +136,7 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'Wedding Announcements <noreply@brendabagsherdiamond.com>',
+            from: 'Brenda & Diamond <noreply@brendabagsherdiamond.com>',
             to: [recipient.email],
             subject: announcement.subject,
             html: emailHtml,
