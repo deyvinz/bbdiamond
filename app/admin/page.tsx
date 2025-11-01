@@ -57,6 +57,41 @@ export default function AdminHome(){
           <h3 className="font-medium text-base lg:text-lg group-hover:text-gold-700 transition-colors">Configuration</h3>
           <p className="text-sm text-black/60 mt-1">Manage app settings and features</p>
         </a>
+        <a 
+          className="border border-gold-200 rounded-xl p-4 lg:p-6 bg-white/70 backdrop-blur hover:bg-gold-50/50 transition-all duration-200 hover:scale-105 hover:shadow-lg group" 
+          href="/admin/faq"
+        >
+          <h3 className="font-medium text-base lg:text-lg group-hover:text-gold-700 transition-colors">FAQ</h3>
+          <p className="text-sm text-black/60 mt-1">Manage frequently asked questions</p>
+        </a>
+        <a 
+          className="border border-gold-200 rounded-xl p-4 lg:p-6 bg-white/70 backdrop-blur hover:bg-gold-50/50 transition-all duration-200 hover:scale-105 hover:shadow-lg group" 
+          href="/admin/wedding-party"
+        >
+          <h3 className="font-medium text-base lg:text-lg group-hover:text-gold-700 transition-colors">Wedding Party</h3>
+          <p className="text-sm text-black/60 mt-1">Manage wedding party members</p>
+        </a>
+        <a 
+          className="border border-gold-200 rounded-xl p-4 lg:p-6 bg-white/70 backdrop-blur hover:bg-gold-50/50 transition-all duration-200 hover:scale-105 hover:shadow-lg group" 
+          href="/admin/travel"
+        >
+          <h3 className="font-medium text-base lg:text-lg group-hover:text-gold-700 transition-colors">Travel</h3>
+          <p className="text-sm text-black/60 mt-1">Manage travel information</p>
+        </a>
+        <a 
+          className="border border-gold-200 rounded-xl p-4 lg:p-6 bg-white/70 backdrop-blur hover:bg-gold-50/50 transition-all duration-200 hover:scale-105 hover:shadow-lg group" 
+          href="/admin/things-to-do"
+        >
+          <h3 className="font-medium text-base lg:text-lg group-hover:text-gold-700 transition-colors">Things to Do</h3>
+          <p className="text-sm text-black/60 mt-1">Manage local activities</p>
+        </a>
+        <a 
+          className="border border-gold-200 rounded-xl p-4 lg:p-6 bg-white/70 backdrop-blur hover:bg-gold-50/50 transition-all duration-200 hover:scale-105 hover:shadow-lg group" 
+          href="/admin/registry"
+        >
+          <h3 className="font-medium text-base lg:text-lg group-hover:text-gold-700 transition-colors">Registry</h3>
+          <p className="text-sm text-black/60 mt-1">Manage wedding registries</p>
+        </a>
       </div>
     )
   }

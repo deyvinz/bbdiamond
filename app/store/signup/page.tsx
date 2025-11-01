@@ -2,7 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button, Input, Card, CardBody, CardHeader, Select, SelectItem } from '@heroui/react'
+import { Button, Card, CardBody, CardHeader } from '@heroui/react'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { supabase } from '@/lib/supabase-browser'
 import { useToast } from '@/components/ui/use-toast'
 
@@ -93,66 +96,63 @@ export default function SignupPage() {
         </CardHeader>
         <CardBody className="pt-8 pb-8 px-8">
           <form onSubmit={handleSignup} className="space-y-5">
-            <Input
-              label="Full Name"
-              type="text"
-              required
-              value={formData.fullName}
-              onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-              placeholder="John & Sarah"
-              radius="lg"
-              classNames={{
-                input: "rounded-xl",
-                inputWrapper: "border-2 border-default-200 hover:border-primary-300 focus-within:border-primary-500 rounded-xl transition-colors",
-              }}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="fullName">Full Name *</Label>
+              <Input
+                id="fullName"
+                type="text"
+                required
+                value={formData.fullName}
+                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                placeholder="John & Sarah"
+                className="rounded-xl"
+              />
+            </div>
 
-            <Input
-              label="Email"
-              type="email"
-              required
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="you@example.com"
-              radius="lg"
-              classNames={{
-                input: "rounded-xl",
-                inputWrapper: "border-2 border-default-200 hover:border-primary-300 focus-within:border-primary-500 rounded-xl transition-colors",
-              }}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="email">Email *</Label>
+              <Input
+                id="email"
+                type="email"
+                required
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="you@example.com"
+                className="rounded-xl"
+              />
+            </div>
 
-            <Input
-              label="Password"
-              type="password"
-              required
-              minLength={8}
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              placeholder="At least 8 characters"
-              radius="lg"
-              classNames={{
-                input: "rounded-xl",
-                inputWrapper: "border-2 border-default-200 hover:border-primary-300 focus-within:border-primary-500 rounded-xl transition-colors",
-              }}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="password">Password *</Label>
+              <Input
+                id="password"
+                type="password"
+                required
+                minLength={8}
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                placeholder="At least 8 characters"
+                className="rounded-xl"
+              />
+              <p className="text-xs text-muted-foreground">Must be at least 8 characters</p>
+            </div>
 
-            <Select
-              label="Choose a Plan"
-              selectedKeys={[formData.plan]}
-              onSelectionChange={(keys) => {
-                const selected = Array.from(keys)[0] as string
-                setFormData({ ...formData, plan: selected })
-              }}
-              radius="lg"
-              classNames={{
-                trigger: "border-2 border-default-200 hover:border-primary-300 rounded-xl transition-colors",
-                popoverContent: "rounded-xl",
-              }}
-            >
-              <SelectItem key="basic">Basic - $29.99/month</SelectItem>
-              <SelectItem key="premium">Premium - $79.99/month</SelectItem>
-              <SelectItem key="enterprise">Enterprise - $199.99/month</SelectItem>
-            </Select>
+            <div className="space-y-2">
+              <Label htmlFor="plan">Choose a Plan *</Label>
+              <Select
+                value={formData.plan}
+                onValueChange={(value) => setFormData({ ...formData, plan: value })}
+              >
+                <SelectTrigger id="plan" className="rounded-xl">
+                  <SelectValue placeholder="Select a plan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="basic">Basic - $29.99/month</SelectItem>
+                  <SelectItem value="premium">Premium - $79.99/month</SelectItem>
+                  <SelectItem value="enterprise">Enterprise - $199.99/month</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
             <Button 
               type="submit" 

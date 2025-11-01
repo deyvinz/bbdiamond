@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { requireWeddingId } from '@/lib/api-wedding-context'
 
 // PUT - Update gallery image
 export async function PUT(
@@ -8,20 +9,22 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
+    const weddingId = await requireWeddingId(request)
     const supabase = await supabaseServer()
     const body = await request.json()
     
     const { url, caption, sort_order } = body
 
     const updateData: any = {}
-    if (url !== undefined) updateData.url = url
+    if (url !== undefined) updateData.image_url = url
     if (caption !== undefined) updateData.caption = caption
-    if (sort_order !== undefined) updateData.sort_order = sort_order
+    if (sort_order !== undefined) updateData.display_order = sort_order
 
     const { data, error } = await supabase
       .from('gallery_images')
       .update(updateData)
       .eq('id', id)
+      .eq('wedding_id', weddingId)
       .select()
       .single()
 
@@ -53,12 +56,14 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+    const weddingId = await requireWeddingId(request)
     const supabase = await supabaseServer()
 
     const { error } = await supabase
       .from('gallery_images')
       .delete()
       .eq('id', id)
+      .eq('wedding_id', weddingId)
 
     if (error) {
       console.error('Error deleting gallery image:', error)

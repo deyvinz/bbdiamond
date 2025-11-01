@@ -19,6 +19,7 @@ const links: Array<[string,string]> = [
 export function AppSidebar(){
   const { setOpen } = useSidebar()
   const [isAdmin, setIsAdmin] = useState(false)
+  const [logoAlt, setLogoAlt] = useState('Wedding')
 
   useEffect(() => {
     const run = async () => {
@@ -36,7 +37,21 @@ export function AppSidebar(){
         setIsAdmin(false)
       }
     }
+    
+    const fetchWeddingInfo = async () => {
+      try {
+        const response = await fetch('/api/wedding-info')
+        const data = await response.json()
+        if (data.success && data.wedding?.couple_display_name) {
+          setLogoAlt(data.wedding.couple_display_name)
+        }
+      } catch (error) {
+        console.error('Error fetching wedding info:', error)
+      }
+    }
+    
     run()
+    fetchWeddingInfo()
   }, [])
 
   return (
@@ -46,7 +61,7 @@ export function AppSidebar(){
           <Image
             src="/images/logo.png"
             className="rounded-full"
-            alt="Brenda and Diamond"
+            alt={logoAlt}
             width={40}
             height={40}
           />

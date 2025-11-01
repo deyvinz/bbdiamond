@@ -38,7 +38,6 @@ export function LoadingPage({ className }: { className?: string }) {
     <div className={cn("min-h-[50vh] flex items-center justify-center", className)}>
       <div className="text-center">
         <Loading size="lg" variant="gold" className="mx-auto mb-4" />
-        <p className="text-sm text-black/60">#BrendaBagsHerDiamond</p>
       </div>
     </div>
   )
@@ -48,7 +47,6 @@ export function LoadingButton({ className }: { className?: string }) {
   return (
     <div className={cn("inline-flex items-center gap-2", className)}>
       <Loading size="sm" variant="gold" />
-      <span>#BrendaBagsHerDiamond</span>
     </div>
   )
 }

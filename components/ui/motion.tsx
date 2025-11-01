@@ -1,60 +1,248 @@
 "use client"
 
 import { cn } from "@/lib/utils"
+import { motion, useInView, Variants } from "framer-motion"
+import { useRef } from "react"
 
-// Page transition wrapper
+// Animation variants
+const fadeInUp: Variants = {
+  hidden: { 
+    opacity: 0, 
+    y: 30,
+    scale: 0.95
+  },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    scale: 1,
+    transition: {
+      duration: 0.6,
+      ease: [0.21, 1.11, 0.81, 0.99] // Elegant easing curve
+    }
+  }
+}
+
+const fadeIn: Variants = {
+  hidden: { opacity: 0 },
+  visible: { 
+    opacity: 1,
+    transition: {
+      duration: 0.8,
+      ease: [0.21, 1.11, 0.81, 0.99]
+    }
+  }
+}
+
+const scaleIn: Variants = {
+  hidden: { 
+    opacity: 0, 
+    scale: 0.8 
+  },
+  visible: { 
+    opacity: 1, 
+    scale: 1,
+    transition: {
+      duration: 0.5,
+      ease: [0.21, 1.11, 0.81, 0.99]
+    }
+  }
+}
+
+const staggerContainer: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+      delayChildren: 0.2
+    }
+  }
+}
+
+// Page transition wrapper with elegant fade-in
 export function MotionPage({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div
-      className={cn(
-        "w-full animate-in fade-in slide-in-from-bottom-2 duration-300",
-        className
-      )}
+    <motion.div
+      initial="hidden"
+      animate="visible"
+      variants={fadeInUp}
+      className={cn("w-full", className)}
     >
       {children}
-    </div>
+    </motion.div>
   )
 }
 
-// Staggered children animation
+// Staggered container for children
 export function MotionStagger({ 
   children, 
-  className
+  className,
+  delay = 0.2
 }: { 
   children: React.ReactNode
   className?: string
+  delay?: number
 }) {
   return (
-    <div className={cn("animate-in fade-in duration-300", className)}>
+    <motion.div
+      initial="hidden"
+      animate="visible"
+      variants={{
+        hidden: staggerContainer.hidden,
+        visible: {
+          opacity: 1,
+          transition: {
+            staggerChildren: 0.1,
+            delayChildren: delay
+          }
+        }
+      }}
+      className={cn(className)}
+    >
       {children}
-    </div>
+    </motion.div>
   )
 }
 
-// Staggered item
+// Staggered item with scroll-trigger
 export function MotionItem({ 
   children, 
   className,
-  delay = "delay-75"
+  delay = 0,
+  index = 0
 }: { 
   children: React.ReactNode
   className?: string
-  delay?: string
+  delay?: number
+  index?: number
 }) {
+  const ref = useRef(null)
+  const isInView = useInView(ref, { 
+    once: true, 
+    margin: "-100px",
+    amount: 0.3
+  })
+
   return (
-    <div
-      className={cn(
-        "animate-in fade-in slide-in-from-bottom-2 duration-200",
+    <motion.div
+      ref={ref}
+      initial="hidden"
+      animate={isInView ? "visible" : "hidden"}
+      variants={fadeInUp}
+      transition={{
+        duration: 0.6,
+        delay: delay + (index * 0.1),
+        ease: [0.21, 1.11, 0.81, 0.99]
+      }}
+      className={cn(className)}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+// Scroll-triggered fade-in component
+export function MotionFadeIn({ 
+  children, 
+  className,
+  delay = 0,
+  direction = "up"
+}: { 
+  children: React.ReactNode
+  className?: string
+  delay?: number
+  direction?: "up" | "down" | "left" | "right"
+}) {
+  const ref = useRef(null)
+  const isInView = useInView(ref, { 
+    once: true, 
+    margin: "-50px",
+    amount: 0.3
+  })
+
+  const directionVariants = {
+    up: { y: 30 },
+    down: { y: -30 },
+    left: { x: 30 },
+    right: { x: -30 }
+  }
+
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ 
+        opacity: 0, 
+        ...directionVariants[direction] 
+      }}
+      animate={isInView ? { 
+        opacity: 1, 
+        x: 0, 
+        y: 0 
+      } : { 
+        opacity: 0, 
+        ...directionVariants[direction] 
+      }}
+      transition={{
+        duration: 0.8,
         delay,
+        ease: [0.21, 1.11, 0.81, 0.99]
+      }}
+      className={cn(className)}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+// Card with elegant hover animation
+export function MotionCard({ 
+  children, 
+  className,
+  delay = 0,
+  index = 0
+}: { 
+  children: React.ReactNode
+  className?: string
+  delay?: number
+  index?: number
+}) {
+  const ref = useRef(null)
+  const isInView = useInView(ref, { 
+    once: true, 
+    margin: "-50px",
+    amount: 0.2
+  })
+
+  return (
+    <motion.div
+      ref={ref}
+      initial="hidden"
+      animate={isInView ? "visible" : "hidden"}
+      variants={fadeInUp}
+      transition={{
+        duration: 0.6,
+        delay: delay + (index * 0.1),
+        ease: [0.21, 1.11, 0.81, 0.99]
+      }}
+      whileHover={{ 
+        y: -8,
+        scale: 1.02,
+        transition: { 
+          duration: 0.3,
+          ease: [0.21, 1.11, 0.81, 0.99]
+        }
+      }}
+      className={cn(
+        "transition-shadow duration-300",
         className
       )}
     >
       {children}
-    </div>
+    </motion.div>
   )
 }
 
-// Button hover animation
+// Button with smooth interactions
 export function MotionButton({ 
   children, 
   className,
@@ -69,36 +257,123 @@ export function MotionButton({
   type?: "button" | "submit" | "reset"
 }) {
   return (
-    <button
+    <motion.button
       type={type}
       onClick={onClick}
       disabled={disabled}
+      initial="hidden"
+      animate="visible"
+      variants={scaleIn}
+      whileHover={{ 
+        scale: 1.05,
+        transition: { duration: 0.2 }
+      }}
+      whileTap={{ 
+        scale: 0.98,
+        transition: { duration: 0.1 }
+      }}
       className={cn(
-        "inline-flex items-center justify-center rounded-md text-sm font-medium transition-all duration-200 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 animate-in fade-in slide-in-from-bottom-2 duration-300",
+        "inline-flex items-center justify-center rounded-md text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
         className
       )}
     >
       {children}
-    </button>
+    </motion.button>
   )
 }
 
-// Card hover animation
-export function MotionCard({ 
+// Parallax wrapper (subtle effect)
+export function MotionParallax({ 
   children, 
-  className 
+  className,
+  speed = 0.5
 }: { 
   children: React.ReactNode
-  className?: string 
+  className?: string
+  speed?: number
 }) {
   return (
-    <div
-      className={cn(
-        "transition-all duration-150 hover:-translate-y-1 hover:scale-105 hover:shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200",
-        className
-      )}
+    <motion.div
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: "-100px" }}
+      variants={fadeIn}
+      style={{
+        willChange: "transform"
+      }}
+      className={cn(className)}
     >
       {children}
-    </div>
+    </motion.div>
+  )
+}
+
+// Text reveal animation
+export function MotionText({ 
+  children, 
+  className,
+  delay = 0
+}: { 
+  children: React.ReactNode
+  className?: string
+  delay?: number
+}) {
+  const ref = useRef(null)
+  const isInView = useInView(ref, { once: true, margin: "-100px" })
+
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 20 }}
+      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+      transition={{
+        duration: 0.8,
+        delay,
+        ease: [0.21, 1.11, 0.81, 0.99]
+      }}
+      className={cn(className)}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+// Section with elegant entrance
+export function MotionSection({ 
+  children, 
+  className,
+  delay = 0,
+  id,
+  ...restProps
+}: { 
+  children: React.ReactNode
+  className?: string
+  delay?: number
+  id?: string
+} & Omit<React.HTMLAttributes<HTMLElement>, 'onDrag' | 'onDragEnd' | 'onDragStart'>) {
+  const ref = useRef(null)
+  const isInView = useInView(ref, { 
+    once: false, 
+    margin: "0px",
+    amount: 0
+  })
+
+  return (
+    <motion.section
+      ref={ref}
+      initial="hidden"
+      animate="visible"
+      variants={fadeInUp}
+      transition={{
+        duration: 0.6,
+        delay,
+        ease: [0.21, 1.11, 0.81, 0.99]
+      }}
+      className={cn(className)}
+      id={id}
+      {...(restProps as any)}
+    >
+      {children}
+    </motion.section>
   )
 }

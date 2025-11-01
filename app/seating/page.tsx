@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useToast } from '@/components/ui/use-toast'
 import Section from '@/components/Section'
-import Card from '@/components/Card'
-import { Button } from '@/components/ui/button'
+import { Button, Card, CardBody } from '@heroui/react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Lock, Users, ArrowLeft } from 'lucide-react'
@@ -100,70 +99,64 @@ export default function SeatingPage() {
     return (
       <Section title="Seating Chart" subtitle="Find your assigned seat">
         <div className="max-w-md mx-auto">
-          <Card className="p-6">
-            <div className="text-center mb-6">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gold-100">
-                <Lock className="h-8 w-8 text-gold-600" />
-              </div>
-              <h3 className="text-xl font-serif mb-2">View Your Seating</h3>
-              <p className="text-gray-600">
-                Enter your invite code to see your assigned table and seat.
-              </p>
-            </div>
-            
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="invite-code">Invite Code</Label>
-                <Input
-                  id="invite-code"
-                  type="text"
-                  placeholder="Enter your invite code"
-                  value={inviteCode}
-                  onChange={(e) => setInviteCode(e.target.value)}
-                  className="text-center text-lg tracking-wider"
-                  disabled={isLoading}
-                  autoComplete="off"
-                />
+          <Card className="border border-gray-200 shadow-lg rounded-3xl" radius="lg">
+            <CardBody className="p-6">
+              <div className="text-center mb-6">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#C8A951]/10">
+                  <Lock className="h-8 w-8 text-[#C8A951]" />
+                </div>
+                <h3 className="text-xl font-serif mb-2 text-[#1E1E1E]">View Your Seating</h3>
+                <p className="text-gray-600 text-sm">
+                  Enter your invite code to see your assigned table and seat.
+                </p>
               </div>
               
-              <Button 
-                type="submit" 
-                className="w-full bg-gold-600 text-white hover:bg-gold-700"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2" />
-                    Verifying...
-                  </>
-                ) : (
-                  <>
-                    <Users className="h-4 w-4 mr-2" />
-                    View Seating
-                  </>
-                )}
-              </Button>
-            </form>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="invite-code">Invite Code</Label>
+                  <Input
+                    id="invite-code"
+                    type="text"
+                    placeholder="Enter your invite code"
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value)}
+                    className="text-center text-lg tracking-wider rounded-xl"
+                    disabled={isLoading}
+                    autoComplete="off"
+                  />
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full bg-[#C8A951] text-white hover:bg-[#B38D39]"
+                  isLoading={isLoading}
+                  radius="lg"
+                  startContent={!isLoading && <Users className="h-4 w-4" />}
+                >
+                  {isLoading ? 'Verifying...' : 'View Seating'}
+                </Button>
+              </form>
 
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-start gap-3">
-                <Users className="h-5 w-5 text-gray-500 mt-0.5" />
-                <div className="text-sm text-gray-600">
-                  <p className="font-medium mb-1">Don't have an invite code?</p>
-                  <p>Your invite code was included in your wedding invitation. If you can't find it, please contact the couple directly.</p>
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <Users className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-gray-600">
+                    <p className="font-medium mb-1">Don't have an invite code?</p>
+                    <p>Your invite code was included in your wedding invitation. If you can't find it, please contact the couple directly.</p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="mt-4 text-center">
-              <Link 
-                href="/" 
-                className="inline-flex items-center text-sm text-gold-600 hover:text-gold-700"
-              >
-                <ArrowLeft className="h-4 w-4 mr-1" />
-                Back to Home
-              </Link>
-            </div>
+              <div className="mt-4 text-center">
+                <Link 
+                  href="/" 
+                  className="inline-flex items-center text-sm text-[#C8A951] hover:text-[#B38D39]"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-1" />
+                  Back to Home
+                </Link>
+              </div>
+            </CardBody>
           </Card>
         </div>
       </Section>
@@ -174,13 +167,12 @@ export default function SeatingPage() {
   return (
     <Section title="Seating Chart" subtitle="Your assigned seat">
       <div className="mb-4 flex justify-between items-center">
-        <div className="p-3 bg-gold-50 rounded-lg border border-gold-200">
-          <p className="text-sm text-gold-800">
+        <div className="p-3 bg-[#C8A951]/10 rounded-lg border border-[#C8A951]/20">
+          <p className="text-sm text-[#1E1E1E]">
             <span className="font-medium">Welcome, {guest?.first_name}!</span> Here's your seating assignment.
           </p>
         </div>
-        <Button variant="outline" onClick={handleLogout}>
-          <Lock className="h-4 w-4 mr-2" />
+        <Button variant="bordered" onClick={handleLogout} radius="lg" size="sm" startContent={<Lock className="h-4 w-4" />}>
           Logout
         </Button>
       </div>
@@ -193,7 +185,7 @@ export default function SeatingPage() {
       <div className="mt-6 text-center">
         <Link 
           href="/" 
-          className="inline-flex items-center text-sm text-gold-600 hover:text-gold-700"
+          className="inline-flex items-center text-sm text-[#C8A951] hover:text-[#B38D39]"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
           Back to Home

@@ -14,6 +14,9 @@ export async function middleware(req: Request) {
   const url = new URL(req.url)
   const res = NextResponse.next()
 
+  // Always set pathname header for layout to use
+  res.headers.set('x-pathname', url.pathname)
+
   // Skip middleware for static files, storefront, and admin routes that don't need wedding context
   if (
     url.pathname.startsWith('/_next') ||
@@ -21,6 +24,7 @@ export async function middleware(req: Request) {
     url.pathname.startsWith('/store') ||
     url.pathname.startsWith('/dashboard') ||
     url.pathname.startsWith('/onboarding') ||
+    url.pathname.startsWith('/auth') ||
     url.pathname.match(/\.(svg|png|jpg|jpeg|gif|webp|ico)$/i)
   ) {
     return res

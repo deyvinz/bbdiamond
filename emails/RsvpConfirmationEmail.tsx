@@ -34,6 +34,8 @@ export interface RsvpConfirmationEmailProps {
   digitalPassUrl?: string
   contactEmail?: string
   replyToEmail?: string
+  coupleDisplayName?: string
+  websiteUrl?: string
 }
 
 export function RsvpConfirmationEmail({
@@ -47,6 +49,8 @@ export function RsvpConfirmationEmail({
   digitalPassUrl,
   contactEmail,
   replyToEmail,
+  coupleDisplayName = 'Wedding Celebration',
+  websiteUrl,
 }: RsvpConfirmationEmailProps) {
   const preheaderText = isAccepted 
     ? `RSVP Confirmed — You're on the list!`
@@ -193,7 +197,7 @@ export function RsvpConfirmationEmail({
 
             <Text style={paragraph}>
               With love and appreciation,<br />
-              Brenda & Diamond
+              {coupleDisplayName}
             </Text>
           </>
         )}
@@ -214,7 +218,7 @@ export function RsvpConfirmationEmail({
 
       {/* Footer */}
       <Footer 
-        websiteUrl="https://brendabagsherdiamond.com"
+        websiteUrl={websiteUrl || rsvpUrl.split('/rsvp')[0] || "http://luwani.com/demo"}
         contactEmail={contactEmail}
         replyToEmail={replyToEmail}
       />
@@ -231,7 +235,8 @@ export function getRsvpConfirmationSubject(guestName: string, isAccepted: boolea
 
 // Plain text renderer
 export function renderRsvpConfirmationText(props: RsvpConfirmationEmailProps): string {
-  const { guestName, inviteCode, rsvpUrl, events, isAccepted, goodwillMessage } = props
+  const { guestName, inviteCode, rsvpUrl, events, isAccepted, goodwillMessage, coupleDisplayName = 'Wedding Celebration', websiteUrl, contactEmail } = props
+  const baseUrl = websiteUrl || rsvpUrl.split('/rsvp')[0] || 'http://luwani.com/demo'
   
   const formatEventDateTime = (startsAtISO: string) => {
     // Parse text field: "2024-10-16 10:00:00" -> "Wednesday, October 16, 2024 · 10:00"
@@ -257,7 +262,7 @@ export function renderRsvpConfirmationText(props: RsvpConfirmationEmailProps): s
   }
 
   const lines = [
-    'Brenda & Diamond — RSVP Confirmation',
+    `${coupleDisplayName} — RSVP Confirmation`,
     '',
     `Dear ${guestName},`,
     '',
@@ -300,14 +305,14 @@ export function renderRsvpConfirmationText(props: RsvpConfirmationEmailProps): s
       'Thank you for being part of our lives.',
       '',
       'With love and appreciation,',
-      'Brenda & Diamond'
+      coupleDisplayName
     )
   }
 
   lines.push(
     '',
-    'Visit our website: https://brendabagsherdiamond.com',
-    'Questions? Contact us at bidiamond2025@gmail.com'
+    `Visit our website: ${baseUrl}`,
+    contactEmail ? `Questions? Contact us at ${contactEmail}` : ''
   )
   
   return lines.filter(line => line.trim()).join('\n')

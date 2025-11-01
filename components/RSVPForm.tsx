@@ -3,9 +3,9 @@ import { useForm } from 'react-hook-form'
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Section from '@/components/Section'
-import Card from '@/components/Card'
-import { Button } from '@/components/ui/button'
+import { Button, Card, CardBody } from '@heroui/react'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { submitRsvpAction, type RsvpActionResult } from '@/app/rsvp/actions'
@@ -51,7 +51,8 @@ export default function RSVPForm(){
   const {register, handleSubmit, setValue, watch, formState:{isSubmitting, errors}} = useForm<FormValues>({ 
     defaultValues:{ 
       response:'accepted' 
-    }
+    },
+    mode: 'onChange'
   })
   const [result, setResult] = useState<RsvpActionResult | null>(null)
   const [config, setConfig] = useState<ConfigValue | null>(null)
@@ -62,6 +63,7 @@ export default function RSVPForm(){
   const [prefilledInviteCode, setPrefilledInviteCode] = useState<string | null>(null)
   const [invitationData, setInvitationData] = useState<InvitationData | null>(null)
   const [currentRsvpStatus, setCurrentRsvpStatus] = useState<RSVPStatus | null>(null)
+  const [weddingInfo, setWeddingInfo] = useState<{ contact_email?: string } | null>(null)
 
   const response = watch('response')
   const inviteCode = watch('invite_code')
@@ -72,6 +74,16 @@ export default function RSVPForm(){
       .then(res => res.json())
       .then(data => setConfig(data))
       .catch(err => console.error('Failed to load config:', err))
+    
+    // Fetch wedding info for contact email
+    fetch('/api/wedding-info')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.wedding) {
+          setWeddingInfo(data.wedding)
+        }
+      })
+      .catch(err => console.error('Failed to load wedding info:', err))
   }, [])
 
   // Pre-populate form if token is provided and check RSVP status
@@ -169,8 +181,9 @@ export default function RSVPForm(){
   if (currentRsvpStatus && currentRsvpStatus.status === 'accepted') {
     return (
       <Section title="RSVP" subtitle="You're already confirmed!" narrow>
-        <Card>
-          <div role="status" aria-live="polite" className="text-center space-y-6">
+        <Card className="border border-gray-200 shadow-lg rounded-3xl bg-white" radius="lg">
+          <CardBody className="p-6 md:p-8">
+            <div role="status" aria-live="polite" className="text-center space-y-6">
             <div className="space-y-4">
               <h2 className="text-2xl font-bold text-green-600">You're confirmed! ✨</h2>
               <p className="text-gray-600">
@@ -224,7 +237,7 @@ export default function RSVPForm(){
                       />
                     </div>
                   </div>
-                  <button
+                  <Button
                     onClick={() => {
                       if (!currentRsvpStatus.qrImageUrl) return
                       const link = document.createElement('a')
@@ -239,10 +252,11 @@ export default function RSVPForm(){
                         description: "Your QR code has been downloaded to your device.",
                       })
                     }}
-                    className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-yellow-600 text-white hover:bg-yellow-700 h-10 px-4 py-2"
+                    className="bg-yellow-600 text-white hover:bg-yellow-700"
+                    radius="lg"
                   >
                     📱 Save QR Code
-                  </button>
+                  </Button>
                 </div>
               )}
 
@@ -261,7 +275,7 @@ export default function RSVPForm(){
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <button
+                    <Button
                       onClick={() => {
                         if (!currentRsvpStatus.passUrl) return
                         const link = document.createElement('a')
@@ -276,11 +290,12 @@ export default function RSVPForm(){
                           description: "Your wedding pass has been downloaded to your device.",
                         })
                       }}
-                      className="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-blue-600 text-white hover:bg-blue-700 h-10 px-4 py-2"
+                      className="w-full bg-blue-600 text-white hover:bg-blue-700"
+                      radius="lg"
                     >
                       💾 Save Digital Pass
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       onClick={() => {
                         if (!currentRsvpStatus.passUrl) return
                         if (navigator.userAgent.includes('iPhone') || navigator.userAgent.includes('iPad')) {
@@ -297,10 +312,12 @@ export default function RSVPForm(){
                           })
                         }
                       }}
-                      className="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 h-10 px-4 py-2"
+                      variant="bordered"
+                      className="w-full border-2 border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                      radius="lg"
                     >
                       📱 Add to Wallet
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -321,14 +338,18 @@ export default function RSVPForm(){
             </div>
 
             <div className="flex justify-center space-x-4">
-              <a 
+              <Button
+                as="a"
                 href="/"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+                variant="bordered"
+                className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+                radius="lg"
               >
                 Back to Home
-              </a>
+              </Button>
             </div>
-          </div>
+            </div>
+          </CardBody>
         </Card>
       </Section>
     )
@@ -338,8 +359,9 @@ export default function RSVPForm(){
   if (currentRsvpStatus && currentRsvpStatus.status === 'declined') {
     return (
       <Section title="RSVP" subtitle="We'll miss you!" narrow>
-        <Card>
-          <div role="status" aria-live="polite" className="text-center space-y-6">
+        <Card className="border border-gray-200 shadow-lg rounded-3xl bg-white" radius="lg">
+          <CardBody className="p-6 md:p-8">
+            <div role="status" aria-live="polite" className="text-center space-y-6">
             <div className="space-y-4">
               <h2 className="text-2xl font-bold text-gray-600">We'll miss you! 💔</h2>
               <p className="text-gray-600">
@@ -351,20 +373,25 @@ export default function RSVPForm(){
             </div>
 
             <div className="flex justify-center space-x-4">
-              <button
+              <Button
                 onClick={() => setCurrentRsvpStatus(null)}
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+                className="bg-[#C8A951] text-white hover:bg-[#B38D39]"
+                radius="lg"
               >
                 Update RSVP
-              </button>
-              <a 
+              </Button>
+              <Button
+                as="a"
                 href="/"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+                variant="bordered"
+                className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+                radius="lg"
               >
                 Back to Home
-              </a>
+              </Button>
             </div>
-          </div>
+            </div>
+          </CardBody>
         </Card>
       </Section>
     )
@@ -377,8 +404,9 @@ export default function RSVPForm(){
     if (rsvpResult.status === 'accepted') {
       return (
         <Section title="RSVP" subtitle="You're on the list!" narrow>
-          <Card>
-            <div role="status" aria-live="polite" className="text-center space-y-6">
+          <Card className="border border-gray-200 shadow-lg rounded-3xl bg-white" radius="lg">
+            <CardBody className="p-6 md:p-8">
+              <div role="status" aria-live="polite" className="text-center space-y-6">
               <div className="space-y-4">
                 <h2 className="text-2xl font-bold text-green-600">You're confirmed! ✨</h2>
                 <p className="text-gray-600">
@@ -433,7 +461,7 @@ export default function RSVPForm(){
                         />
                       </div>
                     </div>
-                    <button
+                    <Button
                       onClick={() => {
                         if (!rsvpResult.qrImageUrl) return
                         const link = document.createElement('a')
@@ -447,10 +475,11 @@ export default function RSVPForm(){
                           description: "Your QR code has been downloaded to your device.",
                         })
                       }}
-                      className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-yellow-600 text-white hover:bg-yellow-700 h-10 px-4 py-2"
+                      className="bg-yellow-600 text-white hover:bg-yellow-700"
+                      radius="lg"
                     >
                       📱 Save QR Code
-                    </button>
+                    </Button>
                   </div>
                 )}
 
@@ -469,7 +498,7 @@ export default function RSVPForm(){
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <button
+                      <Button
                         onClick={() => {
                           if (!rsvpResult.passUrl) return
                           const link = document.createElement('a')
@@ -483,11 +512,12 @@ export default function RSVPForm(){
                             description: "Your wedding pass has been downloaded to your device.",
                           })
                         }}
-                        className="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-blue-600 text-white hover:bg-blue-700 h-10 px-4 py-2"
+                        className="w-full bg-blue-600 text-white hover:bg-blue-700"
+                        radius="lg"
                       >
                         💾 Save Digital Pass
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         onClick={() => {
                           if (!rsvpResult.passUrl) return
                           // Try to add to Apple Wallet (iOS) or Google Pay (Android)
@@ -507,10 +537,12 @@ export default function RSVPForm(){
                             })
                           }
                         }}
-                        className="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 h-10 px-4 py-2"
+                        variant="bordered"
+                        className="w-full border-2 border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                        radius="lg"
                       >
                         📱 Add to Wallet
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -531,14 +563,18 @@ export default function RSVPForm(){
               </div>
 
               <div className="flex justify-center space-x-4">
-                <a 
+                <Button
+                  as="a"
                   href="/"
-                  className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+                  variant="bordered"
+                  className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+                  radius="lg"
                 >
                   Back to Home
-                </a>
+                </Button>
               </div>
-            </div>
+              </div>
+            </CardBody>
           </Card>
           {showConfetti && <RsvpConfetti onComplete={() => setShowConfetti(false)} />}
         </Section>
@@ -546,8 +582,9 @@ export default function RSVPForm(){
     } else {
       return (
         <Section title="RSVP" subtitle="Thank you for letting us know" narrow>
-          <Card>
-            <div role="status" aria-live="polite" className="text-center space-y-6">
+          <Card className="border border-gray-200 shadow-lg rounded-3xl bg-white" radius="lg">
+            <CardBody className="p-6 md:p-8">
+              <div role="status" aria-live="polite" className="text-center space-y-6">
               <div className="space-y-4">
                 <h2 className="text-2xl font-bold text-gray-700">We'll miss you</h2>
                 <p className="text-gray-600">
@@ -564,7 +601,8 @@ export default function RSVPForm(){
                   Back to Home
                 </a>
               </div>
-            </div>
+              </div>
+            </CardBody>
           </Card>
         </Section>
       )
@@ -579,8 +617,9 @@ export default function RSVPForm(){
   if (!rsvpCheck.allowed && config) {
     return (
       <Section title="RSVP" subtitle="RSVP is currently closed" narrow>
-        <Card>
-          <div role="status" aria-live="polite" className="text-center space-y-6 py-8">
+        <Card className="border border-gray-200 shadow-lg rounded-3xl bg-white" radius="lg">
+          <CardBody className="p-6 md:p-8">
+            <div role="status" aria-live="polite" className="text-center space-y-6 py-8">
             <div className="space-y-4">
               <div className="text-6xl">🔒</div>
               <h2 className="text-2xl font-bold text-gray-700">RSVP is Closed</h2>
@@ -593,20 +632,26 @@ export default function RSVPForm(){
             </div>
 
             <div className="flex justify-center space-x-4">
-              <a 
+              <Button
+                as="a"
                 href="/"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+                variant="bordered"
+                className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+                radius="lg"
               >
                 Back to Home
-              </a>
-              <a 
-                href="mailto:bidiamond2025@gmail.com"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+              </Button>
+              <Button
+                as="a"
+                href={weddingInfo?.contact_email ? `mailto:${weddingInfo.contact_email}` : 'mailto:contact@luwani.com'}
+                className="bg-[#C8A951] text-white hover:bg-[#B38D39]"
+                radius="lg"
               >
                 Contact Us
-              </a>
+              </Button>
             </div>
-          </div>
+            </div>
+          </CardBody>
         </Card>
       </Section>
     )
@@ -614,8 +659,9 @@ export default function RSVPForm(){
 
   return (
     <Section title="RSVP" subtitle="Enter the invite code from your card or email" narrow>
-      <Card>
-        {/* RSVP Deadline Warning */}
+      <Card className="border border-gray-200 shadow-lg rounded-3xl bg-white" radius="lg">
+        <CardBody className="p-6 md:p-8">
+          {/* RSVP Deadline Warning */}
         {timeRemaining.hasDeadline && !timeRemaining.isPast && timeRemaining.formattedTime && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
             <div className="flex items-start gap-3">
@@ -653,104 +699,117 @@ export default function RSVPForm(){
         {!isLoadingInvitation && (
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {/* Invite Code */}
-            <div>
-              <label htmlFor="invite_code" className="block text-sm font-medium text-gray-700 mb-2">
-                Invite Code *
-              </label>
+            <div className="space-y-2">
+              <Label htmlFor="invite_code">Invite Code *</Label>
               <Input 
                 id="invite_code"
                 required 
-                placeholder="Enter your invite code" 
-                {...register('invite_code', { required: 'Invite code is required' })}
-                className={errors.invite_code ? 'border-red-500' : ''}
+                className={errors.invite_code ? 'border-red-500 rounded-xl' : 'rounded-xl'}
+                {...register('invite_code', { 
+                  required: 'Invite code is required',
+                  minLength: { value: 3, message: 'Invite code must be at least 3 characters' }
+                })}
               />
               {errors.invite_code && (
-                <p className="mt-1 text-sm text-red-600">{errors.invite_code.message}</p>
+                <p className="text-sm text-red-600">{errors.invite_code.message}</p>
               )}
               {prefilledInviteCode && inviteCode !== prefilledInviteCode && (
-                <p className="mt-1 text-sm text-amber-600">
+                <p className="text-sm text-amber-600">
                   ⚠️ You've changed the invite code. Make sure it's correct before submitting.
                 </p>
               )}
             </div>
 
-          {/* Response */}
-          <div>
-            <label htmlFor="response" className="block text-sm font-medium text-gray-700 mb-2">
-              Will you be joining us? *
-            </label>
-            <Select onValueChange={(v) => setValue('response', v as 'accepted' | 'declined')} defaultValue="accepted">
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Choose your response" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="accepted">Accept with joy ✨</SelectItem>
-                <SelectItem value="declined">Regretfully decline</SelectItem>
-              </SelectContent>
-            </Select>
-            {errors.response && (
-              <p className="mt-1 text-sm text-red-600">{errors.response.message}</p>
-            )}
-          </div>
-
-          {/* Email */}
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-              Email (to receive confirmation & QR code)
-            </label>
-            <Input 
-              id="email"
-              type="email" 
-              placeholder="you@example.com" 
-              {...register('email')}
-              className={errors.email ? 'border-red-500' : ''}
-            />
-            {errors.email && (
-              <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
-            )}
-          </div>
-
-          {/* Goodwill Message (only shown when declined) */}
-          {showGoodwillMessage && (
-            <div>
-              <label htmlFor="goodwill_message" className="block text-sm font-medium text-gray-700 mb-2">
-                Send a message to the couple (optional)
-              </label>
-              <Textarea 
-                id="goodwill_message"
-                rows={4} 
-                placeholder="We'd love to hear from you..."
-                {...register('goodwill_message')}
-                className={errors.goodwill_message ? 'border-red-500' : ''}
+            {/* Response */}
+            <div className="space-y-2">
+              <Label htmlFor="response">Will you be joining us? *</Label>
+              <Select 
+                value={response}
+                onValueChange={(v) => setValue('response', v as 'accepted' | 'declined', { shouldValidate: true })}
+              >
+                <SelectTrigger id="response" className={errors.response ? 'border-red-500 rounded-xl' : 'rounded-xl'}>
+                  <SelectValue placeholder="Choose your response" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="accepted">Accept with joy ✨</SelectItem>
+                  <SelectItem value="declined">Regretfully decline</SelectItem>
+                </SelectContent>
+              </Select>
+              <input
+                type="hidden"
+                {...register('response', { required: 'Please select a response' })}
               />
-              {errors.goodwill_message && (
-                <p className="mt-1 text-sm text-red-600">{errors.goodwill_message.message}</p>
+              {errors.response && (
+                <p className="text-sm text-red-600">{errors.response.message}</p>
               )}
             </div>
-          )}
 
-          {/* Error Message */}
-          {result && !result.success && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-800">{result.message}</p>
-              {result.errors && (
-                <ul className="mt-2 text-sm text-red-700 list-disc list-inside">
-                  {Object.entries(result.errors).map(([field, messages]) => (
-                    <li key={field}>{messages.join(', ')}</li>
-                  ))}
-                </ul>
+            {/* Email */}
+            <div className="space-y-2">
+              <Label htmlFor="email">Email (to receive confirmation & QR code)</Label>
+              <Input 
+                id="email"
+                type="email" 
+                className={errors.email ? 'border-red-500 rounded-xl' : 'rounded-xl'}
+                {...register('email', {
+                  pattern: {
+                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                    message: 'Please enter a valid email address'
+                  }
+                })}
+              />
+              {errors.email && (
+                <p className="text-sm text-red-600">{errors.email.message}</p>
               )}
             </div>
-          )}
 
-          {/* Submit Button */}
-          <div className="flex justify-end">
-            <Button type="submit" variant="gold" disabled={isSubmitting}>
-              {isSubmitting ? 'Submitting…' : 'Submit RSVP'}
-            </Button>
-          </div>
-        </form>
+            {/* Goodwill Message (only shown when declined) */}
+            {showGoodwillMessage && (
+              <div className="space-y-2">
+                <Label htmlFor="goodwill_message">Send a message to the couple (optional)</Label>
+                <Textarea 
+                  id="goodwill_message"
+                  rows={4}
+                  className={errors.goodwill_message ? 'border-red-500 rounded-xl resize-none' : 'rounded-xl resize-none'}
+                  {...register('goodwill_message')}
+                />
+                {errors.goodwill_message && (
+                  <p className="text-sm text-red-600">{errors.goodwill_message.message}</p>
+                )}
+              </div>
+            )}
+
+            {/* Error Message */}
+            {result && !result.success && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-red-800">{result.message}</p>
+                {result.errors && (
+                  <ul className="mt-2 text-sm text-red-700 list-disc list-inside">
+                    {Object.entries(result.errors).map(([field, messages]) => (
+                      <li key={field}>{messages.join(', ')}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <div className="flex justify-end">
+              <Button 
+                type="submit" 
+                color="primary"
+                className="bg-[#C8A951] text-white font-semibold"
+                isLoading={isSubmitting}
+                disabled={isSubmitting}
+                radius="lg"
+                size="lg"
+              >
+                {isSubmitting ? 'Submitting…' : 'Submit RSVP'}
+              </Button>
+            </div>
+          </form>
         )}
+        </CardBody>
       </Card>
     </Section>
   )

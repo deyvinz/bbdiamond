@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { getWeddingIdFromRequest, requireWeddingId } from '@/lib/api-wedding-context'
 
 // GET - Fetch all gallery images
 export async function GET(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const supabase = await supabaseServer()
     
     const { data, error } = await supabase
       .from('gallery_images')
       .select('*')
-      .order('sort_order', { ascending: true })
+      .eq('wedding_id', weddingId)
+      .order('display_order', { ascending: true })
 
     if (error) {
       console.error('Error fetching gallery images:', error)
@@ -35,6 +38,7 @@ export async function GET(request: NextRequest) {
 // POST - Add new gallery image
 export async function POST(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const supabase = await supabaseServer()
     const body = await request.json()
     
@@ -50,9 +54,10 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('gallery_images')
       .insert({
-        url,
+        wedding_id: weddingId,
+        image_url: url,
         caption: caption || null,
-        sort_order: sort_order || 0
+        display_order: sort_order || 0
       })
       .select()
       .single()

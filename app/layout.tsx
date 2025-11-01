@@ -1,5 +1,6 @@
 import './globals.css'
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import Nav from '@/components/Nav'
 import Footer from '@/components/Footer'
 import { SidebarProvider } from '@/components/ui/sidebar'
@@ -8,6 +9,7 @@ import { LoadingProvider } from '@/components/providers/loading-provider'
 import { Toaster } from '@/components/ui/toaster'
 import PageLoader from '@/components/ui/first-visit-loader'
 import { ThemeProviderServer } from '@/components/ThemeProvider'
+import { HeroUIProvider } from '@heroui/react'
 import { getWeddingContext } from '@/lib/wedding-context'
 import { getWeddingTheme, getDefaultTheme } from '@/lib/theme-service'
 import { getGoogleFontsURL } from '@/lib/theme-service'
@@ -31,8 +33,23 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
+  const headersList = await headers()
+  const pathname = headersList.get('x-pathname') || ''
+  
+  // Check if we're on a route that should NOT show wedding navigation
+  // These routes have their own layouts with their own headers/footers
+  const isStorefrontRoute = pathname.startsWith('/store') || 
+                            pathname.startsWith('/dashboard') || 
+                            pathname.startsWith('/onboarding') ||
+                            pathname.startsWith('/auth')
+  
   const context = await getWeddingContext()
   const weddingId = context?.weddingId
+  
+  // Only show wedding navigation if:
+  // 1. We have a wedding context, AND
+  // 2. We're NOT on storefront/dashboard/onboarding/auth routes
+  const showWeddingNavigation = !!weddingId && !isStorefrontRoute
   
   // Get theme for dynamic fonts
   let theme = getDefaultTheme()
@@ -70,47 +87,38 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         }}
       >
         <div className="fixed inset-0 -z-10 bg-subtleGrid bg-[length:16px_16px]" />
-        {weddingId ? (
-          <ThemeProviderServer weddingId={weddingId}>
-            <LoadingProvider>
-              <SidebarProvider>
-                <div className="min-h-dvh flex flex-col animate-in fade-in duration-500">
-                  <PageLoader />
-                  <AppSidebar />
-                  <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-gold-100">
-                    <Nav />
-                  </header>
-                  <main className="flex-1 mx-auto w-full container max-w-6xl px-4 md:px-6">
-                    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                      {children}
-                    </div>
-                  </main>
-                  <Footer />
-                  <Toaster />
-                </div>
-              </SidebarProvider>
-            </LoadingProvider>
-          </ThemeProviderServer>
-        ) : (
-          <LoadingProvider>
-            <SidebarProvider>
-              <div className="min-h-dvh flex flex-col animate-in fade-in duration-500">
-                <PageLoader />
-                <AppSidebar />
-                <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-gold-100">
-                  <Nav />
-                </header>
-                <main className="flex-1 mx-auto w-full container max-w-6xl px-4 md:px-6">
-                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    {children}
+        <HeroUIProvider>
+          {showWeddingNavigation ? (
+            <ThemeProviderServer weddingId={weddingId!}>
+              <LoadingProvider>
+                <SidebarProvider>
+                  <div className="min-h-dvh flex flex-col animate-in fade-in duration-500">
+                    <PageLoader />
+                    <AppSidebar />
+                    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-gold-100">
+                      <Nav />
+                    </header>
+                    <main className="flex-1 mx-auto w-full container max-w-6xl px-4 md:px-6">
+                      <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        {children}
+                      </div>
+                    </main>
+                    <Footer />
+                    <Toaster />
                   </div>
-                </main>
-                <Footer />
+                </SidebarProvider>
+              </LoadingProvider>
+            </ThemeProviderServer>
+          ) : (
+            // Minimal layout for storefront, dashboard, onboarding, and auth routes
+            <LoadingProvider>
+              <div className="min-h-dvh flex flex-col">
+                {children}
                 <Toaster />
               </div>
-            </SidebarProvider>
-          </LoadingProvider>
-        )}
+            </LoadingProvider>
+          )}
+        </HeroUIProvider>
       </body>
     </html>
   )

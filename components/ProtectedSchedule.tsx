@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Section from '@/components/Section'
-import Card from '@/components/Card'
-import { Button } from '@/components/ui/button'
+import { Button, Card, CardBody } from '@heroui/react'
 import { MotionPage, MotionStagger, MotionItem, MotionCard } from '@/components/ui/motion'
 import { 
   Church, 
@@ -136,10 +135,11 @@ export default function ProtectedSchedule({ guest, onLogout }: ProtectedSchedule
             </div>
             <Button 
               onClick={onLogout}
-              variant="outline"
+              variant="bordered"
               size="sm"
+              radius="lg"
+              startContent={<LogOut className="h-4 w-4" />}
             >
-              <LogOut className="h-4 w-4 mr-2" />
               Logout
             </Button>
           </div>
@@ -154,34 +154,36 @@ export default function ProtectedSchedule({ guest, onLogout }: ProtectedSchedule
               <MotionItem key={idx} className="ms-6 mb-6">
                 <span className="absolute -start-1.5 mt-4 h-3 w-3 rounded-full bg-gold-500" />
                 <MotionCard>
-                  <Card>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 mt-1">
-                          {getEventIcon(event.name)}
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-medium text-lg">{event.name}</h3>
-                          <div className="flex items-center gap-2 mt-1">
-                            <MapPin className="h-4 w-4 text-gold-500" />
-                            <p className="text-sm text-black/70">{event.venue} • {event.address}</p>
+                  <Card className="border border-gray-200 shadow-md rounded-2xl" radius="lg">
+                    <CardBody className="p-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 mt-1">
+                            {getEventIcon(event.name)}
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-medium text-lg text-[#1E1E1E]">{event.name}</h3>
+                            <div className="flex items-center gap-2 mt-1">
+                              <MapPin className="h-4 w-4 text-[#C8A951]" />
+                              <p className="text-sm text-[#1E1E1E]/70">{event.venue} • {event.address}</p>
+                            </div>
                           </div>
                         </div>
+                        <div className="flex items-center gap-2 text-sm bg-[#C8A951]/10 text-[#C8A951] font-medium px-3 py-2 rounded-lg">
+                          <Clock className="h-4 w-4" />
+                          <time>
+                            {new Date(event.starts_at).toLocaleDateString([], { 
+                              year: 'numeric', 
+                              month: 'long', 
+                              day: 'numeric', 
+                              hour: '2-digit', 
+                              minute: '2-digit', 
+                              hour12: true 
+                            })}
+                          </time>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gold-600">
-                        <Clock className="h-4 w-4" />
-                        <time>
-                          {new Date(event.starts_at).toLocaleDateString([], { 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric', 
-                            hour: '2-digit', 
-                            minute: '2-digit', 
-                            hour12: true 
-                          })}
-                        </time>
-                      </div>
-                    </div>
+                    </CardBody>
                   </Card>
                 </MotionCard>
               </MotionItem>

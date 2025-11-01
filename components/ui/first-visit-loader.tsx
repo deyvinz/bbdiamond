@@ -4,6 +4,7 @@ import Image from "next/image"
 
 export default function PageLoader() {
   const [show, setShow] = useState(true)
+  const [weddingInfo, setWeddingInfo] = useState<{ couple_display_name?: string; hashtag?: string } | null>(null)
 
   useEffect(() => {
     // Show loader on every page load/refresh
@@ -14,10 +15,28 @@ export default function PageLoader() {
       setShow(false)
     }, 1500)
 
+    // Fetch wedding info
+    const fetchWeddingInfo = async () => {
+      try {
+        const response = await fetch('/api/wedding-info')
+        const data = await response.json()
+        if (data.success && data.wedding) {
+          setWeddingInfo(data.wedding)
+        }
+      } catch (error) {
+        console.error('Error fetching wedding info:', error)
+      }
+    }
+    
+    fetchWeddingInfo()
+
     return () => clearTimeout(timer)
   }, [])
 
   if (!show) return null
+
+  const displayName = weddingInfo?.couple_display_name || 'Wedding'
+  const hashtag = weddingInfo?.hashtag || null
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white">
@@ -25,14 +44,16 @@ export default function PageLoader() {
         <div className="rounded-full p-4 shadow-[0_0_40px_0_rgba(212,175,55,0.35)]">
           <Image
             src="/images/logo.png"
-            alt="Brenda & Diamond"
+            alt={displayName}
             width={120}
             height={120}
             className="h-28 w-28 object-contain animate-pulse"
             priority
           />
         </div>
-        <p className="text-sm tracking-wide text-black/60">#BrendaBagsHerDiamond</p>
+        {hashtag && (
+          <p className="text-sm tracking-wide text-black/60">{hashtag}</p>
+        )}
       </div>
     </div>
   )
