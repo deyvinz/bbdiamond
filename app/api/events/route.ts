@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getEventsPage, createEvent } from '@/lib/events-service'
 import { createEventSchema } from '@/lib/validators'
+import { requireWeddingId, getWeddingIdFromBody } from '@/lib/api-wedding-context'
 
 export async function GET(request: NextRequest) {
   try {
-    const { events, total_count } = await getEventsPage()
+    const weddingId = await requireWeddingId(request)
+    const { events, total_count } = await getEventsPage(weddingId)
     return NextResponse.json({
       success: true,
       events,
@@ -12,9 +14,11 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('Error fetching events:', error)
+    const message = error instanceof Error ? error.message : 'Failed to fetch events'
+    const status = message.includes('Wedding ID') ? 400 : 500
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch events' },
-      { status: 500 }
+      { success: false, error: message },
+      { status }
     )
   }
 }
@@ -26,7 +30,8 @@ export async function POST(request: NextRequest) {
     // Validate input
     const validatedData = createEventSchema.parse(body)
     
-    const event = await createEvent(validatedData)
+    const weddingId = getWeddingIdFromBody(body) || await requireWeddingId(request)
+    const event = await createEvent(validatedData, weddingId)
     return NextResponse.json(event)
   } catch (error) {
     console.error('Error creating event:', error)
@@ -38,9 +43,11 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    const message = error instanceof Error ? error.message : 'Failed to create event'
+    const status = message.includes('Wedding ID') ? 400 : 500
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create event' },
-      { status: 500 }
+      { error: message },
+      { status }
     )
   }
 }

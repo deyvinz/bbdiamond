@@ -8,6 +8,7 @@ import {
   type UpdateEventInput
 } from './validators'
 import { logAdminAction } from './audit'
+import { getWeddingId } from './wedding-context'
 
 export interface Event {
   id: string
@@ -24,7 +25,12 @@ export interface EventsListResponse {
   total_count: number
 }
 
-export async function getEventsPage(): Promise<EventsListResponse> {
+export async function getEventsPage(weddingId?: string): Promise<EventsListResponse> {
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to fetch events')
+  }
+  
   const cacheKey = eventsListKey()
   
   return await cacheJson(cacheKey, 120, async () => {
@@ -33,6 +39,7 @@ export async function getEventsPage(): Promise<EventsListResponse> {
     const { data: events, error, count } = await supabase
       .from('events')
       .select('*', { count: 'exact' })
+      .eq('wedding_id', resolvedWeddingId)
       .order('starts_at', { ascending: true })
 
     if (error) {
@@ -47,7 +54,12 @@ export async function getEventsPage(): Promise<EventsListResponse> {
   })
 }
 
-export async function getEventById(eventId: string): Promise<Event> {
+export async function getEventById(eventId: string, weddingId?: string): Promise<Event> {
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to fetch events')
+  }
+  
   const cacheKey = eventDetailKey(eventId)
   
   return await cacheJson(cacheKey, 120, async () => {
@@ -57,6 +69,7 @@ export async function getEventById(eventId: string): Promise<Event> {
       .from('events')
       .select('*')
       .eq('id', eventId)
+      .eq('wedding_id', resolvedWeddingId)
       .single()
 
     if (error) {
@@ -72,15 +85,24 @@ export async function getEventById(eventId: string): Promise<Event> {
   })
 }
 
-export async function createEvent(eventData: CreateEventInput): Promise<Event> {
+export async function createEvent(eventData: CreateEventInput, weddingId?: string): Promise<Event> {
   const supabase = await supabaseServer()
+  
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to create events')
+  }
   
   // Validate input
   const validatedData = createEventSchema.parse(eventData)
   
   const { data: event, error } = await supabase
     .from('events')
-    .insert([validatedData])
+    .insert([{
+      ...validatedData,
+      wedding_id: resolvedWeddingId
+    }])
     .select()
     .single()
 
@@ -101,8 +123,14 @@ export async function createEvent(eventData: CreateEventInput): Promise<Event> {
   return event
 }
 
-export async function updateEvent(eventId: string, eventData: UpdateEventInput): Promise<Event> {
+export async function updateEvent(eventId: string, eventData: UpdateEventInput, weddingId?: string): Promise<Event> {
   const supabase = await supabaseServer()
+  
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to update events')
+  }
   
   // Validate input
   const validatedData = updateEventSchema.parse(eventData)
@@ -111,6 +139,7 @@ export async function updateEvent(eventId: string, eventData: UpdateEventInput):
     .from('events')
     .update(validatedData)
     .eq('id', eventId)
+    .eq('wedding_id', resolvedWeddingId)
     .select()
     .single()
 
@@ -135,13 +164,20 @@ export async function updateEvent(eventId: string, eventData: UpdateEventInput):
   return event
 }
 
-export async function deleteEvent(eventId: string): Promise<void> {
+export async function deleteEvent(eventId: string, weddingId?: string): Promise<void> {
   const supabase = await supabaseServer()
+  
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to delete events')
+  }
   
   const { error } = await supabase
     .from('events')
     .delete()
     .eq('id', eventId)
+    .eq('wedding_id', resolvedWeddingId)
 
   if (error) {
     console.error('Event deletion error:', error)

@@ -24,12 +24,16 @@ export async function POST(request: NextRequest) {
 
     const supabase = await supabaseServer()
 
+    // Get wedding ID (admin routes should have wedding context)
+    const weddingId = request.headers.get('x-wedding-id') || request.cookies.get('wedding_id')?.value
+    
     // Find invitation by token (without status filter first)
-    const { data: invitation, error: invitationError } = await supabase
+    let query = supabase
       .from('invitations')
       .select(`
         id,
         token,
+        wedding_id,
         guest:guests!inner(
           id,
           first_name,
@@ -44,7 +48,12 @@ export async function POST(request: NextRequest) {
         )
       `)
       .eq('token', actualToken)
-      .single()
+    
+    if (weddingId) {
+      query = query.eq('wedding_id', weddingId)
+    }
+    
+    const { data: invitation, error: invitationError } = await query.single()
 
     console.log('Token lookup result:', { actualToken, invitationError, invitation })
 
@@ -67,12 +76,23 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    // Use wedding_id from invitation if not in context
+    const finalWeddingId = weddingId || invitation?.wedding_id
+
     // Check if already checked in for any event
-    const { data: existingCheckin, error: checkError } = await supabase
+    let checkinQuery = supabase
       .from('attendance_v2')
       .select('id, checked_in_at, invitation_event_id')
       .in('invitation_event_id', acceptedEvents.map((ie: any) => ie.id))
       .limit(1)
+    
+    if (finalWeddingId) {
+      // Filter by wedding_id if attendance_v2 has wedding_id column
+      // Note: attendance_v2 may not have wedding_id, so this might need adjustment
+      checkinQuery = checkinQuery.eq('wedding_id', finalWeddingId)
+    }
+    
+    const { data: existingCheckin, error: checkError } = await checkinQuery
 
     if (checkError && checkError.code !== 'PGRST116') {
       console.error('Error checking existing check-in:', checkError)
@@ -96,12 +116,18 @@ export async function POST(request: NextRequest) {
 
     // Check in for the first accepted event
     const firstEvent = acceptedEvents[0]
+    const checkinData: any = {
+      invitation_event_id: firstEvent.id,
+      checked_in_by: (await supabase.auth.getUser()).data.user?.id
+    }
+    
+    if (finalWeddingId) {
+      checkinData.wedding_id = finalWeddingId
+    }
+    
     const { data: checkin, error: checkinError } = await supabase
       .from('attendance_v2')
-      .insert({
-        invitation_event_id: firstEvent.id,
-        checked_in_by: (await supabase.auth.getUser()).data.user?.id
-      })
+      .insert(checkinData)
       .select(`
         id,
         checked_in_at

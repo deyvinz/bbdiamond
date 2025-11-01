@@ -1,5 +1,6 @@
 import type { Config } from 'tailwindcss'
 import defaultTheme from 'tailwindcss/defaultTheme'
+import { heroui } from '@heroui/react'
 
 const config: Config = {
   darkMode: 'class',
@@ -7,6 +8,7 @@ const config: Config = {
     './app/**/*.{ts,tsx,js,jsx}',
     './components/**/*.{ts,tsx,js,jsx}',
     './components/ui/**/*.{ts,tsx}',
+    './node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
     container: { center: true, padding: '1rem', screens: { '2xl': '1200px' } },
@@ -32,6 +34,30 @@ const config: Config = {
       },
     }
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [
+    require('tailwindcss-animate'),
+    heroui({
+      themes: {
+        light: {
+          colors: {
+            primary: '#CDA349', // gold-500
+            secondary: '#E1B858', // gold-400
+            success: '#22c55e',
+            warning: '#f59e0b',
+            danger: '#ef4444',
+          },
+        },
+        dark: {
+          colors: {
+            primary: '#E1B858', // gold-400
+            secondary: '#CDA349', // gold-500
+            success: '#22c55e',
+            warning: '#f59e0b',
+            danger: '#ef4444',
+          },
+        },
+      },
+    }),
+  ],
 }
 export default config

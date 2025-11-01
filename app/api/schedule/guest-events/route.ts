@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { getWeddingIdFromRequest } from '@/lib/api-wedding-context'
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,13 +14,17 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await supabaseServer()
+    
+    // Try to get wedding ID (optional for public routes)
+    const weddingId = await getWeddingIdFromRequest(request)
 
     // Get guest's specific events through their invitation
-    const { data: invitation, error } = await supabase
+    let query = supabase
       .from('invitations')
       .select(`
         id,
         token,
+        wedding_id,
         guest:guests!inner(
           id,
           first_name,
@@ -42,7 +47,12 @@ export async function POST(request: NextRequest) {
         )
       `)
       .eq('guest.invite_code', invite_code)
-      .single()
+    
+    if (weddingId) {
+      query = query.eq('wedding_id', weddingId)
+    }
+    
+    const { data: invitation, error } = await query.single()
 
     if (error || !invitation) {
       return NextResponse.json({ 

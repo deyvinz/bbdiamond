@@ -4,13 +4,21 @@ import { guestSchema, csvGuestSchema, paginationSchema, guestFiltersSchema } fro
 import { Guest, GuestListResponse, GuestFilters, PaginationParams, AuditLog } from './types/guests'
 import { CsvRow, downloadCsv, parseCsv } from './csv'
 import { bumpNamespaceVersion } from './cache'
+import { getWeddingId } from './wedding-context'
 
 // Server-side functions
 export async function getGuestsServer(
   filters: GuestFilters = {},
-  pagination: PaginationParams = { page: 1, page_size: 20 }
+  pagination: PaginationParams = { page: 1, page_size: 20 },
+  weddingId?: string
 ) {
   const supabase = await supabaseServer()
+  
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to fetch guests')
+  }
   
   // Debug authentication
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -33,6 +41,7 @@ export async function getGuestsServer(
         )
       )
     `, { count: 'exact' })
+    .eq('wedding_id', resolvedWeddingId)
 
   // Apply search filter
   if (filters.search) {
@@ -131,8 +140,14 @@ export async function getGuestsServer(
   } as GuestListResponse
 }
 
-export async function createGuestServer(guestData: any, invitationData?: any) {
+export async function createGuestServer(guestData: any, invitationData?: any, weddingId?: string) {
   const supabase = await supabaseServer()
+  
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to create guests')
+  }
   
   // Validate input
   const validatedGuest = guestSchema.parse(guestData)
@@ -142,7 +157,10 @@ export async function createGuestServer(guestData: any, invitationData?: any) {
   if (validatedGuest.household_name && !householdId) {
     const { data: household, error: householdError } = await supabase
       .from('households')
-      .insert({ name: validatedGuest.household_name })
+      .insert({ 
+        name: validatedGuest.household_name,
+        wedding_id: resolvedWeddingId
+      })
       .select()
       .single()
     
@@ -157,7 +175,8 @@ export async function createGuestServer(guestData: any, invitationData?: any) {
     .from('guests')
     .insert({
       ...validatedGuest,
-      household_id: householdId
+      household_id: householdId,
+      wedding_id: resolvedWeddingId
     })
     .select(`
       *,
@@ -175,13 +194,28 @@ export async function createGuestServer(guestData: any, invitationData?: any) {
       .from('invitations')
       .insert({
         guest_id: guest.id,
-        event_id: invitationData.event_id,
-        headcount: invitationData.headcount || 1,
+        wedding_id: resolvedWeddingId,
         token: crypto.randomUUID()
       })
 
     if (invitationError) {
       throw new Error(`Failed to create invitation: ${invitationError.message}`)
+    }
+    
+    // Create invitation_event link
+    const { error: invitationEventError } = await supabase
+      .from('invitation_events')
+      .insert({
+        invitation_id: (await supabase.from('invitations').select('id').eq('guest_id', guest.id).single()).data?.id,
+        event_id: invitationData.event_id,
+        wedding_id: resolvedWeddingId,
+        headcount: invitationData.headcount || 1,
+        status: 'pending',
+        event_token: crypto.randomUUID()
+      })
+
+    if (invitationEventError) {
+      throw new Error(`Failed to create invitation event: ${invitationEventError.message}`)
     }
   }
 
@@ -194,14 +228,21 @@ export async function createGuestServer(guestData: any, invitationData?: any) {
   return guest
 }
 
-export async function updateGuestServer(guestId: string, guestData: any) {
+export async function updateGuestServer(guestId: string, guestData: any, weddingId?: string) {
   const supabase = await supabaseServer()
+  
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to update guests')
+  }
   
   // Get current guest for audit
   const { data: currentGuest } = await supabase
     .from('guests')
     .select('*')
     .eq('id', guestId)
+    .eq('wedding_id', resolvedWeddingId)
     .single()
 
   // Validate input
@@ -212,7 +253,10 @@ export async function updateGuestServer(guestId: string, guestData: any) {
   if (validatedGuest.household_name && !householdId) {
     const { data: household, error: householdError } = await supabase
       .from('households')
-      .insert({ name: validatedGuest.household_name })
+      .insert({ 
+        name: validatedGuest.household_name,
+        wedding_id: resolvedWeddingId
+      })
       .select()
       .single()
     
@@ -231,6 +275,7 @@ export async function updateGuestServer(guestId: string, guestData: any) {
       updated_at: new Date().toISOString()
     })
     .eq('id', guestId)
+    .eq('wedding_id', resolvedWeddingId)
     .select(`
       *,
       household:households(name)
@@ -253,14 +298,21 @@ export async function updateGuestServer(guestId: string, guestData: any) {
   return guest
 }
 
-export async function deleteGuestServer(guestId: string) {
+export async function deleteGuestServer(guestId: string, weddingId?: string) {
   const supabase = await supabaseServer()
+  
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to delete guests')
+  }
   
   // Get guest for audit
   const { data: guest } = await supabase
     .from('guests')
     .select('*')
     .eq('id', guestId)
+    .eq('wedding_id', resolvedWeddingId)
     .single()
 
   // Delete guest (cascade will handle invitations/rsvps)
@@ -268,6 +320,7 @@ export async function deleteGuestServer(guestId: string) {
     .from('guests')
     .delete()
     .eq('id', guestId)
+    .eq('wedding_id', resolvedWeddingId)
 
   if (error) {
     throw new Error(`Failed to delete guest: ${error.message}`)
@@ -282,16 +335,35 @@ export async function deleteGuestServer(guestId: string) {
   return true
 }
 
-export async function regenerateInvitationToken(guestId: string, eventId: string) {
+export async function regenerateInvitationToken(guestId: string, eventId: string, weddingId?: string) {
   const supabase = await supabaseServer()
   
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required')
+  }
+  
   const newToken = crypto.randomUUID()
+  
+  // Find invitation_event to get invitation_id
+  const { data: invitationEvent } = await supabase
+    .from('invitation_events')
+    .select('invitation_id')
+    .eq('event_id', eventId)
+    .eq('wedding_id', resolvedWeddingId)
+    .single()
+  
+  if (!invitationEvent) {
+    throw new Error('Invitation event not found')
+  }
   
   const { data: invitation, error } = await supabase
     .from('invitations')
     .update({ token: newToken })
+    .eq('id', invitationEvent.invitation_id)
     .eq('guest_id', guestId)
-    .eq('event_id', eventId)
+    .eq('wedding_id', resolvedWeddingId)
     .select()
     .single()
 
@@ -307,23 +379,40 @@ export async function regenerateInvitationToken(guestId: string, eventId: string
   return newToken
 }
 
-export async function sendInviteEmail(guestId: string, eventId: string) {
+export async function sendInviteEmail(guestId: string, eventId: string, weddingId?: string) {
   const supabase = await supabaseServer()
   
-  // Get invitation
-  const { data: invitation, error: invitationError } = await supabase
-    .from('invitations')
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required')
+  }
+  
+  // Get invitation via invitation_events
+  const { data: invitationEvent } = await supabase
+    .from('invitation_events')
     .select(`
-      *,
-      guest:guests(email, first_name, last_name),
-      event:events(name)
+      invitation_id,
+      event:events(name),
+      invitation:invitations!inner(
+        *,
+        guest:guests!inner(email, first_name, last_name)
+      )
     `)
-    .eq('guest_id', guestId)
     .eq('event_id', eventId)
+    .eq('wedding_id', resolvedWeddingId)
     .single()
-
-  if (invitationError || !invitation) {
+  
+  if (!invitationEvent || !invitationEvent.invitation) {
     throw new Error('Invitation not found')
+  }
+  
+  const invitation = invitationEvent.invitation
+  const guest = invitation.guest
+  const event = invitationEvent.event
+
+  if (!invitation || !guest || !event) {
+    throw new Error('Invitation data incomplete')
   }
 
   // Check rate limit
@@ -332,6 +421,7 @@ export async function sendInviteEmail(guestId: string, eventId: string) {
     .from('mail_logs')
     .select('*')
     .eq('token', invitation.token)
+    .eq('wedding_id', resolvedWeddingId)
     .gte('sent_at', `${today}T00:00:00.000Z`)
 
   if (mailLogs && mailLogs.length >= 3) {
@@ -342,9 +432,10 @@ export async function sendInviteEmail(guestId: string, eventId: string) {
   const { data, error } = await supabase.functions.invoke('send-qr-email', {
     body: {
       token: invitation.token,
-      email: invitation.guest.email,
-      guest_name: `${invitation.guest.first_name} ${invitation.guest.last_name}`,
-      event_name: invitation.event.name
+      email: guest.email,
+      guest_name: `${guest.first_name} ${guest.last_name}`,
+      event_name: event.name,
+      wedding_id: resolvedWeddingId
     }
   })
 
@@ -353,7 +444,8 @@ export async function sendInviteEmail(guestId: string, eventId: string) {
     .from('mail_logs')
     .insert({
       token: invitation.token,
-      email: invitation.guest.email,
+      email: guest.email,
+      wedding_id: resolvedWeddingId,
       sent_at: new Date().toISOString(),
       success: !error,
       error_message: error?.message
@@ -365,8 +457,8 @@ export async function sendInviteEmail(guestId: string, eventId: string) {
 
   // Log audit
   await logAuditAction('invite_email_send', guestId, 'invitation', invitation.id, {
-    email: invitation.guest.email,
-    event: invitation.event.name
+    email: guest.email,
+    event: event.name
   })
 
   return true
@@ -409,7 +501,12 @@ export async function exportGuestsToCsv(guests: Guest[]) {
   downloadCsv(csvData, `guests-${new Date().toISOString().split('T')[0]}.csv`)
 }
 
-export async function importGuestsFromCsv(csvText: string, eventId?: string) {
+export async function importGuestsFromCsv(csvText: string, eventId?: string, weddingId?: string) {
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to import guests')
+  }
+  
   const rows = parseCsv(csvText)
   const results = {
     created: 0,
@@ -426,16 +523,17 @@ export async function importGuestsFromCsv(csvText: string, eventId?: string) {
         .from('guests')
         .select('id')
         .eq('email', row.email)
+        .eq('wedding_id', resolvedWeddingId)
         .single()
 
       if (existingGuest) {
         // Update existing guest
-        await updateGuestServer(existingGuest.id, row)
+        await updateGuestServer(existingGuest.id, row, resolvedWeddingId)
         results.updated++
       } else {
         // Create new guest
         const invitationData = eventId ? { event_id: eventId, headcount: 1 } : undefined
-        await createGuestServer(row, invitationData)
+        await createGuestServer(row, invitationData, resolvedWeddingId)
         results.created++
       }
     } catch (error) {

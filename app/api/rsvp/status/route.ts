@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { generateInvitationQR } from '@/lib/qr'
 import { generateDigitalPass } from '@/lib/digital-pass'
+import { getWeddingIdFromRequest } from '@/lib/api-wedding-context'
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,18 +18,22 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await supabaseServer()
+    
+    // Try to get wedding ID (optional for public RSVP routes)
+    const weddingId = await getWeddingIdFromRequest(request)
 
     // Find invitation by token or invite code
     let invitation
     let guest = null
     
     if (token) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('invitations')
         .select(`
           id,
           token,
           guest_id,
+          wedding_id,
           invitation_events!inner(
             status,
             event:events!inner(
@@ -41,7 +46,12 @@ export async function GET(request: NextRequest) {
           )
         `)
         .eq('token', token)
-        .single()
+      
+      if (weddingId) {
+        query = query.eq('wedding_id', weddingId)
+      }
+      
+      const { data, error } = await query.single()
 
       if (error || !data) {
         return NextResponse.json({ 
@@ -51,13 +61,20 @@ export async function GET(request: NextRequest) {
       }
       invitation = data
       
+      const finalWeddingId = weddingId || data.wedding_id
+      
       // Fetch guest details separately
       if (data.guest_id) {
-        const { data: guestData, error: guestError } = await supabase
+        let guestQuery = supabase
           .from('guests')
           .select('invite_code, email, first_name, last_name')
           .eq('id', data.guest_id)
-          .single()
+        
+        if (finalWeddingId) {
+          guestQuery = guestQuery.eq('wedding_id', finalWeddingId)
+        }
+        
+        const { data: guestData, error: guestError } = await guestQuery.single()
         
         if (!guestError) {
           guest = guestData
@@ -65,12 +82,13 @@ export async function GET(request: NextRequest) {
       }
     } else {
       // Find by invite code
-      const { data, error } = await supabase
+      let query = supabase
         .from('invitations')
         .select(`
           id,
           token,
           guest_id,
+          wedding_id,
           invitation_events!inner(
             status,
             event:events!inner(
@@ -83,7 +101,12 @@ export async function GET(request: NextRequest) {
           )
         `)
         .eq('guest.invite_code', inviteCode)
-        .single()
+      
+      if (weddingId) {
+        query = query.eq('wedding_id', weddingId)
+      }
+      
+      const { data, error } = await query.single()
 
       if (error || !data) {
         return NextResponse.json({ 
@@ -93,13 +116,20 @@ export async function GET(request: NextRequest) {
       }
       invitation = data
       
+      const finalWeddingId = weddingId || data.wedding_id
+      
       // Fetch guest details separately
       if (data.guest_id) {
-        const { data: guestData, error: guestError } = await supabase
+        let guestQuery = supabase
           .from('guests')
           .select('invite_code, email, first_name, last_name')
           .eq('id', data.guest_id)
-          .single()
+        
+        if (finalWeddingId) {
+          guestQuery = guestQuery.eq('wedding_id', finalWeddingId)
+        }
+        
+        const { data: guestData, error: guestError } = await guestQuery.single()
         
         if (!guestError) {
           guest = guestData

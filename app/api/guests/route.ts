@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createGuest } from '@/lib/guests-service-server'
 import { getGuestsServer } from '@/lib/guests'
+import { requireWeddingId, getWeddingIdFromBody } from '@/lib/api-wedding-context'
 
 export async function GET(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
+    
     const { searchParams } = new URL(request.url)
     
     const filters = {
@@ -19,13 +22,15 @@ export async function GET(request: NextRequest) {
       page_size: parseInt(searchParams.get('pageSize') || '20')
     }
 
-    const result = await getGuestsServer(filters, pagination)
+    const result = await getGuestsServer(filters, pagination, weddingId)
     return NextResponse.json(result)
   } catch (error) {
     console.error('Error fetching guests:', error)
+    const message = error instanceof Error ? error.message : 'Failed to fetch guests'
+    const status = message.includes('Wedding ID') ? 400 : 500
     return NextResponse.json(
-      { error: 'Failed to fetch guests' },
-      { status: 500 }
+      { error: message },
+      { status }
     )
   }
 }
@@ -33,13 +38,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const guest = await createGuest(body)
+    const weddingId = getWeddingIdFromBody(body) || await requireWeddingId(request)
+    
+    const guest = await createGuest(body, undefined, weddingId)
     return NextResponse.json(guest)
   } catch (error) {
     console.error('Error creating guest:', error)
+    const message = error instanceof Error ? error.message : 'Failed to create guest'
+    const status = message.includes('Wedding ID') ? 400 : 500
     return NextResponse.json(
-      { error: 'Failed to create guest' },
-      { status: 500 }
+      { error: message },
+      { status }
     )
   }
 }

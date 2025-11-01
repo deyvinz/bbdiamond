@@ -15,6 +15,7 @@ import {
 } from './validators'
 import { logAdminAction } from './audit'
 import { getAppConfig } from './config-service'
+import { getWeddingId } from './wedding-context'
 
 export interface InvitationEvent {
   id: string
@@ -87,8 +88,15 @@ async function validateAndEnforceHeadcount(events: Array<{ event_id: string; hea
 
 export async function getInvitationsPage(
   filters: InvitationFiltersInput,
-  pagination: { page: number; page_size: number }
+  pagination: { page: number; page_size: number },
+  weddingId?: string
 ): Promise<InvitationsListResponse> {
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to fetch invitations')
+  }
+  
   // Disable caching for now to fix filtering issues
   // const cacheKey = invitationsListKey({ 
   //   ...filters, 
@@ -133,6 +141,7 @@ export async function getInvitationsPage(
         )
       ).order('event.starts_at', { foreignTable: 'events' })
     `)
+    .eq('wedding_id', resolvedWeddingId)
 
   // Apply filters
   if (filters.q) {
@@ -183,6 +192,7 @@ export async function getInvitationsPage(
         status
       )
     `, { count: 'exact', head: true })
+    .eq('wedding_id', resolvedWeddingId)
 
   // Apply same filters to count query
   if (filters.q) {
@@ -247,6 +257,7 @@ export async function getInvitationsPage(
       .from('rsvps_v2')
       .select('invitation_event_id, response, party_size, created_at')
       .in('invitation_event_id', invitationEventIds)
+      .eq('wedding_id', resolvedWeddingId)
       .order('created_at', { ascending: false })
 
     if (rsvps) {
@@ -294,9 +305,17 @@ export async function getInvitationsPage(
 
 export async function createInvitationsForGuests(
   guestIds: string[],
-  eventDefs: Array<{ event_id: string; headcount: number; status: string }>
+  eventDefs: Array<{ event_id: string; headcount: number; status: string }>,
+  weddingId?: string
 ): Promise<Invitation[]> {
   const supabase = await supabaseServer()
+  
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to create invitations')
+  }
+  
   const invitations: Invitation[] = []
 
   // Validate and enforce headcount rules based on configuration
@@ -308,6 +327,7 @@ export async function createInvitationsForGuests(
       .from('guests')
       .select('invite_code')
       .eq('id', guestId)
+      .eq('wedding_id', resolvedWeddingId)
       .single()
 
     if (guestError) {
@@ -321,6 +341,7 @@ export async function createInvitationsForGuests(
         .from('guests')
         .update({ invite_code: inviteCode })
         .eq('id', guestId)
+        .eq('wedding_id', resolvedWeddingId)
 
       if (updateError) {
         throw new Error(`Failed to update guest invite code: ${updateError.message}`)
@@ -332,6 +353,7 @@ export async function createInvitationsForGuests(
       .from('invitations')
       .select('id')
       .eq('guest_id', guestId)
+      .eq('wedding_id', resolvedWeddingId)
       .single()
 
     let invitationId: string
@@ -344,6 +366,7 @@ export async function createInvitationsForGuests(
         .from('invitations')
         .insert({
           guest_id: guestId,
+          wedding_id: resolvedWeddingId,
           token: crypto.randomUUID()
         })
         .select()
@@ -360,6 +383,7 @@ export async function createInvitationsForGuests(
     const invitationEvents = validatedEventDefs.map(eventDef => ({
       invitation_id: invitationId,
       event_id: eventDef.event_id,
+      wedding_id: resolvedWeddingId,
       headcount: eventDef.headcount,
       status: eventDef.status,
       event_token: crypto.randomUUID()
@@ -407,6 +431,7 @@ export async function createInvitationsForGuests(
         )
       `)
       .eq('id', invitationId)
+      .eq('wedding_id', resolvedWeddingId)
       .single()
 
     if (fullInvitation) {
@@ -419,6 +444,7 @@ export async function createInvitationsForGuests(
 
   // Log audit
   await logAdminAction('invitation_create', {
+    wedding_id: resolvedWeddingId,
     guest_count: guestIds.length,
     event_count: eventDefs.length,
     guest_ids: guestIds
@@ -429,9 +455,16 @@ export async function createInvitationsForGuests(
 
 export async function updateInvitation(
   invitationId: string,
-  updates: UpdateInvitationInput
+  updates: UpdateInvitationInput,
+  weddingId?: string
 ): Promise<Invitation> {
   const supabase = await supabaseServer()
+
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to update invitations')
+  }
 
   // Update guest_id if provided
   if (updates.guest_id) {
@@ -439,6 +472,7 @@ export async function updateInvitation(
       .from('invitations')
       .update({ guest_id: updates.guest_id })
       .eq('id', invitationId)
+      .eq('wedding_id', resolvedWeddingId)
 
     if (guestError) {
       throw new Error(`Failed to update invitation guest: ${guestError.message}`)
@@ -452,6 +486,7 @@ export async function updateInvitation(
       .from('invitation_events')
       .delete()
       .eq('invitation_id', invitationId)
+      .eq('wedding_id', resolvedWeddingId)
 
     if (deleteError) {
       throw new Error(`Failed to delete existing events: ${deleteError.message}`)
@@ -461,6 +496,7 @@ export async function updateInvitation(
     const newEvents = updates.events.map(event => ({
       invitation_id: invitationId,
       event_id: event.event_id,
+      wedding_id: resolvedWeddingId,
       headcount: event.headcount,
       status: event.status,
       event_token: crypto.randomUUID()
@@ -509,6 +545,7 @@ export async function updateInvitation(
       )
     `)
     .eq('id', invitationId)
+    .eq('wedding_id', resolvedWeddingId)
     .single()
 
   if (error) {
@@ -520,6 +557,7 @@ export async function updateInvitation(
 
   // Log audit
   await logAdminAction('invitation_update', {
+    wedding_id: resolvedWeddingId,
     invitation_id: invitationId,
     updates
   })
@@ -527,14 +565,21 @@ export async function updateInvitation(
   return invitation
 }
 
-export async function deleteInvitations(invitationIds: string[]): Promise<void> {
+export async function deleteInvitations(invitationIds: string[], weddingId?: string): Promise<void> {
   const supabase = await supabaseServer()
+
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to delete invitations')
+  }
 
   // Get invitation event IDs first
   const { data: invitationEvents } = await supabase
     .from('invitation_events')
     .select('id')
     .in('invitation_id', invitationIds)
+    .eq('wedding_id', resolvedWeddingId)
 
   const invitationEventIds = invitationEvents?.map((ie: any) => ie.id) || []
 
@@ -544,6 +589,7 @@ export async function deleteInvitations(invitationIds: string[]): Promise<void> 
       .from('rsvps_v2')
       .delete()
       .in('invitation_event_id', invitationEventIds)
+      .eq('wedding_id', resolvedWeddingId)
 
     if (rsvpsError) {
       console.warn('Failed to delete RSVPs (may not exist):', rsvpsError.message)
@@ -556,6 +602,7 @@ export async function deleteInvitations(invitationIds: string[]): Promise<void> 
     .from('invitation_events')
     .delete()
     .in('invitation_id', invitationIds)
+    .eq('wedding_id', resolvedWeddingId)
 
   if (eventsError) {
     throw new Error(`Failed to delete invitation events: ${eventsError.message}`)
@@ -566,6 +613,7 @@ export async function deleteInvitations(invitationIds: string[]): Promise<void> 
     .from('invitations')
     .delete()
     .in('id', invitationIds)
+    .eq('wedding_id', resolvedWeddingId)
 
   if (error) {
     throw new Error(`Failed to delete invitations: ${error.message}`)
@@ -576,18 +624,27 @@ export async function deleteInvitations(invitationIds: string[]): Promise<void> 
 
   // Log audit
   await logAdminAction('invitation_delete', {
+    wedding_id: resolvedWeddingId,
     invitation_ids: invitationIds
   })
 }
 
-export async function regenerateInviteToken(invitationId: string): Promise<string> {
+export async function regenerateInviteToken(invitationId: string, weddingId?: string): Promise<string> {
   const supabase = await supabaseServer()
+  
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required')
+  }
+  
   const newToken = crypto.randomUUID()
 
   const { error } = await supabase
     .from('invitations')
     .update({ token: newToken })
     .eq('id', invitationId)
+    .eq('wedding_id', resolvedWeddingId)
 
   if (error) {
     throw new Error(`Failed to regenerate invite token: ${error.message}`)
@@ -598,6 +655,7 @@ export async function regenerateInviteToken(invitationId: string): Promise<strin
 
   // Log audit
   await logAdminAction('invite_token_regen', {
+    wedding_id: resolvedWeddingId,
     invitation_id: invitationId,
     new_token: newToken
   })
@@ -605,14 +663,22 @@ export async function regenerateInviteToken(invitationId: string): Promise<strin
   return newToken
 }
 
-export async function regenerateEventToken(invitationEventId: string): Promise<string> {
+export async function regenerateEventToken(invitationEventId: string, weddingId?: string): Promise<string> {
   const supabase = await supabaseServer()
+  
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required')
+  }
+  
   const newToken = crypto.randomUUID()
 
   const { error } = await supabase
     .from('invitation_events')
     .update({ event_token: newToken })
     .eq('id', invitationEventId)
+    .eq('wedding_id', resolvedWeddingId)
 
   if (error) {
     throw new Error(`Failed to regenerate event token: ${error.message}`)

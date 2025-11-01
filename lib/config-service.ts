@@ -3,16 +3,26 @@ import { supabaseService } from './supabase-service'
 import { logAdminAction } from './audit'
 import type { AppConfig, ConfigValue, ConfigUpdate } from './types/config'
 import { DEFAULT_CONFIG } from './types/config'
+import { getWeddingId } from './wedding-context'
 
-export async function getAppConfig(): Promise<ConfigValue> {
+export async function getAppConfig(weddingId?: string): Promise<ConfigValue> {
+  // Get wedding ID if not provided
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  
+  if (!resolvedWeddingId) {
+    console.warn('No wedding ID available, returning default config')
+    return DEFAULT_CONFIG
+  }
+
   // No caching - always fetch fresh from database for correctness
   // Use service role client to bypass RLS (config table requires elevated permissions)
-  console.log('🔍 [getAppConfig] Fetching from database...')
+  console.log('🔍 [getAppConfig] Fetching from database for wedding:', resolvedWeddingId)
   const supabase = supabaseService()
   
   const { data: configs, error } = await supabase
-    .from('app_config')
+    .from('wedding_config')
     .select('*')
+    .eq('wedding_id', resolvedWeddingId)
     .order('created_at', { ascending: true })
 
   if (error) {
@@ -48,7 +58,14 @@ export async function getAppConfig(): Promise<ConfigValue> {
   return parsed
 }
 
-export async function updateAppConfig(updates: ConfigUpdate): Promise<ConfigValue> {
+export async function updateAppConfig(updates: ConfigUpdate, weddingId?: string): Promise<ConfigValue> {
+  // Get wedding ID if not provided
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to update config')
+  }
+
   // Use service role client to bypass RLS policies
   const supabase = supabaseService()
   
@@ -64,6 +81,7 @@ export async function updateAppConfig(updates: ConfigUpdate): Promise<ConfigValu
       }
       
       return {
+        wedding_id: resolvedWeddingId,
         key,
         value: stringValue,
         description: getConfigDescription(key),
@@ -76,8 +94,9 @@ export async function updateAppConfig(updates: ConfigUpdate): Promise<ConfigValu
     // If value is empty and it's an optional field, delete the row
     if (config.value === '' && (config.key === 'rsvp_cutoff_date' || config.key === 'rsvp_cutoff_timezone')) {
       const { error } = await supabase
-        .from('app_config')
+        .from('wedding_config')
         .delete()
+        .eq('wedding_id', resolvedWeddingId)
         .eq('key', config.key)
       
       if (error && error.code !== 'PGRST116') { // Ignore "not found" errors
@@ -85,14 +104,15 @@ export async function updateAppConfig(updates: ConfigUpdate): Promise<ConfigValu
       }
     } else {
       const { error } = await supabase
-        .from('app_config')
+        .from('wedding_config')
         .upsert({
+          wedding_id: resolvedWeddingId,
           key: config.key,
           value: config.value,
           description: config.description,
           updated_at: config.updated_at,
         }, {
-          onConflict: 'key'
+          onConflict: 'wedding_id,key'
         })
 
       if (error) {
@@ -104,21 +124,23 @@ export async function updateAppConfig(updates: ConfigUpdate): Promise<ConfigValu
 
   // Log audit
   await logAdminAction('config_update', {
+    wedding_id: resolvedWeddingId,
     updates,
     updated_keys: Object.keys(updates)
   })
 
   // Return fresh config directly from database
-  return await getFreshAppConfig()
+  return await getFreshAppConfig(resolvedWeddingId)
 }
 
 // Helper function to get fresh config directly from database (no cache)
-async function getFreshAppConfig(): Promise<ConfigValue> {
+async function getFreshAppConfig(weddingId: string): Promise<ConfigValue> {
   const supabase = supabaseService()
   
   const { data: configs, error } = await supabase
-    .from('app_config')
+    .from('wedding_config')
     .select('*')
+    .eq('wedding_id', weddingId)
     .order('created_at', { ascending: true })
 
   if (error) {
@@ -142,15 +164,22 @@ async function getFreshAppConfig(): Promise<ConfigValue> {
   }
 }
 
-export async function resetAppConfig(): Promise<ConfigValue> {
+export async function resetAppConfig(weddingId?: string): Promise<ConfigValue> {
+  // Get wedding ID if not provided
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to reset config')
+  }
+
   // Use service role client to bypass RLS policies
   const supabase = supabaseService()
   
-  // Delete all existing configs
+  // Delete all existing configs for this wedding
   const { error: deleteError } = await supabase
-    .from('app_config')
+    .from('wedding_config')
     .delete()
-    .neq('id', '') // Delete all rows
+    .eq('wedding_id', resolvedWeddingId)
 
   if (deleteError) {
     console.error('Failed to reset config:', deleteError)
@@ -159,6 +188,7 @@ export async function resetAppConfig(): Promise<ConfigValue> {
 
   // Insert default configs
   const defaultConfigs = Object.entries(DEFAULT_CONFIG).map(([key, value]) => ({
+    wedding_id: resolvedWeddingId,
     key,
     value: String(value),
     description: getConfigDescription(key),
@@ -167,7 +197,7 @@ export async function resetAppConfig(): Promise<ConfigValue> {
   }))
 
   const { error: insertError } = await supabase
-    .from('app_config')
+    .from('wedding_config')
     .insert(defaultConfigs)
 
   if (insertError) {
@@ -177,11 +207,12 @@ export async function resetAppConfig(): Promise<ConfigValue> {
 
   // Log audit
   await logAdminAction('config_reset', {
+    wedding_id: resolvedWeddingId,
     default_config: DEFAULT_CONFIG
   })
 
   // Return fresh config from database
-  return await getFreshAppConfig()
+  return await getFreshAppConfig(resolvedWeddingId)
 }
 
 function getConfigDescription(key: string): string {
@@ -197,19 +228,19 @@ function getConfigDescription(key: string): string {
 }
 
 // Helper function to check if plus-ones are enabled
-export async function isPlusOnesEnabled(): Promise<boolean> {
-  const config = await getAppConfig()
+export async function isPlusOnesEnabled(weddingId?: string): Promise<boolean> {
+  const config = await getAppConfig(weddingId)
   return config.plus_ones_enabled
 }
 
 // Helper function to get max party size
-export async function getMaxPartySize(): Promise<number> {
-  const config = await getAppConfig()
+export async function getMaxPartySize(weddingId?: string): Promise<number> {
+  const config = await getAppConfig(weddingId)
   return config.max_party_size
 }
 
 // Helper function to check if guests can specify plus-ones
-export async function canGuestsSpecifyPlusOnes(): Promise<boolean> {
-  const config = await getAppConfig()
+export async function canGuestsSpecifyPlusOnes(weddingId?: string): Promise<boolean> {
+  const config = await getAppConfig(weddingId)
   return config.plus_ones_enabled && config.allow_guest_plus_ones
 }

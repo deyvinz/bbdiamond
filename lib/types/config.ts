@@ -1,5 +1,6 @@
 export interface AppConfig {
   id: string
+  wedding_id: string
   key: string
   value: string
   description?: string
