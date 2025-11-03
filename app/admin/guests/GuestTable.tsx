@@ -287,6 +287,12 @@ function GuestTable({
                   <TableCell><Skeleton className="h-4 w-12" /></TableCell>
                 </TableRow>
               ))
+            ) : filteredGuests.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                  No guests found
+                </TableCell>
+              </TableRow>
             ) : (
               filteredGuests.map((guest) => (
               <TableRow key={guest.id} className="hover:bg-gold-50/50">

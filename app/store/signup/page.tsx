@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button, Card, CardBody, CardHeader } from '@heroui/react'
 import { Input } from '@/components/ui/input'
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { supabase } from '@/lib/supabase-browser'
 import { useToast } from '@/components/ui/use-toast'
+import { trackConversion } from '@/lib/analytics'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -19,6 +20,10 @@ export default function SignupPage() {
     fullName: '',
     plan: 'basic' // basic, premium, enterprise
   })
+
+  useEffect(() => {
+    trackConversion.signupStarted()
+  }, [])
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -61,6 +66,11 @@ export default function SignupPage() {
         })
 
       if (customerError) throw customerError
+
+      // Track conversion
+      trackConversion.signupCompleted(formData.plan)
+      trackConversion.trialStarted(formData.plan)
+      trackConversion.onboardingStarted()
 
       // 3. Redirect to onboarding
       toast({

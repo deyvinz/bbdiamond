@@ -1,4 +1,4 @@
-import { getWeddingContext } from '@/lib/wedding-context';
+import { getWeddingContext } from '@/lib/wedding-context-server';
 
 export default async function Footer(){
   const context = await getWeddingContext();

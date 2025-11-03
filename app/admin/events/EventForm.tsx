@@ -16,6 +16,7 @@ import {
 import { useToast } from '@/components/ui/use-toast'
 import type { Event } from '@/lib/events-service'
 import type { CreateEventInput, UpdateEventInput } from '@/lib/validators'
+import IconPicker from './IconPicker'
 
 interface EventFormProps {
   open: boolean
@@ -37,6 +38,7 @@ export default function EventForm({
     venue: '',
     address: '',
     starts_at: '',
+    icon: undefined as string | undefined,
   })
   const { toast } = useToast()
 
@@ -54,6 +56,7 @@ export default function EventForm({
         venue: event.venue,
         address: event.address || '',
         starts_at: localDateTime,
+        icon: event.icon,
       })
     } else {
       setFormData({
@@ -61,6 +64,7 @@ export default function EventForm({
         venue: '',
         address: '',
         starts_at: '',
+        icon: undefined,
       })
     }
   }, [event, open])
@@ -135,6 +139,7 @@ export default function EventForm({
       venue: formData.venue.trim(),
       address: formData.address.trim() || undefined,
       starts_at: startsAt,
+      icon: formData.icon || undefined,
     }
 
     onSave(eventData)
@@ -149,8 +154,8 @@ export default function EventForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>
             {event ? 'Edit Event' : 'Create Event'}
           </DialogTitle>
@@ -162,54 +167,63 @@ export default function EventForm({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 space-y-4">
+          <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Event Name *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  placeholder="e.g., Wedding Ceremony"
+                  disabled={loading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="venue">Venue *</Label>
+                <Input
+                  id="venue"
+                  value={formData.venue}
+                  onChange={(e) => handleInputChange('venue', e.target.value)}
+                  placeholder="e.g., St. Mary Church"
+                  disabled={loading}
+                />
+              </div>
+            </div>
+            
             <div className="space-y-2">
-              <Label htmlFor="name">Event Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                placeholder="e.g., Wedding Ceremony"
+              <Label htmlFor="address">Address</Label>
+              <Textarea
+                id="address"
+                value={formData.address}
+                onChange={(e) => handleInputChange('address', e.target.value)}
+                placeholder="Full address of the venue"
+                rows={2}
                 disabled={loading}
               />
             </div>
+            
             <div className="space-y-2">
-              <Label htmlFor="venue">Venue *</Label>
+              <Label htmlFor="starts_at">Date & Time *</Label>
               <Input
-                id="venue"
-                value={formData.venue}
-                onChange={(e) => handleInputChange('venue', e.target.value)}
-                placeholder="e.g., St. Mary Church"
+                id="starts_at"
+                type="datetime-local"
+                value={formData.starts_at}
+                onChange={(e) => handleInputChange('starts_at', e.target.value)}
                 disabled={loading}
               />
             </div>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="address">Address</Label>
-            <Textarea
-              id="address"
-              value={formData.address}
-              onChange={(e) => handleInputChange('address', e.target.value)}
-              placeholder="Full address of the venue"
-              rows={2}
-              disabled={loading}
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="starts_at">Date & Time *</Label>
-            <Input
-              id="starts_at"
-              type="datetime-local"
-              value={formData.starts_at}
-              onChange={(e) => handleInputChange('starts_at', e.target.value)}
-              disabled={loading}
-            />
+
+            <div className="space-y-2">
+              <IconPicker
+                value={formData.icon}
+                onChange={(icon) => setFormData(prev => ({ ...prev, icon }))}
+              />
+            </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-shrink-0 pt-4 border-t">
             <Button 
               type="button" 
               variant="outline" 

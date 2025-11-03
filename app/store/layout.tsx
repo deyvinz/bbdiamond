@@ -1,15 +1,64 @@
 import { Metadata } from 'next'
 import Link from 'next/link'
 import StoreNav from '@/components/StoreNav'
+import Analytics from '@/components/Analytics'
+
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://luwani.com'
 
 export const metadata: Metadata = {
-  title: 'Luwāni - Create a Beautiful Wedding Website',
-  description: 'Celebrate your story globally — elegant, personal, no code needed.',
+  metadataBase: new URL(baseUrl),
+  title: {
+    default: 'Luwāni - Create a Beautiful Wedding Website',
+    template: '%s | Luwāni'
+  },
+  description: 'Celebrate your story globally — elegant, personal, no code needed. Create stunning wedding websites with customizable templates, RSVP management, and guest tools.',
+  keywords: ['wedding website', 'wedding planning', 'RSVP management', 'wedding invitations', 'wedding templates', 'custom wedding website', 'wedding website builder'],
+  authors: [{ name: 'Luwāni' }],
+  creator: 'Luwāni',
+  publisher: 'Luwāni',
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: `${baseUrl}/store`,
+    siteName: 'Luwāni',
+    title: 'Luwāni - Create a Beautiful Wedding Website',
+    description: 'Celebrate your story globally — elegant, personal, no code needed. Create stunning wedding websites with customizable templates.',
+    images: [
+      {
+        url: `${baseUrl}/images/og-image.png`,
+        width: 1200,
+        height: 630,
+        alt: 'Luwāni - Wedding Website Builder',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Luwāni - Create a Beautiful Wedding Website',
+    description: 'Celebrate your story globally — elegant, personal, no code needed.',
+    images: [`${baseUrl}/images/og-image.png`],
+    creator: '@luwani',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  alternates: {
+    canonical: `${baseUrl}/store`,
+  },
 }
 
 export default function StoreLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
+        <Analytics />
         {/* Storefront Header */}
         <StoreNav />
 

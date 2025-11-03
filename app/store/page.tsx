@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button, Card, CardBody, CardHeader, Chip } from '@heroui/react'
 import { Check, Monitor, Globe, Mail, Layout, Share2, Star, Quote } from 'lucide-react'
 import { MotionText, MotionFadeIn, MotionCard, MotionSection, MotionStagger } from '@/components/ui/motion'
+import { trackConversion } from '@/lib/analytics'
 
 export default function StorePage() {
   const [isYearly, setIsYearly] = useState(false)
@@ -141,6 +142,133 @@ export default function StorePage() {
     }
   ]
 
+  // Track page view and conversion events
+  useEffect(() => {
+    trackConversion.pricingViewed()
+  }, [])
+
+  // Add structured data (JSON-LD) for SEO
+  useEffect(() => {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://luwani.com'
+    
+    // Organization schema
+    const organizationSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: 'Luwāni',
+      url: `${baseUrl}/store`,
+      logo: `${baseUrl}/images/logo.png`,
+      description: 'Create beautiful wedding websites with customizable templates, RSVP management, and guest tools.',
+      sameAs: [
+        // Add social media links when available
+      ],
+      contactPoint: {
+        '@type': 'ContactPoint',
+        contactType: 'Customer Service',
+        email: 'hello@luwani.com',
+      },
+    }
+
+    // SoftwareApplication schema (for the product)
+    const softwareSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: 'Luwāni Wedding Website Builder',
+      applicationCategory: 'WebApplication',
+      operatingSystem: 'Web',
+      offers: [
+        {
+          '@type': 'Offer',
+          name: 'Freemium',
+          price: '0',
+          priceCurrency: 'USD',
+        },
+        {
+          '@type': 'Offer',
+          name: 'Standard',
+          price: '29',
+          priceCurrency: 'USD',
+          priceSpecification: {
+            '@type': 'UnitPriceSpecification',
+            price: '29',
+            priceCurrency: 'USD',
+            billingDuration: 'P1M',
+          },
+        },
+        {
+          '@type': 'Offer',
+          name: 'Premium',
+          price: '79',
+          priceCurrency: 'USD',
+          priceSpecification: {
+            '@type': 'UnitPriceSpecification',
+            price: '79',
+            priceCurrency: 'USD',
+            billingDuration: 'P1M',
+          },
+        },
+      ],
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: '5',
+        ratingCount: '3',
+        bestRating: '5',
+        worstRating: '1',
+      },
+    }
+
+    // Review schema for testimonials
+    const reviewSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'Review',
+      itemReviewed: {
+        '@type': 'SoftwareApplication',
+        name: 'Luwāni Wedding Website Builder',
+      },
+      reviewRating: {
+        '@type': 'Rating',
+        ratingValue: '5',
+        bestRating: '5',
+      },
+      author: {
+        '@type': 'Person',
+        name: 'Sarah & James',
+      },
+      reviewBody: testimonials[0].quote,
+    }
+
+    // Create script tags for structured data
+    const scripts = [
+      { id: 'organization-schema', schema: organizationSchema },
+      { id: 'software-schema', schema: softwareSchema },
+      { id: 'review-schema', schema: reviewSchema },
+    ]
+
+    scripts.forEach(({ id, schema }) => {
+      // Remove existing script if present
+      const existing = document.getElementById(id)
+      if (existing) {
+        existing.remove()
+      }
+
+      // Create new script
+      const script = document.createElement('script')
+      script.id = id
+      script.type = 'application/ld+json'
+      script.textContent = JSON.stringify(schema)
+      document.head.appendChild(script)
+    })
+
+    // Cleanup on unmount
+    return () => {
+      scripts.forEach(({ id }) => {
+        const script = document.getElementById(id)
+        if (script) {
+          script.remove()
+        }
+      })
+    }
+  }, [])
 
   return (
     <div className="min-h-screen bg-[#FDFBF6]">
@@ -161,7 +289,7 @@ export default function StorePage() {
               </MotionText>
               <MotionFadeIn delay={0.6} direction="up">
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center md:justify-start">
-                <Link href="/store/signup" className="w-full sm:w-auto">
+                <Link href="/store/signup" className="w-full sm:w-auto" onClick={() => trackConversion.signupStarted()}>
                   <Button 
                     className="w-full sm:w-auto bg-[#C8A951] text-white text-base sm:text-lg px-8 sm:px-10 py-5 sm:py-6 rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
                     radius="lg"
@@ -244,7 +372,7 @@ export default function StorePage() {
                           View Template
                         </Button>
                       </Link>
-                      <Link href="/store/signup">
+                      <Link href="/store/signup" onClick={() => trackConversion.signupStarted()}>
                         <Button
                           className="bg-[#C8A951] text-white rounded-xl font-semibold hover:bg-[#B38D39] transition-colors"
                           size="md"
@@ -424,7 +552,7 @@ export default function StorePage() {
                     <h3 className="text-xl sm:text-2xl font-serif font-bold text-[#1E1E1E] mb-3">{template.name}</h3>
                     <p className="text-[#1E1E1E]/70 mb-5 text-sm sm:text-base leading-relaxed">{template.description}</p>
                       <div className="flex flex-wrap gap-3">
-                        <Link href={`/store/templates/${template.name.toLowerCase()}`}>
+                        <Link href={`/store/templates/${template.name.toLowerCase()}`} onClick={() => trackConversion.templateViewed(template.name)}>
                           <Button
                             variant="bordered"
                             className="border-2 border-[#1E1E1E] text-[#1E1E1E] rounded-xl font-semibold hover:bg-[#1E1E1E] hover:text-white transition-colors"
@@ -433,7 +561,7 @@ export default function StorePage() {
                             View Demo
                           </Button>
                         </Link>
-                        <Link href="/store/signup">
+                        <Link href="/store/signup" onClick={() => trackConversion.templateSelected(template.name)}>
                           <Button
                             className="bg-[#B6C2A7] text-white rounded-xl font-semibold hover:bg-[#9CA988] transition-colors"
                             size="sm"
@@ -619,7 +747,12 @@ export default function StorePage() {
 
                         {/* CTA Button */}
                         <div className="mt-auto pt-4">
-                          <Link href={plan.name === 'One-Time' ? '/store/contact' : '/store/signup'} className="block">
+                          <Link href={plan.name === 'One-Time' ? '/store/contact' : '/store/signup'} className="block" onClick={() => {
+                          if (plan.name !== 'One-Time') {
+                            trackConversion.signupStarted()
+                            trackConversion.pricingViewed(plan.name)
+                          }
+                        }}>
                             <Button
                               className={`w-full font-semibold rounded-2xl transition-all duration-300 ${
                                 plan.popular 
@@ -721,7 +854,7 @@ export default function StorePage() {
             </p>
           </MotionText>
           <MotionFadeIn delay={0.7} direction="up">
-            <Link href="/store/signup" className="inline-block">
+            <Link href="/store/signup" className="inline-block" onClick={() => trackConversion.signupStarted()}>
             <Button 
               className="bg-white text-[#C8A951] text-base sm:text-lg px-8 sm:px-10 py-5 sm:py-7 rounded-2xl font-semibold shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-110 w-full sm:w-auto"
               radius="lg"

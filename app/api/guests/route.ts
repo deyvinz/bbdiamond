@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const weddingId = getWeddingIdFromBody(body) || await requireWeddingId(request)
     
-    const guest = await createGuest(body, undefined, weddingId)
+    const guest = await createGuest(body, weddingId)
     return NextResponse.json(guest)
   } catch (error) {
     console.error('Error creating guest:', error)

@@ -113,6 +113,7 @@ export const eventSchema = z.object({
   venue: z.string().min(1, 'Venue is required').max(200, 'Venue name too long'),
   address: z.string().optional().or(z.literal('')),
   starts_at: z.string().min(1, 'Start date and time is required'),
+  icon: z.string().optional(),
 })
 
 export const createEventSchema = eventSchema
@@ -127,6 +128,14 @@ export const updateConfigSchema = z.object({
   rsvp_enabled: z.boolean().optional(),
   rsvp_cutoff_date: z.string().optional(),
   rsvp_cutoff_timezone: z.string().optional(),
+  access_code_enabled: z.boolean().optional(),
+  access_code_required_seating: z.boolean().optional(),
+  access_code_required_schedule: z.boolean().optional(),
+  access_code_required_event_details: z.boolean().optional(),
+  food_choices_enabled: z.boolean().optional(),
+  food_choices_required: z.boolean().optional(),
+  dress_code_message: z.string().optional(),
+  age_restriction_message: z.string().optional(),
 })
 
 // RSVP schemas
@@ -137,6 +146,9 @@ export const rsvpSchema = z.object({
   }),
   email: z.string().email('Invalid email address').max(100, 'Email too long').optional(),
   goodwill_message: z.string().max(500, 'Goodwill message too long').optional(),
+  dietary_restrictions: z.string().max(500, 'Dietary restrictions too long').optional(),
+  dietary_information: z.string().max(500, 'Dietary information too long').optional(),
+  food_choice: z.string().max(100, 'Food choice too long').optional(),
 })
 
 export const rsvpConfirmationEmailSchema = z.object({

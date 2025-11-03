@@ -3,7 +3,7 @@ import { supabaseService } from './supabase-service'
 import { logAdminAction } from './audit'
 import type { AppConfig, ConfigValue, ConfigUpdate } from './types/config'
 import { DEFAULT_CONFIG } from './types/config'
-import { getWeddingId } from './wedding-context'
+import { getWeddingId } from './wedding-context-server'
 
 export async function getAppConfig(weddingId?: string): Promise<ConfigValue> {
   // Get wedding ID if not provided
@@ -50,6 +50,14 @@ export async function getAppConfig(weddingId?: string): Promise<ConfigValue> {
     rsvp_enabled: configMap.rsvp_enabled === undefined ? true : configMap.rsvp_enabled === 'true',
     rsvp_cutoff_date: configMap.rsvp_cutoff_date && configMap.rsvp_cutoff_date !== 'undefined' ? configMap.rsvp_cutoff_date : undefined,
     rsvp_cutoff_timezone: configMap.rsvp_cutoff_timezone || 'America/New_York',
+    access_code_enabled: configMap.access_code_enabled === undefined ? true : configMap.access_code_enabled === 'true',
+    access_code_required_seating: configMap.access_code_required_seating === undefined ? true : configMap.access_code_required_seating === 'true',
+    access_code_required_schedule: configMap.access_code_required_schedule === undefined ? true : configMap.access_code_required_schedule === 'true',
+    access_code_required_event_details: configMap.access_code_required_event_details === undefined ? true : configMap.access_code_required_event_details === 'true',
+    food_choices_enabled: configMap.food_choices_enabled === 'true',
+    food_choices_required: configMap.food_choices_required === 'true',
+    dress_code_message: configMap.dress_code_message && configMap.dress_code_message !== 'undefined' ? configMap.dress_code_message : undefined,
+    age_restriction_message: configMap.age_restriction_message && configMap.age_restriction_message !== 'undefined' ? configMap.age_restriction_message : undefined,
   }
 
   console.log('🔍 [getAppConfig] Parsed config:', parsed)
@@ -70,11 +78,13 @@ export async function updateAppConfig(updates: ConfigUpdate, weddingId?: string)
   const supabase = supabaseService()
   
   // Prepare config updates - handle undefined values properly
+  // Filter out undefined values first (don't process fields that aren't being updated)
   const configUpdates = Object.entries(updates)
+    .filter(([_, value]) => value !== undefined) // Only process fields that are explicitly set
     .map(([key, value]) => {
-      // Convert value to string, handling undefined/null specially
+      // Convert value to string, handling null specially
       let stringValue: string
-      if (value === undefined || value === null) {
+      if (value === null) {
         stringValue = ''
       } else {
         stringValue = String(value)
@@ -92,7 +102,12 @@ export async function updateAppConfig(updates: ConfigUpdate, weddingId?: string)
   // Upsert each config value
   for (const config of configUpdates) {
     // If value is empty and it's an optional field, delete the row
-    if (config.value === '' && (config.key === 'rsvp_cutoff_date' || config.key === 'rsvp_cutoff_timezone')) {
+    if (config.value === '' && (
+      config.key === 'rsvp_cutoff_date' || 
+      config.key === 'rsvp_cutoff_timezone' ||
+      config.key === 'dress_code_message' ||
+      config.key === 'age_restriction_message'
+    )) {
       const { error } = await supabase
         .from('wedding_config')
         .delete()
@@ -161,6 +176,14 @@ async function getFreshAppConfig(weddingId: string): Promise<ConfigValue> {
     rsvp_enabled: configMap.rsvp_enabled === undefined ? true : configMap.rsvp_enabled === 'true',
     rsvp_cutoff_date: configMap.rsvp_cutoff_date && configMap.rsvp_cutoff_date !== 'undefined' ? configMap.rsvp_cutoff_date : undefined,
     rsvp_cutoff_timezone: configMap.rsvp_cutoff_timezone || 'America/New_York',
+    access_code_enabled: configMap.access_code_enabled === undefined ? true : configMap.access_code_enabled === 'true',
+    access_code_required_seating: configMap.access_code_required_seating === undefined ? true : configMap.access_code_required_seating === 'true',
+    access_code_required_schedule: configMap.access_code_required_schedule === undefined ? true : configMap.access_code_required_schedule === 'true',
+    access_code_required_event_details: configMap.access_code_required_event_details === undefined ? true : configMap.access_code_required_event_details === 'true',
+    food_choices_enabled: configMap.food_choices_enabled === 'true',
+    food_choices_required: configMap.food_choices_required === 'true',
+    dress_code_message: configMap.dress_code_message && configMap.dress_code_message !== 'undefined' ? configMap.dress_code_message : undefined,
+    age_restriction_message: configMap.age_restriction_message && configMap.age_restriction_message !== 'undefined' ? configMap.age_restriction_message : undefined,
   }
 }
 
@@ -186,15 +209,17 @@ export async function resetAppConfig(weddingId?: string): Promise<ConfigValue> {
     throw new Error(`Failed to reset configuration: ${deleteError.message}`)
   }
 
-  // Insert default configs
-  const defaultConfigs = Object.entries(DEFAULT_CONFIG).map(([key, value]) => ({
-    wedding_id: resolvedWeddingId,
-    key,
-    value: String(value),
-    description: getConfigDescription(key),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }))
+  // Insert default configs - skip undefined values
+  const defaultConfigs = Object.entries(DEFAULT_CONFIG)
+    .filter(([_, value]) => value !== undefined)
+    .map(([key, value]) => ({
+      wedding_id: resolvedWeddingId,
+      key,
+      value: String(value),
+      description: getConfigDescription(key),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }))
 
   const { error: insertError } = await supabase
     .from('wedding_config')
@@ -223,6 +248,14 @@ function getConfigDescription(key: string): string {
     rsvp_enabled: 'Enable or disable RSVP functionality for all guests',
     rsvp_cutoff_date: 'Date and time when RSVP closes (ISO 8601 format)',
     rsvp_cutoff_timezone: 'Timezone for the RSVP cutoff date (IANA timezone identifier)',
+    access_code_enabled: 'Enable or disable access code requirement globally',
+    access_code_required_seating: 'Require access code to view seating chart',
+    access_code_required_schedule: 'Require access code to view schedule',
+    access_code_required_event_details: 'Require access code to view event details',
+    food_choices_enabled: 'Enable food choice selection during RSVP',
+    food_choices_required: 'Require food choice when accepting invitation',
+    dress_code_message: 'Custom dress code message displayed on the Event Details page',
+    age_restriction_message: 'Custom age restriction message displayed on the Event Details page',
   }
   return descriptions[key] || 'Application configuration setting'
 }

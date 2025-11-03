@@ -1,4 +1,4 @@
-import { getWeddingContext } from '@/lib/wedding-context';
+import { getWeddingContext } from '@/lib/wedding-context-server';
 import { getWeddingTheme, getDefaultTheme } from '@/lib/theme-service';
 import NavClient from './NavClient';
 
@@ -42,15 +42,30 @@ export default async function Nav() {
     );
   }
 
-  // Get logo from theme
+  // Get logo from theme and couple info
   let logoUrl: string | null = null;
   let logoAlt = 'Wedding';
+  let brideName = '';
+  let groomName = '';
+  let coupleDisplayName = '';
   
   if (context?.weddingId) {
     const theme = await getWeddingTheme(context.weddingId) || getDefaultTheme();
     logoUrl = theme.logo_url || null;
-    logoAlt = context.wedding.couple_display_name || 'Wedding';
+    coupleDisplayName = context.wedding.couple_display_name || '';
+    brideName = context.wedding.bride_name || '';
+    groomName = context.wedding.groom_name || '';
+    logoAlt = coupleDisplayName || 'Wedding';
   }
 
-  return <NavClient logoUrl={logoUrl} logoAlt={logoAlt} links={links} />;
+  return (
+    <NavClient 
+      logoUrl={logoUrl} 
+      logoAlt={logoAlt} 
+      links={links}
+      brideName={brideName}
+      groomName={groomName}
+      coupleDisplayName={coupleDisplayName}
+    />
+  );
 }

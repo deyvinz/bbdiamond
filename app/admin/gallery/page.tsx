@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { ArrowLeft, Plus, Edit, Trash2, Image as ImageIcon } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
+import ImageUpload from '@/components/ImageUpload'
 
 interface GalleryImage {
   id: string
@@ -201,14 +202,11 @@ export default function GalleryAdminPage() {
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="url">Image URL *</Label>
-              <Input
-                id="url"
-                type="url"
+              <ImageUpload
                 value={formData.url}
-                onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                placeholder="https://example.com/image.jpg"
-                required
+                onChange={(url) => setFormData({ ...formData, url })}
+                label="Image *"
+                maxSize={5 * 1024 * 1024} // 5MB
               />
             </div>
             <div>

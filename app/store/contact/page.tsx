@@ -9,6 +9,7 @@ import { Card, CardBody, CardHeader } from '@heroui/react'
 import { Mail, Phone, MessageSquare, Send, CheckCircle2 } from 'lucide-react'
 import { MotionText, MotionFadeIn, MotionSection } from '@/components/ui/motion'
 import { useToast } from '@/components/ui/use-toast'
+import { trackConversion } from '@/lib/analytics'
 
 export default function ContactPage() {
   const { toast } = useToast()
@@ -27,13 +28,26 @@ export default function ContactPage() {
     setLoading(true)
 
     try {
-      // TODO: Create API route to handle contact form submission
-      // For now, just show success message
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to send message')
+      }
+      
+      // Track conversion
+      trackConversion.contactFormSubmitted()
       
       toast({
         title: 'Message sent!',
-        description: 'We\'ll get back to you within 24 hours.',
+        description: data.message || 'We\'ll get back to you within 24 hours.',
       })
       
       setSubmitted(true)

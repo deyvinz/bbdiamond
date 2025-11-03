@@ -8,7 +8,7 @@ import {
   type UpdateEventInput
 } from './validators'
 import { logAdminAction } from './audit'
-import { getWeddingId } from './wedding-context'
+import { getWeddingId } from './wedding-context-server'
 
 export interface Event {
   id: string
@@ -16,6 +16,7 @@ export interface Event {
   venue: string
   address?: string
   starts_at: string
+  icon?: string
   created_at: string
   updated_at: string
 }
@@ -28,7 +29,12 @@ export interface EventsListResponse {
 export async function getEventsPage(weddingId?: string): Promise<EventsListResponse> {
   const resolvedWeddingId = weddingId || await getWeddingId()
   if (!resolvedWeddingId) {
-    throw new Error('Wedding ID is required to fetch events')
+    // Return empty events instead of throwing error - allows admin pages to load without wedding context
+    console.warn('No wedding ID found, returning empty events list')
+    return {
+      events: [],
+      total_count: 0
+    }
   }
   
   const cacheKey = eventsListKey()

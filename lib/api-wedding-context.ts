@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { getWeddingId } from './wedding-context'
+import { getWeddingId } from './wedding-context-server'
 
 /**
  * Get wedding ID from API request

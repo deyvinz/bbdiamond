@@ -1,7 +1,7 @@
 import Section from '@/components/Section'
 import { Card, CardBody, Button } from '@heroui/react'
 import { supabaseServer } from '@/lib/supabase-server'
-import { getWeddingId } from '@/lib/wedding-context'
+import { getWeddingId } from '@/lib/wedding-context-server'
 
 export default async function Page(){
   const weddingId = await getWeddingId()

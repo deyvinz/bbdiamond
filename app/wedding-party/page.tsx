@@ -1,9 +1,9 @@
 import Section from '@/components/Section'
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Card, CardBody } from '@heroui/react'
 import { MotionStagger, MotionItem } from '@/components/ui/motion'
 import { supabaseServer } from '@/lib/supabase-server'
-import { getWeddingId } from '@/lib/wedding-context'
+import { getWeddingId } from '@/lib/wedding-context-server'
 
 export default async function Page(){
   const weddingId = await getWeddingId()
@@ -69,18 +69,21 @@ export default async function Page(){
             <Card className="border border-gray-200 shadow-md hover:shadow-lg transition-all duration-200 rounded-2xl group" radius="lg">
               <CardBody className="p-6 flex flex-col items-center text-center">
                 <div className="mb-4 transition-all duration-200 group-hover:scale-105">
-                  <Avatar className="h-40 w-40">
-                    {member.image_url && member.image_url.trim() !== '' ? (
-                      <AvatarImage
+                  {member.image_url && member.image_url.trim() !== '' ? (
+                    <div className="relative h-40 w-40 rounded-full overflow-hidden border-2 border-gold-200 shadow-gold mx-auto">
+                      <img
                         src={member.image_url}
                         alt={member.name}
-                        className="object-cover"
+                        className="w-full h-full object-cover"
                       />
-                    ) : null}
-                    <AvatarFallback className="text-2xl font-semibold bg-[#C8A951]/10 text-[#C8A951]">
-                      {getInitials(member.name)}
-                    </AvatarFallback>
-                  </Avatar>
+                    </div>
+                  ) : (
+                    <Avatar className="h-40 w-40">
+                      <AvatarFallback className="text-2xl font-semibold bg-[#C8A951]/10 text-[#C8A951]">
+                        {getInitials(member.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <h3 className="font-medium text-lg text-[#1E1E1E] group-hover:text-[#C8A951] transition-colors duration-200">

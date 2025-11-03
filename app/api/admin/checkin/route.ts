@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { requireWeddingId } from '@/lib/api-wedding-context'
 
 export async function POST(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const { token, method = 'qr_code', notes } = await request.json()
 
     if (!token) {
@@ -23,12 +25,9 @@ export async function POST(request: NextRequest) {
     console.log('Extracted token:', actualToken)
 
     const supabase = await supabaseServer()
-
-    // Get wedding ID (admin routes should have wedding context)
-    const weddingId = request.headers.get('x-wedding-id') || request.cookies.get('wedding_id')?.value
     
-    // Find invitation by token (without status filter first)
-    let query = supabase
+    // Find invitation by token (scoped to this wedding)
+    const { data: invitation, error: invitationError } = await supabase
       .from('invitations')
       .select(`
         id,
@@ -48,12 +47,8 @@ export async function POST(request: NextRequest) {
         )
       `)
       .eq('token', actualToken)
-    
-    if (weddingId) {
-      query = query.eq('wedding_id', weddingId)
-    }
-    
-    const { data: invitation, error: invitationError } = await query.single()
+      .eq('wedding_id', weddingId)
+      .single()
 
     console.log('Token lookup result:', { actualToken, invitationError, invitation })
 

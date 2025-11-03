@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getWeddingContext } from '@/lib/wedding-context'
+import { getWeddingContext } from '@/lib/wedding-context-server'
 import Link from 'next/link'
 import { Button } from '@heroui/react'
 import Image from 'next/image'
@@ -7,6 +7,7 @@ import { MotionPage, MotionText, MotionFadeIn, MotionSection } from '@/component
 import ProtectedEventDetails from '@/components/ProtectedEventDetails'
 import CountdownTimer from '@/components/CountdownTimer'
 import { getWeddingTheme, getDefaultTheme } from '@/lib/theme-service'
+import { getAppConfig } from '@/lib/config-service'
 import { format } from 'date-fns'
 
 export default async function Home() {
@@ -20,6 +21,7 @@ export default async function Home() {
   // If wedding context exists (custom domain/subdomain), show wedding website
   const { wedding } = context
   const theme = await getWeddingTheme(context.weddingId) || getDefaultTheme()
+  const config = await getAppConfig(context.weddingId)
   
   // Format wedding date
   const weddingDate = new Date(wedding.primary_date)
@@ -29,13 +31,7 @@ export default async function Home() {
   // Get logo URL (fallback to default if not set)
   const logoUrl = theme.logo_url || '/images/logo.png'
   const logoAlt = wedding.couple_display_name
-
-  const handleAccessGranted = (guest: any) => {
-    // This function is called when a guest successfully authenticates
-    // We can add any additional logic here if needed
-    console.log('Guest authenticated:', guest.first_name)
-  }
-
+  
   return (
     <MotionPage>
       {/* Hero */}
@@ -44,7 +40,7 @@ export default async function Home() {
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8 md:gap-12">
             <div className="text-center flex flex-col items-center justify-center">
               <MotionText delay={0.2}>
-                <p className="uppercase tracking-wide text-xs md:text-sm text-black/60">
+                <p className="uppercase tracking-wide text-xs md:text-sm text-black/60 mb-2">
                   You&apos;re invited
                 </p>
               </MotionText>
@@ -81,8 +77,9 @@ export default async function Home() {
                     color="primary" 
                     variant="bordered" 
                     size="lg"
-                    className="w-full sm:w-auto rounded-2xl font-semibold border-2 hover:bg-primary-50 transition-all duration-300 text-sm sm:text-base"
+                    className="w-full sm:w-auto rounded-2xl font-semibold border-2 text-primary bg-transparent hover:bg-primary/10 transition-all duration-300 text-sm sm:text-base !bg-transparent"
                     radius="lg"
+                    style={{ backgroundColor: 'transparent', color: 'var(--color-primary, var(--heroui-primary))' }}
                   >
                     Schedule
                   </Button>
@@ -92,8 +89,9 @@ export default async function Home() {
                     color="primary" 
                     variant="bordered" 
                     size="lg"
-                    className="w-full sm:w-auto rounded-2xl font-semibold border-2 hover:bg-primary-50 transition-all duration-300 text-sm sm:text-base"
+                    className="w-full sm:w-auto rounded-2xl font-semibold border-2 text-primary bg-transparent hover:bg-primary/10 transition-all duration-300 text-sm sm:text-base !bg-transparent"
                     radius="lg"
+                    style={{ backgroundColor: 'transparent', color: 'var(--color-primary, var(--heroui-primary))' }}
                   >
                     Seating
                   </Button>
@@ -104,8 +102,9 @@ export default async function Home() {
                       color="primary" 
                       variant="bordered" 
                       size="lg"
-                      className="w-full sm:w-auto rounded-2xl font-semibold border-2 hover:bg-primary-50 transition-all duration-300 text-sm sm:text-base"
+                      className="w-full sm:w-auto rounded-2xl font-semibold border-2 text-primary bg-transparent hover:bg-primary/10 transition-all duration-300 text-sm sm:text-base !bg-transparent"
                       radius="lg"
+                      style={{ backgroundColor: 'transparent', color: 'var(--color-primary, var(--heroui-primary))' }}
                     >
                       Travel & Hotels
                     </Button>
@@ -129,8 +128,8 @@ export default async function Home() {
         </div>
       </MotionSection>
 
-      {/* Protected Event Details */}
-      <ProtectedEventDetails onAccessGranted={handleAccessGranted} />
+      {/* Event Details - Respects config: public if access_code_enabled is false, requires access code if true */}
+      <ProtectedEventDetails />
     </MotionPage>
   )
 }

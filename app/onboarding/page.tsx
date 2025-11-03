@@ -2,13 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card } from '@/components/ui/card'
+import { Button, Card, CardBody, CardHeader, Input } from '@heroui/react'
 import { supabase } from '@/lib/supabase-browser'
 import { useToast } from '@/components/ui/use-toast'
-import { Calendar, MapPin, Palette, Globe } from 'lucide-react'
+import { Calendar, MapPin, Palette, Globe, Check } from 'lucide-react'
+import { trackConversion } from '@/lib/analytics'
 
 type Step = 'couple' | 'dates' | 'theme' | 'domain' | 'complete'
 
@@ -40,6 +38,8 @@ export default function OnboardingPage() {
     subdomain: '',
     customDomain: ''
   })
+  const [subdomainAvailable, setSubdomainAvailable] = useState<boolean | null>(null)
+  const [checkingSubdomain, setCheckingSubdomain] = useState(false)
 
   useEffect(() => {
     const customerIdParam = searchParams.get('customer_id')
@@ -53,6 +53,81 @@ export default function OnboardingPage() {
     }
   }, [searchParams])
 
+  // Check subdomain availability
+  const checkSubdomainAvailability = async (subdomain: string) => {
+    if (!subdomain || subdomain.length < 3) {
+      setSubdomainAvailable(null)
+      return
+    }
+
+    setCheckingSubdomain(true)
+    try {
+      const response = await fetch(`/api/subdomain/check?subdomain=${encodeURIComponent(subdomain)}`)
+      const data = await response.json()
+      setSubdomainAvailable(data.available)
+      
+      if (!data.available && data.error) {
+        toast({
+          title: 'Subdomain unavailable',
+          description: data.error || 'This subdomain is already taken',
+          variant: 'destructive',
+        })
+      }
+    } catch (error) {
+      console.error('Error checking subdomain:', error)
+      setSubdomainAvailable(null)
+    } finally {
+      setCheckingSubdomain(false)
+    }
+  }
+
+  // Save progress to localStorage
+  useEffect(() => {
+    if (currentStep !== 'complete') {
+      localStorage.setItem('onboarding_progress', JSON.stringify({
+        currentStep,
+        formData,
+        customerId,
+      }))
+    }
+  }, [currentStep, formData, customerId])
+
+  // Load progress from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('onboarding_progress')
+      if (saved) {
+        const { currentStep: savedStep, formData: savedData, customerId: savedCustomerId } = JSON.parse(saved)
+        if (savedStep && savedData) {
+          setFormData(savedData)
+          setCurrentStep(savedStep as Step)
+          if (savedCustomerId) setCustomerId(savedCustomerId)
+        }
+      }
+    } catch (error) {
+      console.error('Error loading onboarding progress:', error)
+    }
+  }, [])
+
+  // Clear saved progress on completion
+  useEffect(() => {
+    if (currentStep === 'complete') {
+      localStorage.removeItem('onboarding_progress')
+    }
+  }, [currentStep])
+
+  // Debounce subdomain check
+  useEffect(() => {
+    if (currentStep === 'domain' && formData.subdomain) {
+      const timer = setTimeout(() => {
+        checkSubdomainAvailability(formData.subdomain)
+      }, 500)
+      return () => clearTimeout(timer)
+    } else {
+      setSubdomainAvailable(null)
+    }
+  }, [formData.subdomain, currentStep])
+
   const handleStepSubmit = async () => {
     if (currentStep === 'couple') {
       // Validate
@@ -60,6 +135,16 @@ export default function OnboardingPage() {
         toast({
           title: 'Missing Information',
           description: 'Please fill in all required fields',
+          variant: 'destructive',
+        })
+        return
+      }
+      // Email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(formData.contactEmail)) {
+        toast({
+          title: 'Invalid Email',
+          description: 'Please enter a valid email address',
           variant: 'destructive',
         })
         return
@@ -75,10 +160,38 @@ export default function OnboardingPage() {
         })
         return
       }
+      // Date validation
+      const selectedDate = new Date(formData.primaryDate)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      if (selectedDate < today) {
+        toast({
+          title: 'Invalid Date',
+          description: 'Wedding date cannot be in the past',
+          variant: 'destructive',
+        })
+        return
+      }
       setCurrentStep('theme')
     } else if (currentStep === 'theme') {
       setCurrentStep('domain')
     } else if (currentStep === 'domain') {
+      // Validate subdomain if provided
+      if (formData.subdomain && subdomainAvailable === false) {
+        toast({
+          title: 'Subdomain unavailable',
+          description: 'Please choose a different subdomain',
+          variant: 'destructive',
+        })
+        return
+      }
+      if (formData.subdomain && subdomainAvailable === null && checkingSubdomain) {
+        toast({
+          title: 'Checking subdomain',
+          description: 'Please wait while we verify subdomain availability',
+        })
+        return
+      }
       await createWedding()
     }
   }
@@ -97,17 +210,31 @@ export default function OnboardingPage() {
     setLoading(true)
 
     try {
-      // Generate slug from couple name
-      const slug = formData.coupleDisplayName
+      // Generate slug from couple name or names
+      const displayName = formData.coupleDisplayName || `${formData.brideName} & ${formData.groomName}`
+      const slug = displayName
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '')
+        .replace(/(^-|-$)/g, '') || 'couple'
+      
+      // Ensure slug is unique by checking if it exists
+      const { data: existingSlug } = await supabase
+        .from('weddings')
+        .select('id')
+        .eq('slug', slug)
+        .maybeSingle()
+      
+      let finalSlug = slug
+      if (existingSlug) {
+        // Append random suffix if slug exists
+        finalSlug = `${slug}-${Math.random().toString(36).substring(2, 7)}`
+      }
 
       // Create wedding
       const { data: wedding, error: weddingError } = await supabase
         .from('weddings')
         .insert({
-          slug,
+          slug: finalSlug,
           bride_name: formData.brideName,
           groom_name: formData.groomName,
           couple_display_name: formData.coupleDisplayName || `${formData.brideName} & ${formData.groomName}`,
@@ -116,8 +243,9 @@ export default function OnboardingPage() {
           venue_name: formData.venueName,
           city: formData.city,
           country: formData.country,
-          subdomain: formData.subdomain || null,
-          custom_domain: formData.customDomain || null,
+          subdomain: formData.subdomain?.toLowerCase().trim() || null,
+          custom_domain: formData.customDomain?.toLowerCase().trim() || null,
+          status: 'active',
         })
         .select()
         .single()
@@ -156,6 +284,9 @@ export default function OnboardingPage() {
         })
 
       if (configError) console.error('Config error:', configError)
+
+      // Track completion
+      trackConversion.onboardingCompleted()
 
       toast({
         title: 'Success!',
@@ -215,8 +346,15 @@ export default function OnboardingPage() {
 
   const currentStepIndex = steps.findIndex(s => s.id === currentStep)
 
+  // Track onboarding step changes
+  useEffect(() => {
+    if (currentStep !== 'complete' && currentStepIndex >= 0) {
+      trackConversion.onboardingStepCompleted(currentStep, currentStepIndex + 1)
+    }
+  }, [currentStep, currentStepIndex])
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-gold-50/30 py-12 px-4">
+    <div className="min-h-screen bg-gradient-to-b from-white to-[#FDFBF6] py-12 px-4">
       <div className="container max-w-2xl mx-auto">
         {/* Progress Steps */}
         <div className="mb-8">
@@ -225,81 +363,99 @@ export default function OnboardingPage() {
               <div key={step.id} className="flex items-center flex-1">
                 <div className="flex flex-col items-center flex-1">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                    className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-all ${
                       idx <= currentStepIndex
-                        ? 'bg-gold-600 text-white'
+                        ? 'bg-[#C8A951] text-white shadow-lg'
                         : 'bg-gray-200 text-gray-500'
                     }`}
                   >
-                    {idx < currentStepIndex ? '✓' : step.icon}
+                    {idx < currentStepIndex ? <Check className="h-5 w-5" /> : step.icon}
                   </div>
-                  <span className="text-xs mt-2 text-center hidden sm:block">{step.label}</span>
+                  <span className="text-xs mt-2 text-center hidden sm:block text-[#1E1E1E]/70">{step.label}</span>
                 </div>
                 {idx < steps.length - 1 && (
                   <div
-                    className={`h-1 flex-1 mx-2 ${
-                      idx < currentStepIndex ? 'bg-gold-600' : 'bg-gray-200'
+                    className={`h-1 flex-1 mx-2 transition-colors ${
+                      idx < currentStepIndex ? 'bg-[#C8A951]' : 'bg-gray-200'
                     }`}
                   />
                 )}
               </div>
             ))}
           </div>
+          <p className="text-center text-sm text-[#1E1E1E]/60 mt-2">
+            Step {currentStepIndex + 1} of {steps.length}
+          </p>
         </div>
 
-        <Card className="p-8">
+        <Card className="shadow-xl rounded-3xl border border-gray-200" radius="lg">
+          <CardBody className="p-8">
           {/* Step 1: Couple Information */}
           {currentStep === 'couple' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-serif font-bold mb-2">Tell Us About You</h2>
-                <p className="text-muted-foreground">Let's start with the basics</p>
+                <h2 className="text-2xl font-serif font-bold mb-2 text-[#1E1E1E]">Tell Us About You</h2>
+                <p className="text-[#1E1E1E]/70">Let's start with the basics</p>
               </div>
 
               <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="brideName">Bride's Name *</Label>
-                  <Input
-                    id="brideName"
-                    value={formData.brideName}
-                    onChange={(e) => setFormData({ ...formData, brideName: e.target.value })}
-                    placeholder="Sarah"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="groomName">Groom's Name *</Label>
-                  <Input
-                    id="groomName"
-                    value={formData.groomName}
-                    onChange={(e) => setFormData({ ...formData, groomName: e.target.value })}
-                    placeholder="John"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="coupleDisplayName">Display Name</Label>
                 <Input
-                  id="coupleDisplayName"
-                  value={formData.coupleDisplayName}
-                  onChange={(e) => setFormData({ ...formData, coupleDisplayName: e.target.value })}
-                  placeholder="John & Sarah (optional)"
+                  label="Bride's Name"
+                  labelPlacement="outside"
+                  placeholder="Sarah"
+                  value={formData.brideName}
+                  onChange={(e) => setFormData({ ...formData, brideName: e.target.value })}
+                  isRequired
+                  radius="lg"
+                  classNames={{
+                    input: "text-base",
+                    label: "text-[#1E1E1E] font-medium",
+                  }}
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Leave blank to use "{formData.brideName || 'Bride'} & {formData.groomName || 'Groom'}"
-                </p>
-              </div>
-
-              <div>
-                <Label htmlFor="contactEmail">Contact Email *</Label>
                 <Input
-                  id="contactEmail"
-                  type="email"
-                  value={formData.contactEmail}
-                  onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
-                  placeholder="you@example.com"
+                  label="Groom's Name"
+                  labelPlacement="outside"
+                  placeholder="John"
+                  value={formData.groomName}
+                  onChange={(e) => setFormData({ ...formData, groomName: e.target.value })}
+                  isRequired
+                  radius="lg"
+                  classNames={{
+                    input: "text-base",
+                    label: "text-[#1E1E1E] font-medium",
+                  }}
                 />
               </div>
+
+              <Input
+                label="Display Name (Optional)"
+                labelPlacement="outside"
+                placeholder="John & Sarah"
+                value={formData.coupleDisplayName}
+                onChange={(e) => setFormData({ ...formData, coupleDisplayName: e.target.value })}
+                description={`Leave blank to use "${formData.brideName || 'Bride'} & ${formData.groomName || 'Groom'}"`}
+                radius="lg"
+                classNames={{
+                  input: "text-base",
+                  label: "text-[#1E1E1E] font-medium",
+                  description: "text-xs text-[#1E1E1E]/60",
+                }}
+              />
+
+              <Input
+                label="Contact Email"
+                labelPlacement="outside"
+                type="email"
+                placeholder="you@example.com"
+                value={formData.contactEmail}
+                onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
+                isRequired
+                radius="lg"
+                classNames={{
+                  input: "text-base",
+                  label: "text-[#1E1E1E] font-medium",
+                }}
+              />
             </div>
           )}
 
@@ -307,50 +463,66 @@ export default function OnboardingPage() {
           {currentStep === 'dates' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-serif font-bold mb-2">When & Where</h2>
-                <p className="text-muted-foreground">Your wedding details</p>
+                <h2 className="text-2xl font-serif font-bold mb-2 text-[#1E1E1E]">When & Where</h2>
+                <p className="text-[#1E1E1E]/70">Your wedding details</p>
               </div>
 
-              <div>
-                <Label htmlFor="primaryDate">Wedding Date *</Label>
-                <Input
-                  id="primaryDate"
-                  type="date"
-                  value={formData.primaryDate}
-                  onChange={(e) => setFormData({ ...formData, primaryDate: e.target.value })}
-                  required
-                />
-              </div>
+              <Input
+                label="Wedding Date"
+                labelPlacement="outside"
+                type="date"
+                value={formData.primaryDate}
+                onChange={(e) => setFormData({ ...formData, primaryDate: e.target.value })}
+                isRequired
+                min={new Date().toISOString().split('T')[0]}
+                radius="lg"
+                classNames={{
+                  input: "text-base",
+                  label: "text-[#1E1E1E] font-medium",
+                }}
+              />
 
-              <div>
-                <Label htmlFor="venueName">Venue Name *</Label>
-                <Input
-                  id="venueName"
-                  value={formData.venueName}
-                  onChange={(e) => setFormData({ ...formData, venueName: e.target.value })}
-                  placeholder="Grand Ballroom"
-                />
-              </div>
+              <Input
+                label="Venue Name"
+                labelPlacement="outside"
+                placeholder="Grand Ballroom"
+                value={formData.venueName}
+                onChange={(e) => setFormData({ ...formData, venueName: e.target.value })}
+                isRequired
+                radius="lg"
+                classNames={{
+                  input: "text-base",
+                  label: "text-[#1E1E1E] font-medium",
+                }}
+              />
 
               <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="city">City *</Label>
-                  <Input
-                    id="city"
-                    value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    placeholder="Lagos"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="country">Country *</Label>
-                  <Input
-                    id="country"
-                    value={formData.country}
-                    onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                    placeholder="Nigeria"
-                  />
-                </div>
+                <Input
+                  label="City"
+                  labelPlacement="outside"
+                  placeholder="Lagos"
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  isRequired
+                  radius="lg"
+                  classNames={{
+                    input: "text-base",
+                    label: "text-[#1E1E1E] font-medium",
+                  }}
+                />
+                <Input
+                  label="Country"
+                  labelPlacement="outside"
+                  placeholder="Nigeria"
+                  value={formData.country}
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                  isRequired
+                  radius="lg"
+                  classNames={{
+                    input: "text-base",
+                    label: "text-[#1E1E1E] font-medium",
+                  }}
+                />
               </div>
             </div>
           )}
@@ -359,8 +531,8 @@ export default function OnboardingPage() {
           {currentStep === 'theme' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-serif font-bold mb-2">Choose Your Style</h2>
-                <p className="text-muted-foreground">You can customize this later</p>
+                <h2 className="text-2xl font-serif font-bold mb-2 text-[#1E1E1E]">Choose Your Style</h2>
+                <p className="text-[#1E1E1E]/70">You can customize this later</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -374,17 +546,17 @@ export default function OnboardingPage() {
                     key={theme.id}
                     type="button"
                     onClick={() => setFormData({ ...formData, theme: theme.id })}
-                    className={`p-6 border-2 rounded-lg text-center transition-all ${
+                    className={`p-6 border-2 rounded-xl text-center transition-all ${
                       formData.theme === theme.id
-                        ? 'border-gold-600 bg-gold-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? 'border-[#C8A951] bg-[#C8A951]/10 shadow-lg'
+                        : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
                     }`}
                   >
                     <div
-                      className="w-16 h-16 rounded-full mx-auto mb-3"
+                      className="w-16 h-16 rounded-full mx-auto mb-3 shadow-md"
                       style={{ backgroundColor: theme.color }}
                     />
-                    <div className="font-semibold">{theme.name}</div>
+                    <div className="font-semibold text-[#1E1E1E]">{theme.name}</div>
                   </button>
                 ))}
               </div>
@@ -395,38 +567,62 @@ export default function OnboardingPage() {
           {currentStep === 'domain' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-serif font-bold mb-2">Your Website Address</h2>
-                <p className="text-muted-foreground">Choose how guests will find you</p>
+                <h2 className="text-2xl font-serif font-bold mb-2 text-[#1E1E1E]">Your Website Address</h2>
+                <p className="text-[#1E1E1E]/70">Choose how guests will find you</p>
               </div>
 
               <div>
-                <Label htmlFor="subdomain">Subdomain (Free)</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="subdomain"
-                    value={formData.subdomain}
-                    onChange={(e) => setFormData({ ...formData, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
-                    placeholder="john-sarah"
-                  />
-                  <span className="text-muted-foreground">.weddingplatform.com</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Example: john-sarah.weddingplatform.com
-                </p>
+                <Input
+                  label="Subdomain (Free)"
+                  labelPlacement="outside"
+                  value={formData.subdomain}
+                  onChange={(e) => setFormData({ ...formData, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+                  placeholder="john-sarah"
+                  description="Example: john-sarah.weddingplatform.com"
+                  radius="lg"
+                  endContent={
+                    <span className="text-[#1E1E1E]/50 text-sm pr-2">.weddingplatform.com</span>
+                  }
+                  errorMessage={
+                    subdomainAvailable === false 
+                      ? 'This subdomain is already taken. Please choose another.'
+                      : undefined
+                  }
+                  color={subdomainAvailable === false ? 'danger' : subdomainAvailable === true ? 'success' : 'default'}
+                  isInvalid={subdomainAvailable === false}
+                  classNames={{
+                    input: "text-base",
+                    label: "text-[#1E1E1E] font-medium",
+                    description: "text-xs text-[#1E1E1E]/60",
+                  }}
+                />
+                {checkingSubdomain && (
+                  <p className="text-xs text-[#1E1E1E]/60 mt-1">Checking availability...</p>
+                )}
+                {subdomainAvailable === true && formData.subdomain && (
+                  <div className="flex items-center gap-2 mt-2 text-sm text-green-600">
+                    <Check className="h-4 w-4" />
+                    <span>Subdomain is available!</span>
+                  </div>
+                )}
               </div>
 
-              <div className="border-t pt-6">
-                <Label htmlFor="customDomain">Custom Domain (Premium)</Label>
+              <div className="border-t border-gray-200 pt-6">
                 <Input
-                  id="customDomain"
+                  label="Custom Domain (Premium)"
+                  labelPlacement="outside"
                   value={formData.customDomain}
                   onChange={(e) => setFormData({ ...formData, customDomain: e.target.value })}
                   placeholder="johnandsarah.com"
-                  disabled
+                  description="Available on Premium and Enterprise plans"
+                  isDisabled
+                  radius="lg"
+                  classNames={{
+                    input: "text-base",
+                    label: "text-[#1E1E1E] font-medium",
+                    description: "text-xs text-[#1E1E1E]/60",
+                  }}
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Available on Premium and Enterprise plans
-                </p>
               </div>
             </div>
           )}
@@ -435,8 +631,11 @@ export default function OnboardingPage() {
           {currentStep === 'complete' && (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">🎉</div>
-              <h2 className="text-2xl font-serif font-bold mb-2">You're All Set!</h2>
-              <p className="text-muted-foreground">
+              <h2 className="text-2xl font-serif font-bold mb-2 text-[#1E1E1E]">You're All Set!</h2>
+              <p className="text-[#1E1E1E]/70 mb-6">
+                Your wedding website has been created successfully!
+              </p>
+              <p className="text-sm text-[#1E1E1E]/60">
                 Redirecting to your admin dashboard...
               </p>
             </div>
@@ -444,27 +643,33 @@ export default function OnboardingPage() {
 
           {/* Navigation Buttons */}
           {currentStep !== 'complete' && (
-            <div className="flex justify-between mt-8">
+            <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
               <Button
                 type="button"
-                variant="outline"
+                variant="bordered"
                 onClick={() => {
                   const prevStep = steps[currentStepIndex - 1]
                   if (prevStep) setCurrentStep(prevStep.id as Step)
                 }}
-                disabled={currentStepIndex === 0}
+                isDisabled={currentStepIndex === 0}
+                radius="lg"
+                className="border-2 border-[#1E1E1E] text-[#1E1E1E] font-semibold"
               >
                 Previous
               </Button>
               <Button
                 type="button"
                 onClick={handleStepSubmit}
-                disabled={loading}
+                isLoading={loading}
+                className="bg-[#C8A951] text-white font-semibold shadow-lg hover:shadow-xl transition-all"
+                radius="lg"
+                size="lg"
               >
                 {loading ? 'Creating...' : currentStep === 'domain' ? 'Create Website' : 'Next'}
               </Button>
             </div>
           )}
+          </CardBody>
         </Card>
       </div>
     </div>

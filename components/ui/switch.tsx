@@ -11,7 +11,9 @@ const Switch = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SwitchPrimitives.Root
     className={cn(
-      "peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input",
+      "peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 transition-all duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50",
+      "data-[state=checked]:!bg-white data-[state=checked]:!border-gray-300 data-[state=checked]:hover:!bg-gray-50 data-[state=checked]:shadow-sm",
+      "data-[state=unchecked]:bg-gray-200 data-[state=unchecked]:border-transparent data-[state=unchecked]:hover:bg-gray-300",
       className
     )}
     {...props}
@@ -19,7 +21,10 @@ const Switch = React.forwardRef<
   >
     <SwitchPrimitives.Thumb
       className={cn(
-        "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0"
+        "pointer-events-none block h-5 w-5 rounded-full shadow-md ring-0 transition-all duration-200 ease-in-out",
+        "data-[state=checked]:translate-x-5 data-[state=checked]:bg-emerald-500 data-[state=checked]:shadow-lg",
+        "data-[state=unchecked]:translate-x-0.5 data-[state=unchecked]:bg-white",
+        "hover:shadow-lg"
       )}
     />
   </SwitchPrimitives.Root>

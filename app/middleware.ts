@@ -3,6 +3,8 @@ import { createServerClient } from '@supabase/ssr'
 
 const DEPLOYMENT_MODE = process.env.DEPLOYMENT_MODE || 'saas'
 const DEFAULT_WEDDING_ID = process.env.DEFAULT_WEDDING_ID
+const ENABLE_LOCALHOST_TESTING = process.env.ENABLE_LOCALHOST_TESTING !== 'false' // Default to true
+const IS_DEVELOPMENT = process.env.NODE_ENV === 'development'
 
 export const config = {
   matcher: [
@@ -17,9 +19,11 @@ export async function middleware(req: Request) {
   // Always set pathname header for layout to use
   res.headers.set('x-pathname', url.pathname)
 
-  // Skip middleware for static files, storefront, and admin routes that don't need wedding context
+  // Skip middleware for static files, Next.js internals, storefront, and admin routes
+  // Also skip RSC (React Server Component) prefetch requests to prevent blocking
   if (
     url.pathname.startsWith('/_next') ||
+    url.searchParams.has('__rsc') || // RSC prefetch requests
     url.pathname.startsWith('/api/health') ||
     url.pathname.startsWith('/store') ||
     url.pathname.startsWith('/dashboard') ||
@@ -33,13 +37,37 @@ export async function middleware(req: Request) {
   // Resolve wedding ID
   let weddingId: string | null = null
 
+  // Development/testing: Check query parameters first (dev only)
+  if ((IS_DEVELOPMENT || ENABLE_LOCALHOST_TESTING) && DEPLOYMENT_MODE === 'saas') {
+    const weddingIdParam = url.searchParams.get('weddingId')
+    const subdomainParam = url.searchParams.get('subdomain')
+    
+    if (weddingIdParam) {
+      weddingId = weddingIdParam
+    } else if (subdomainParam) {
+      // Lookup wedding by subdomain
+      weddingId = await lookupWeddingBySubdomain(subdomainParam)
+    }
+  }
+
   // Self-hosted mode: use default wedding ID
-  if (DEPLOYMENT_MODE === 'self-hosted' && DEFAULT_WEDDING_ID) {
+  if (!weddingId && DEPLOYMENT_MODE === 'self-hosted' && DEFAULT_WEDDING_ID) {
     weddingId = DEFAULT_WEDDING_ID
-  } else if (DEPLOYMENT_MODE === 'saas') {
+  } else if (!weddingId && DEPLOYMENT_MODE === 'saas') {
     // SaaS mode: resolve from domain
-    const hostname = url.hostname
-    weddingId = await resolveWeddingFromDomain(hostname, url.pathname)
+    // Wrap in try-catch with timeout protection to prevent blocking RSC prefetch requests
+    try {
+      const hostname = url.hostname
+      // Use Promise.race with timeout to prevent hanging on slow DB lookups
+      const lookupPromise = resolveWeddingFromDomain(hostname, url.pathname)
+      const timeoutPromise = new Promise<string | null>((resolve) => {
+        setTimeout(() => resolve(null), 2000) // 2 second timeout
+      })
+      weddingId = await Promise.race([lookupPromise, timeoutPromise])
+    } catch (error) {
+      console.error('Error resolving wedding ID in middleware:', error)
+      // Continue without wedding ID rather than blocking the request
+    }
   }
 
   // Set wedding ID in headers for downstream use
@@ -170,16 +198,89 @@ async function resolveWeddingFromDomain(
 }
 
 /**
+ * Lookup wedding by subdomain (helper for query param support)
+ */
+async function lookupWeddingBySubdomain(subdomain: string): Promise<string | null> {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return null
+    }
+
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        get() {
+          return undefined
+        },
+        set() {},
+        remove() {},
+      },
+    })
+
+    const { data: wedding } = await supabase
+      .from('weddings')
+      .select('id')
+      .eq('subdomain', subdomain.toLowerCase())
+      .single()
+
+    return wedding?.id || null
+  } catch (error) {
+    console.error('Error looking up wedding by subdomain:', error)
+    return null
+  }
+}
+
+/**
  * Extract subdomain from hostname
+ * Supports:
+ * - Production: "couple.weddingplatform.com" -> "couple"
+ * - Localhost: "couple.localhost" -> "couple"
+ * - lvh.me: "couple.lvh.me" -> "couple" (better cross-browser support)
+ * - Hosts file: "couple.weddingplatform.com" (mapped to 127.0.0.1) -> "couple"
  */
 function extractSubdomain(hostname: string): string | null {
-  // Don't extract subdomain for localhost or IP addresses
-  if (hostname === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+  // Remove port if present
+  const domain = hostname.split(':')[0]
+
+  // Check for localhost patterns (development only)
+  if (IS_DEVELOPMENT || ENABLE_LOCALHOST_TESTING) {
+    // Support subdomain.localhost pattern (e.g., "john-sarah.localhost:3000")
+    if (domain.endsWith('.localhost')) {
+      const parts = domain.split('.')
+      if (parts.length >= 2 && parts[parts.length - 1] === 'localhost') {
+        return parts[0]
+      }
+    }
+
+    // Support subdomain.lvh.me pattern (lvh.me resolves to 127.0.0.1)
+    // Better cross-browser support than .localhost
+    if (domain.endsWith('.lvh.me')) {
+      const parts = domain.split('.')
+      if (parts.length >= 3 && parts[parts.length - 2] === 'lvh' && parts[parts.length - 1] === 'me') {
+        return parts[0]
+      }
+    }
+
+    // For hosts file mappings, we can still extract subdomain normally
+    // if it's a valid domain pattern (3+ parts)
+    // This allows testing with "couple.weddingplatform.com" mapped to 127.0.0.1
+    const parts = domain.split('.')
+    if (parts.length >= 3 && domain !== 'localhost') {
+      return parts[0]
+    }
+  }
+
+  // Production: Don't extract subdomain for bare localhost or IP addresses
+  if (domain === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(domain)) {
     return null
   }
 
-  const parts = hostname.split('.')
+  // Production: Extract subdomain for standard domain patterns
+  const parts = domain.split('.')
   // If we have 3+ parts, the first is the subdomain
+  // e.g., "couple.weddingplatform.com" -> ["couple", "weddingplatform", "com"]
   if (parts.length >= 3) {
     return parts[0]
   }

@@ -15,7 +15,7 @@ import {
 } from './validators'
 import { logAdminAction } from './audit'
 import { getAppConfig } from './config-service'
-import { getWeddingId } from './wedding-context'
+import { getWeddingId } from './wedding-context-server'
 
 export interface InvitationEvent {
   id: string
@@ -23,6 +23,9 @@ export interface InvitationEvent {
   status: 'pending' | 'accepted' | 'declined' | 'waitlist'
   headcount: number
   event_token: string
+  dietary_restrictions?: string
+  dietary_information?: string
+  food_choice?: string
   created_at: string
   updated_at: string
   event: {
@@ -130,6 +133,9 @@ export async function getInvitationsPage(
         status,
         headcount,
         event_token,
+        dietary_restrictions,
+        dietary_information,
+        food_choice,
         created_at,
         updated_at,
         event:events(

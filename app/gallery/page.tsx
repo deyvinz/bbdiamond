@@ -2,7 +2,7 @@ import Section from '@/components/Section'
 import { supabaseServer } from "@/lib/supabase-server";
 import Image from 'next/image';
 import { Card, CardBody } from '@heroui/react';
-import { getWeddingId } from '@/lib/wedding-context';
+import { getWeddingId } from '@/lib/wedding-context-server';
 
 export default async function Page(){
   const weddingId = await getWeddingId()
@@ -32,7 +32,7 @@ export default async function Page(){
 
   // If there's an error or no data, show a message
   if (error) {
-    console.error('Error fetching gallery images:', error)
+    console.error('Error fetching gallery images:', error.message || error)
   }
 
   const imgs: { image_url: string; caption: string; display_order?: number }[] = data ?? []

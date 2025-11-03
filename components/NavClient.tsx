@@ -3,6 +3,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Button as HeroUIButton } from '@heroui/react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { supabase } from '@/lib/supabase-browser';
 import { useEffect, useState } from 'react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -11,10 +13,39 @@ interface NavClientProps {
   logoUrl?: string | null;
   logoAlt?: string;
   links: Array<[string, string]>;
+  brideName?: string;
+  groomName?: string;
+  coupleDisplayName?: string;
 }
 
-export default function NavClient({ logoUrl, logoAlt = 'Wedding', links }: NavClientProps) {
+export default function NavClient({ 
+  logoUrl, 
+  logoAlt = 'Wedding', 
+  links,
+  brideName = '',
+  groomName = '',
+  coupleDisplayName = ''
+}: NavClientProps) {
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // Get initials from bride and groom names with love emoticon
+  const getInitials = () => {
+    if (brideName && groomName) {
+      const brideInitial = brideName.charAt(0).toUpperCase();
+      const groomInitial = groomName.charAt(0).toUpperCase();
+      return `${brideInitial} ❤️ ${groomInitial}`;
+    }
+    if (coupleDisplayName) {
+      const parts = coupleDisplayName.split(/\s+/);
+      if (parts.length >= 2) {
+        const firstInitial = parts[0].charAt(0).toUpperCase();
+        const lastInitial = parts[parts.length - 1].charAt(0).toUpperCase();
+        return `${firstInitial} ❤️ ${lastInitial}`;
+      }
+      return coupleDisplayName.substring(0, 2).toUpperCase();
+    }
+    return 'W';
+  };
 
   useEffect(() => {
     const run = async () => {
@@ -42,15 +73,17 @@ export default function NavClient({ logoUrl, logoAlt = 'Wedding', links }: NavCl
           {logoUrl ? (
             <Image
               src={logoUrl}
-              className="rounded-full"
+              className="rounded-full object-cover"
               alt={logoAlt}
-              width={40}
-              height={40}
+              width={48}
+              height={48}
             />
           ) : (
-            <div className="w-10 h-10 rounded-full bg-gold-200 flex items-center justify-center text-gold-800 font-bold">
-              W
-            </div>
+            <Avatar className="h-12 w-12">
+              <AvatarFallback className="text-xs font-semibold bg-gold-100 text-gold-700 border-2 border-gold-200/30 flex items-center justify-center whitespace-nowrap overflow-hidden">
+                {getInitials()}
+              </AvatarFallback>
+            </Avatar>
           )}
         </Link>
         <div className="hidden md:flex gap-6">
@@ -72,9 +105,9 @@ export default function NavClient({ logoUrl, logoAlt = 'Wedding', links }: NavCl
             </Link>
           )}
           <Link href="/rsvp">
-            <Button variant="gold" size="sm">
+            <HeroUIButton color="primary" size="sm" radius="md">
               RSVP
-            </Button>
+            </HeroUIButton>
           </Link>
         </div>
         <SidebarTrigger className="md:hidden">

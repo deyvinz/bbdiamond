@@ -32,8 +32,15 @@ export default function EventsClient({ initialEvents }: EventsClientProps) {
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to create event')
+        let errorMessage = 'Failed to create event'
+        try {
+          const error = await response.json()
+          errorMessage = error.error || error.message || errorMessage
+        } catch (parseError) {
+          // If response is not valid JSON, use status text
+          errorMessage = response.statusText || `HTTP ${response.status}`
+        }
+        throw new Error(errorMessage)
       }
 
       const newEvent = await response.json()
@@ -70,8 +77,26 @@ export default function EventsClient({ initialEvents }: EventsClientProps) {
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to update event')
+        let errorMessage = 'Failed to update event'
+        const contentType = response.headers.get('content-type')
+        
+        if (contentType?.includes('application/json')) {
+          try {
+            const error = await response.json()
+            errorMessage = error.error || error.message || errorMessage
+          } catch (parseError) {
+            // If JSON parsing fails, use status text
+            errorMessage = response.statusText || `HTTP ${response.status}`
+          }
+        } else {
+          // Response is not JSON (likely HTML 404 page)
+          if (response.status === 404) {
+            errorMessage = 'Event not found or route not available'
+          } else {
+            errorMessage = response.statusText || `HTTP ${response.status}`
+          }
+        }
+        throw new Error(errorMessage)
       }
 
       const updatedEvent = await response.json()
@@ -111,8 +136,15 @@ export default function EventsClient({ initialEvents }: EventsClientProps) {
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to delete event')
+        let errorMessage = 'Failed to delete event'
+        try {
+          const error = await response.json()
+          errorMessage = error.error || error.message || errorMessage
+        } catch (parseError) {
+          // If response is not valid JSON, use status text
+          errorMessage = response.statusText || `HTTP ${response.status}`
+        }
+        throw new Error(errorMessage)
       }
 
       setEvents(prev => prev.filter(event => event.id !== eventId))

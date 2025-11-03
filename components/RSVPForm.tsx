@@ -28,6 +28,9 @@ type FormValues = {
   response: 'accepted' | 'declined'
   email?: string
   goodwill_message?: string
+  dietary_restrictions?: string
+  dietary_information?: string
+  food_choice?: string
 }
 
 interface RsvpResult {
@@ -64,6 +67,8 @@ export default function RSVPForm(){
   const [invitationData, setInvitationData] = useState<InvitationData | null>(null)
   const [currentRsvpStatus, setCurrentRsvpStatus] = useState<RSVPStatus | null>(null)
   const [weddingInfo, setWeddingInfo] = useState<{ contact_email?: string } | null>(null)
+  const [foodChoices, setFoodChoices] = useState<Array<{ id: string; name: string; description?: string }>>([])
+  const [customFoodChoice, setCustomFoodChoice] = useState('')
 
   const response = watch('response')
   const inviteCode = watch('invite_code')
@@ -72,7 +77,20 @@ export default function RSVPForm(){
     // Fetch configuration
     fetch('/api/config')
       .then(res => res.json())
-      .then(data => setConfig(data))
+      .then(data => {
+        setConfig(data)
+        // Fetch food choices if enabled
+        if (data.food_choices_enabled) {
+          fetch('/api/admin/food-choices')
+            .then(res => res.json())
+            .then(choicesData => {
+              if (choicesData.success && choicesData.food_choices) {
+                setFoodChoices(choicesData.food_choices)
+              }
+            })
+            .catch(err => console.error('Failed to load food choices:', err))
+        }
+      })
       .catch(err => console.error('Failed to load config:', err))
     
     // Fetch wedding info for contact email
@@ -168,7 +186,17 @@ export default function RSVPForm(){
     formData.append('response', v.response)
     if (v.email) formData.append('email', v.email)
     if (v.goodwill_message) formData.append('goodwill_message', v.goodwill_message)
-
+    if (v.dietary_restrictions) formData.append('dietary_restrictions', v.dietary_restrictions)
+    if (v.dietary_information) formData.append('dietary_information', v.dietary_information)
+    // Handle food choice
+    if (v.food_choice) {
+      if (v.food_choice === '__custom__' && customFoodChoice) {
+        formData.append('food_choice', customFoodChoice)
+      } else if (v.food_choice !== '__custom__') {
+        formData.append('food_choice', v.food_choice)
+      }
+    }
+    
     const actionResult = await submitRsvpAction(formData)
     setResult(actionResult)
     
@@ -762,6 +790,125 @@ export default function RSVPForm(){
                 <p className="text-sm text-red-600">{errors.email.message}</p>
               )}
             </div>
+
+            {/* Dietary Requirements & Food Choices (only shown when accepted) */}
+            {response === 'accepted' && config?.food_choices_enabled && (
+              <>
+                {/* Food Choice */}
+                <div className="space-y-2">
+                  <Label htmlFor="food_choice">
+                    Meal Selection
+                    {config.food_choices_required && <span className="text-red-500 ml-1">*</span>}
+                  </Label>
+                  {foodChoices.length > 0 ? (
+                    <Select 
+                      value={watch('food_choice') === '__custom__' ? '__custom__' : (watch('food_choice') || '')}
+                      onValueChange={(value) => {
+                        if (value === '__custom__') {
+                          setValue('food_choice', '__custom__', { shouldValidate: false })
+                          setCustomFoodChoice('')
+                        } else {
+                          setValue('food_choice', value, { shouldValidate: true })
+                          setCustomFoodChoice('')
+                        }
+                      }}
+                    >
+                      <SelectTrigger 
+                        id="food_choice" 
+                        className={errors.food_choice ? 'border-red-500 rounded-xl' : 'rounded-xl'}
+                      >
+                        <SelectValue placeholder="Select your meal preference" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {foodChoices.map((choice) => (
+                          <SelectItem key={choice.id} value={choice.name}>
+                            {choice.name}
+                            {choice.description && ` - ${choice.description}`}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="__custom__">Other (specify)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input 
+                      id="food_choice"
+                      type="text"
+                      placeholder="Enter your meal preference"
+                      className={errors.food_choice ? 'border-red-500 rounded-xl' : 'rounded-xl'}
+                      {...register('food_choice', {
+                        required: config.food_choices_required ? 'Please select or enter your meal preference' : false
+                      })}
+                    />
+                  )}
+                  {watch('food_choice') === '__custom__' && (
+                    <Input 
+                      id="food_choice_custom"
+                      type="text"
+                      placeholder="Specify your meal preference"
+                      className={errors.food_choice ? 'border-red-500 rounded-xl' : 'rounded-xl'}
+                      value={customFoodChoice}
+                      onChange={(e) => {
+                        setCustomFoodChoice(e.target.value)
+                        setValue('food_choice', e.target.value, { shouldValidate: true })
+                      }}
+                    />
+                  )}
+                  <input
+                    type="hidden"
+                    {...register('food_choice', {
+                      required: config.food_choices_required ? 'Please select or enter your meal preference' : false
+                    })}
+                  />
+                  {errors.food_choice && (
+                    <p className="text-sm text-red-600">{errors.food_choice.message}</p>
+                  )}
+                  {foodChoices.length > 0 && (
+                    <p className="text-xs text-gray-500">Select a meal option from the list</p>
+                  )}
+                </div>
+
+                {/* Dietary Restrictions */}
+                <div className="space-y-2">
+                  <Label htmlFor="dietary_restrictions">Dietary Restrictions or Allergies</Label>
+                  <Textarea 
+                    id="dietary_restrictions"
+                    rows={3}
+                    placeholder="e.g., Nut allergy, Vegetarian, Gluten-free..."
+                    className={errors.dietary_restrictions ? 'border-red-500 rounded-xl resize-none' : 'rounded-xl resize-none'}
+                    {...register('dietary_restrictions', {
+                      maxLength: {
+                        value: 500,
+                        message: 'Dietary restrictions must be less than 500 characters'
+                      }
+                    })}
+                  />
+                  {errors.dietary_restrictions && (
+                    <p className="text-sm text-red-600">{errors.dietary_restrictions.message}</p>
+                  )}
+                  <p className="text-xs text-gray-500">Please let us know about any allergies or dietary restrictions</p>
+                </div>
+
+                {/* Additional Dietary Information */}
+                <div className="space-y-2">
+                  <Label htmlFor="dietary_information">Additional Dietary Information (Optional)</Label>
+                  <Textarea 
+                    id="dietary_information"
+                    rows={2}
+                    placeholder="Any additional information about your dietary needs..."
+                    className={errors.dietary_information ? 'border-red-500 rounded-xl resize-none' : 'rounded-xl resize-none'}
+                    {...register('dietary_information', {
+                      maxLength: {
+                        value: 500,
+                        message: 'Dietary information must be less than 500 characters'
+                      }
+                    })}
+                  />
+                  {errors.dietary_information && (
+                    <p className="text-sm text-red-600">{errors.dietary_information.message}</p>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* Goodwill Message (only shown when declined) */}
             {showGoodwillMessage && (

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const sectionIds = (sections || []).map(s => s.id)
+    const sectionIds = (sections || []).map((s: { id: string }) => s.id)
     
     if (sectionIds.length === 0) {
       return NextResponse.json({

@@ -20,7 +20,8 @@ import {
   Copy, 
   User,
   Users,
-  QrCode
+  QrCode,
+  Utensils
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from '@/components/ui/use-toast'
@@ -260,6 +261,36 @@ export default function ViewInvitationDialog({
                                 <div className="break-words">
                                   <span className="font-medium">Date:</span> {format(new Date(event.latest_rsvp.created_at), 'MMM d, yyyy h:mm a')}
                                 </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Dietary Information - Show only if event is accepted and dietary data exists */}
+                          {event.status === 'accepted' && (event.dietary_restrictions || event.dietary_information || event.food_choice) && (
+                            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                              <h5 className="text-sm font-medium text-amber-900 mb-3 flex items-center gap-2">
+                                <Utensils className="h-4 w-4" />
+                                Dietary Information
+                              </h5>
+                              <div className="space-y-3 text-sm">
+                                {event.food_choice && (
+                                  <div className="break-words">
+                                    <span className="font-medium text-amber-800">Meal Selection:</span>
+                                    <span className="ml-2 text-amber-900">{event.food_choice}</span>
+                                  </div>
+                                )}
+                                {event.dietary_restrictions && (
+                                  <div className="break-words">
+                                    <span className="font-medium text-amber-800">Dietary Restrictions:</span>
+                                    <p className="mt-1 text-amber-900 whitespace-pre-wrap">{event.dietary_restrictions}</p>
+                                  </div>
+                                )}
+                                {event.dietary_information && (
+                                  <div className="break-words">
+                                    <span className="font-medium text-amber-800">Additional Dietary Information:</span>
+                                    <p className="mt-1 text-amber-900 whitespace-pre-wrap">{event.dietary_information}</p>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )}

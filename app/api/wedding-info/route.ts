@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getWeddingContext } from '@/lib/wedding-context'
+import { getWeddingContext } from '@/lib/wedding-context-server'
 
 // GET - Fetch wedding info for client components
 export async function GET(request: NextRequest) {
@@ -13,12 +13,19 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // Get theme to check for logo
+    const { getWeddingTheme } = await import('@/lib/theme-service')
+    const theme = await getWeddingTheme(context.weddingId)
+    
     return NextResponse.json({
       success: true,
       wedding: {
         couple_display_name: context.wedding.couple_display_name,
+        bride_name: context.wedding.bride_name,
+        groom_name: context.wedding.groom_name,
         hashtag: context.wedding.hashtag,
-        contact_email: context.wedding.contact_email
+        contact_email: context.wedding.contact_email,
+        logo_url: theme?.logo_url || null
       }
     })
   } catch (error) {

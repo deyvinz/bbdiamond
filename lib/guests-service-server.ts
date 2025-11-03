@@ -3,7 +3,7 @@ import { supabaseServer } from './supabase-server'
 import { bumpNamespaceVersion } from './cache'
 import { logInviteCodeBackfill, logAdminAction } from './audit'
 import { guestSchema } from './validators'
-import { getWeddingId } from './wedding-context'
+import { getWeddingId } from './wedding-context-server'
 
 export interface GuestsListParams {
   page: number

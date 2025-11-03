@@ -9,16 +9,35 @@ import { Label } from '@/components/ui/label'
 import { Lock, Users, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import GuestSeatingInfo from '@/components/GuestSeatingInfo'
+import type { ConfigValue } from '@/lib/types/config'
 
 export default function SeatingPage() {
   const [inviteCode, setInviteCode] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [guest, setGuest] = useState<any>(null)
+  const [config, setConfig] = useState<ConfigValue | null>(null)
+  const [isLoadingConfig, setIsLoadingConfig] = useState(true)
   const { toast } = useToast()
 
-  // Check for existing authentication on mount
+  // Load config and check for existing authentication on mount
   useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const response = await fetch('/api/config')
+        if (response.ok) {
+          const configData = await response.json()
+          setConfig(configData)
+        }
+      } catch (error) {
+        console.error('Error loading config:', error)
+      } finally {
+        setIsLoadingConfig(false)
+      }
+    }
+
+    loadConfig()
+
     const savedGuest = sessionStorage.getItem('schedule-guest')
     if (savedGuest) {
       try {
@@ -94,8 +113,43 @@ export default function SeatingPage() {
     setInviteCode('')
   }
 
-  // Show login form if not authenticated
-  if (!isAuthenticated) {
+  // Show loading state while config loads
+  if (isLoadingConfig) {
+    return (
+      <Section title="Seating Chart" subtitle="Find your assigned seat">
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="animate-spin h-8 w-8 border-2 border-gold-600 border-t-transparent rounded-full" />
+        </div>
+      </Section>
+    )
+  }
+
+  // Check if access code is required
+  const accessCodeRequired = config?.access_code_enabled && config?.access_code_required_seating
+
+  // Show seating directly if access code not required
+  if (!accessCodeRequired && !isAuthenticated) {
+    return (
+      <Section title="Seating Chart" subtitle="Find your assigned seat">
+        <GuestSeatingInfo 
+          inviteCode={inviteCode || ''} 
+          guestName={guest?.first_name}
+        />
+        <div className="mt-6 text-center">
+          <Link 
+            href="/" 
+            className="inline-flex items-center text-sm text-[#C8A951] hover:text-[#B38D39]"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back to Home
+          </Link>
+        </div>
+      </Section>
+    )
+  }
+
+  // Show login form if not authenticated and access code is required
+  if (!isAuthenticated && accessCodeRequired) {
     return (
       <Section title="Seating Chart" subtitle="Find your assigned seat">
         <div className="max-w-md mx-auto">

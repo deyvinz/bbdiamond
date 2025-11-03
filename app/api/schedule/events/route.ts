@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     
     const { data, error } = await supabase
       .from('events')
-      .select('name, venue, address, starts_at')
+      .select('name, venue, address, starts_at, icon')
       .eq('wedding_id', weddingId)
       .order('starts_at', { ascending: true })
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import QRCode from 'qrcode'
 import { getWeddingIdFromRequest } from '@/lib/api-wedding-context'
-import { getWeddingContext } from '@/lib/wedding-context'
+import { getWeddingContext } from '@/lib/wedding-context-server'
 
 export async function GET(request: NextRequest) {
   try {

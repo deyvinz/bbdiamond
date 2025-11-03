@@ -7,21 +7,30 @@ import { SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
 import { LoadingProvider } from '@/components/providers/loading-provider'
 import { Toaster } from '@/components/ui/toaster'
-import PageLoader from '@/components/ui/first-visit-loader'
-import { ThemeProviderServer } from '@/components/ThemeProvider'
+import { ThemeProviderServer } from '@/components/ThemeProviderServer'
 import { HeroUIProvider } from '@heroui/react'
-import { getWeddingContext } from '@/lib/wedding-context'
+import { getWeddingContext } from '@/lib/wedding-context-server'
 import { getWeddingTheme, getDefaultTheme } from '@/lib/theme-service'
 import { getGoogleFontsURL } from '@/lib/theme-service'
+import Analytics from '@/components/Analytics'
 
 export async function generateMetadata(): Promise<Metadata> {
   const context = await getWeddingContext()
   
   if (context) {
+    // Get theme for favicon
+    const theme = await getWeddingTheme(context.weddingId) || getDefaultTheme()
+    const faviconUrl = theme.favicon_url
+    
     return {
       title: context.wedding.couple_display_name || `${context.wedding.bride_name} & ${context.wedding.groom_name}`,
       description: `Wedding celebration for ${context.wedding.couple_display_name}`,
       keywords: context.wedding.hashtag || `${context.wedding.bride_name} ${context.wedding.groom_name} wedding`,
+      icons: faviconUrl ? {
+        icon: faviconUrl,
+        shortcut: faviconUrl,
+        apple: faviconUrl,
+      } : undefined,
     }
   }
 
@@ -51,7 +60,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   // 2. We're NOT on storefront/dashboard/onboarding/auth routes
   const showWeddingNavigation = !!weddingId && !isStorefrontRoute
   
-  // Get theme for dynamic fonts
+  // Get theme for dynamic fonts and favicon
   let theme = getDefaultTheme()
   if (weddingId) {
     const fetchedTheme = await getWeddingTheme(weddingId)
@@ -62,10 +71,31 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
 
   // Dynamically load fonts based on theme
   const fontsURL = getGoogleFontsURL(theme)
+  const faviconUrl = theme.favicon_url
   
   return (
     <html lang="en" suppressHydrationWarning={true}>
       <head>
+        {/* Dynamic Favicon */}
+        {faviconUrl ? (
+          <>
+            <link rel="icon" href={faviconUrl} />
+            <link rel="shortcut icon" href={faviconUrl} />
+            <link rel="apple-touch-icon" href={faviconUrl} />
+          </>
+        ) : (
+          <link rel="icon" href="/favicon.ico" />
+        )}
+        {/* Google Tag Manager */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-KZZQVJVD');`,
+          }}
+        />
         {/* Load Google Fonts dynamically */}
         <link rel="stylesheet" href={fontsURL} />
         <style dangerouslySetInnerHTML={{
@@ -84,16 +114,27 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         suppressHydrationWarning={true}
         style={{
           fontFamily: 'var(--font-family-sans)',
+          backgroundColor: 'var(--color-background, #FFFFFF)',
         }}
       >
+        {/* Google Tag Manager (noscript) */}
+        <noscript>
+          <iframe
+            src="https://www.googletagmanager.com/ns.html?id=GTM-KZZQVJVD"
+            height="0"
+            width="0"
+            style={{ display: 'none', visibility: 'hidden' }}
+          />
+        </noscript>
+
         <div className="fixed inset-0 -z-10 bg-subtleGrid bg-[length:16px_16px]" />
         <HeroUIProvider>
+          <Analytics />
           {showWeddingNavigation ? (
             <ThemeProviderServer weddingId={weddingId!}>
               <LoadingProvider>
                 <SidebarProvider>
                   <div className="min-h-dvh flex flex-col animate-in fade-in duration-500">
-                    <PageLoader />
                     <AppSidebar />
                     <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-gold-100">
                       <Nav />

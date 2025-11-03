@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { ArrowLeft, Plus, Edit, Trash2, Users } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
+import ImageUpload from '@/components/ImageUpload'
 
 interface WeddingPartyMember {
   id: string
@@ -46,6 +47,7 @@ export default function WeddingPartyAdminPage() {
       const data = await response.json()
       
       if (data.success) {
+        console.log('Wedding party members loaded:', data.members)
         setMembers(data.members)
       } else {
         toast({
@@ -231,13 +233,11 @@ export default function WeddingPartyAdminPage() {
               />
             </div>
             <div>
-              <Label htmlFor="image_url">Image URL</Label>
-              <Input
-                id="image_url"
-                type="url"
+              <ImageUpload
                 value={formData.image_url}
-                onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                placeholder="https://example.com/image.jpg"
+                onChange={(url) => setFormData({ ...formData, image_url: url })}
+                label="Image"
+                maxSize={5 * 1024 * 1024} // 5MB
               />
             </div>
             <div>
@@ -288,23 +288,40 @@ export default function WeddingPartyAdminPage() {
         </Card>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {members.map((member) => (
-            <Card key={member.id} className="p-6">
-              <div className="flex flex-col items-center text-center">
-                <div className="mb-4">
-                  <Avatar className="h-24 w-24">
+          {members.map((member) => {
+            // Debug logging
+            if (member.image_url) {
+              console.log(`Member ${member.name} has image_url:`, member.image_url)
+            }
+            
+            return (
+              <Card key={member.id} className="p-6">
+                <div className="flex flex-col items-center text-center">
+                  <div className="mb-4">
                     {member.image_url && member.image_url.trim() !== '' ? (
-                      <AvatarImage
-                        src={member.image_url}
-                        alt={member.name}
-                        className="object-cover"
-                      />
-                    ) : null}
-                    <AvatarFallback className="text-xl font-semibold bg-[#C8A951]/10 text-[#C8A951]">
-                      {getInitials(member.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
+                      <div className="relative h-24 w-24 rounded-full overflow-hidden border-2 border-gold-200 shadow-gold mx-auto">
+                        <img
+                          src={member.image_url}
+                          alt={member.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            console.error('Image failed to load for', member.name, ':', member.image_url)
+                            // Hide the image and show fallback
+                            const target = e.target as HTMLImageElement
+                            if (target.parentElement) {
+                              target.parentElement.style.display = 'none'
+                            }
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <Avatar className="h-24 w-24">
+                        <AvatarFallback className="text-xl font-semibold bg-[#C8A951]/10 text-[#C8A951]">
+                          {getInitials(member.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+                  </div>
                 <div className="space-y-1 mb-4">
                   <h3 className="font-semibold text-lg text-gray-900">{member.name}</h3>
                   <p className="text-sm text-gray-600">{member.role}</p>
@@ -335,7 +352,8 @@ export default function WeddingPartyAdminPage() {
                 </div>
               </div>
             </Card>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

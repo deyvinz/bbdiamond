@@ -4,7 +4,7 @@ import { guestSchema, csvGuestSchema, paginationSchema, guestFiltersSchema } fro
 import { Guest, GuestListResponse, GuestFilters, PaginationParams, AuditLog } from './types/guests'
 import { CsvRow, downloadCsv, parseCsv } from './csv'
 import { bumpNamespaceVersion } from './cache'
-import { getWeddingId } from './wedding-context'
+import { getWeddingId } from './wedding-context-server'
 
 // Server-side functions
 export async function getGuestsServer(
@@ -17,7 +17,15 @@ export async function getGuestsServer(
   // Get wedding ID
   const resolvedWeddingId = weddingId || await getWeddingId()
   if (!resolvedWeddingId) {
-    throw new Error('Wedding ID is required to fetch guests')
+    // Return empty guests instead of throwing error - allows admin pages to load without wedding context
+    console.warn('No wedding ID found, returning empty guests list')
+    return {
+      guests: [],
+      total_count: 0,
+      page: pagination.page,
+      page_size: pagination.page_size,
+      total_pages: 0
+    }
   }
   
   // Debug authentication

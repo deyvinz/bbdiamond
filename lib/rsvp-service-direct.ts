@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { getWeddingId } from './wedding-context'
+import { getWeddingIdFromClient } from './wedding-context'
 
 // Create Supabase client for direct database access
 const supabase = createClient(
@@ -53,7 +53,8 @@ export async function resolveInvitationByToken(token: string, weddingId?: string
     console.log('Resolving invitation by token:', token)
     
     // Get wedding ID (optional for public RSVP flow, but recommended)
-    const resolvedWeddingId = weddingId || await getWeddingId()
+    // Use client-side helper since this can be called from client components
+    const resolvedWeddingId = weddingId || getWeddingIdFromClient()
     
     // Find invitation by token
     let query = supabase
@@ -136,7 +137,8 @@ export async function resolveInvitationByInviteCode(inviteCode: string, weddingI
     console.log('Resolving invitation by invite code:', inviteCode)
     
     // Get wedding ID
-    const resolvedWeddingId = weddingId || await getWeddingId()
+    // Use client-side helper since this can be called from client components
+    const resolvedWeddingId = weddingId || getWeddingIdFromClient()
     if (!resolvedWeddingId) {
       console.log('No wedding ID available for invite code resolution')
       // Still try without wedding_id for backward compatibility
@@ -280,6 +282,9 @@ export async function submitRSVP(
     status: 'accepted' | 'declined'
     headcount: number
     goodwill_message?: string
+    dietary_restrictions?: string
+    dietary_information?: string
+    food_choice?: string
   }>
 ): Promise<boolean> {
   try {
@@ -287,14 +292,34 @@ export async function submitRSVP(
 
     // Update each invitation event
     for (const response of eventResponses) {
+      const updateData: any = {
+        status: response.status,
+        headcount: response.headcount,
+        goodwill_message: response.goodwill_message || null,
+        responded_at: new Date().toISOString()
+      }
+
+      // Add dietary and food choice fields if provided (only for accepted)
+      if (response.status === 'accepted') {
+        if (response.dietary_restrictions !== undefined) {
+          updateData.dietary_restrictions = response.dietary_restrictions || null
+        }
+        if (response.dietary_information !== undefined) {
+          updateData.dietary_information = response.dietary_information || null
+        }
+        if (response.food_choice !== undefined) {
+          updateData.food_choice = response.food_choice || null
+        }
+      } else {
+        // Clear dietary/food fields for declined responses
+        updateData.dietary_restrictions = null
+        updateData.dietary_information = null
+        updateData.food_choice = null
+      }
+
       const { error } = await supabase
         .from('invitation_events')
-        .update({
-          status: response.status,
-          headcount: response.headcount,
-          goodwill_message: response.goodwill_message || null,
-          responded_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('invitation_id', invitationId)
         .eq('event_id', response.event_id)
 

@@ -1,7 +1,7 @@
 import Section from "@/components/Section";
 import { Card, CardBody, Button } from "@heroui/react";
 import { supabaseServer } from "@/lib/supabase-server";
-import { getWeddingId } from '@/lib/wedding-context';
+import { getWeddingId } from '@/lib/wedding-context-server';
 import { MapPin, Link as LinkIcon, Utensils, Camera, Music, ShoppingBag, Plane, Car, Hotel, Mountain, Waves, TreePine, Coffee, Wine, Gamepad2, BookOpen, Heart, Star } from "lucide-react";
 
 export default async function Page() {

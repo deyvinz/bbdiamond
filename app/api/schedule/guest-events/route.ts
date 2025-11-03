@@ -42,7 +42,8 @@ export async function POST(request: NextRequest) {
             name,
             starts_at,
             venue,
-            address
+            address,
+            icon
           )
         )
       `)
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest) {
         starts_at: ie.event.starts_at,
         venue: ie.event.venue,
         address: ie.event.address,
+        icon: ie.event.icon,
         invitation_status: ie.status,
         headcount: ie.headcount
       }))

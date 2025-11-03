@@ -38,7 +38,26 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
-    const body = await request.json()
+    
+    // Parse request body with error handling
+    let body
+    try {
+      body = await request.json()
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError)
+      // If JSON parsing fails, check if body is empty or malformed
+      const contentType = request.headers.get('content-type')
+      if (!contentType?.includes('application/json')) {
+        return NextResponse.json(
+          { error: 'Request must have Content-Type: application/json' },
+          { status: 400 }
+        )
+      }
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      )
+    }
     
     // Validate input
     const validatedData = updateEventSchema.parse(body)

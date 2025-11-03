@@ -4,6 +4,10 @@ import { ArrowLeft } from 'lucide-react'
 import { getEventsPage } from '@/lib/events-service'
 import EventsClient from './EventsClient'
 
+// Force dynamic rendering to prevent build-time data fetching
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function EventsPage() {
   try {
     const { events } = await getEventsPage()

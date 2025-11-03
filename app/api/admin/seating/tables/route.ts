@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { bumpNamespaceVersion } from '@/lib/cache'
+import { requireWeddingId } from '@/lib/api-wedding-context'
 
 export async function GET(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const { searchParams } = new URL(request.url)
     const eventId = searchParams.get('event_id')
 
@@ -15,6 +17,21 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await supabaseServer()
+
+    // First verify the event belongs to this wedding
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('id, wedding_id')
+      .eq('id', eventId)
+      .eq('wedding_id', weddingId)
+      .single()
+
+    if (eventError || !event) {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Event not found or access denied' 
+      }, { status: 403 })
+    }
 
     // Get tables with their seats
     const { data: tables, error } = await supabase
@@ -53,13 +70,14 @@ export async function GET(request: NextRequest) {
       })
     })
 
-    // Fetch guest data separately
+    // Fetch guest data separately (scoped to this wedding)
     let guests: any[] = []
     if (guestIds.size > 0) {
       const { data: guestsData, error: guestsError } = await supabase
         .from('guests')
         .select('id, first_name, last_name, email, invite_code')
         .in('id', Array.from(guestIds))
+        .eq('wedding_id', weddingId)
 
       if (guestsError) {
         console.error('Error fetching guests:', guestsError)
@@ -99,6 +117,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const { event_id, name, capacity } = await request.json()
 
     if (!event_id || !name || !capacity) {
@@ -109,6 +128,21 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await supabaseServer()
+
+    // Verify the event belongs to this wedding
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('id, wedding_id')
+      .eq('id', event_id)
+      .eq('wedding_id', weddingId)
+      .single()
+
+    if (eventError || !event) {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Event not found or access denied' 
+      }, { status: 403 })
+    }
 
     // Create the table
     const { data: table, error } = await supabase

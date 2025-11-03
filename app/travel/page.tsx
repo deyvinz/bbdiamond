@@ -7,10 +7,9 @@ import {
   Globe, 
   Car, 
   Mail,
-  MessageCircle
 } from 'lucide-react'
 import { supabaseServer } from '@/lib/supabase-server'
-import { getWeddingId, getWeddingContext } from '@/lib/wedding-context'
+import { getWeddingId, getWeddingContext } from '@/lib/wedding-context-server'
 
 export default async function TravelPage() {
   const weddingId = await getWeddingId()
