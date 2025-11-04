@@ -1,0 +1,130 @@
+# VPS Nginx Configuration for Multi-Tenant Deployment
+# Copy this to /etc/nginx/sites-available/luwani-weddings
+# Then symlink: sudo ln -s /etc/nginx/sites-available/luwani-weddings /etc/nginx/sites-enabled/
+# Test: sudo nginx -t
+# Reload: sudo systemctl reload nginx
+
+# Upstream to Docker containers
+upstream luwani-weddings_backend {
+    server 127.0.0.1:8080 max_fails=3 fail_timeout=30s;
+    # If scaling to multiple containers, add more:
+    # server 127.0.0.1:8081 max_fails=3 fail_timeout=30s;
+    keepalive 32;
+}
+
+# Rate limiting zones
+limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+limit_req_zone $binary_remote_addr zone=login:10m rate=5r/m;
+
+# HTTP → HTTPS redirect
+server {
+    listen 80;
+    listen [::]:80;
+    
+    # Main platform domain
+    server_name yourdomain.com www.yourdomain.com;
+    
+    # Wildcard subdomain catch-all (for Basic tier)
+    server_name *.yourdomain.com;
+    
+    # Redirect all HTTP to HTTPS
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS - Main domain + wildcard subdomain
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name yourdomain.com www.yourdomain.com *.yourdomain.com;
+
+    # SSL certificates (update path to match your Certbot certificates)
+    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss image/svg+xml;
+
+    location / {
+        proxy_pass http://luwani-weddings_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # API rate limiting
+    location /api/ {
+        limit_req zone=api burst=20 nodelay;
+        proxy_pass http://luwani-weddings_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Auth rate limiting
+    location /auth/ {
+        limit_req zone=login burst=5 nodelay;
+        proxy_pass http://luwani-weddings_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# HTTPS - Catch-all for custom domains (Premium/Enterprise)
+# Next.js middleware resolves domain → wedding_id via wedding_domains table
+server {
+    listen 443 ssl http2 default_server;
+    listen [::]:443 ssl http2 default_server;
+    server_name _;
+
+    # Use default SSL certificate (or wildcard cert)
+    # For individual custom domains, add separate server blocks with their own certs
+    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    location / {
+        proxy_pass http://luwani-weddings_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
+
