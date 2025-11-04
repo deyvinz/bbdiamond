@@ -9,7 +9,23 @@ function SignInForm() {
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
+  const [weddingInfo, setWeddingInfo] = useState<{ couple_display_name?: string } | null>(null)
   const searchParams = useSearchParams()
+
+  useEffect(() => {
+    const fetchWeddingInfo = async () => {
+      try {
+        const response = await fetch('/api/wedding-info')
+        const data = await response.json()
+        if (data.success && data.wedding) {
+          setWeddingInfo(data.wedding)
+        }
+      } catch (error) {
+        console.error('Error fetching wedding info:', error)
+      }
+    }
+    fetchWeddingInfo()
+  }, [])
 
   useEffect(() => {
     const errorParam = searchParams.get('error')
@@ -128,7 +144,9 @@ function SignInForm() {
       <section className="container max-w-md py-16 px-4">
         <div className="bg-white/80 backdrop-blur border border-gold-100 rounded-2xl p-8 shadow-gold">
           <h1 className="font-serif text-3xl mb-2 text-center">Admin Sign-in</h1>
-          <p className="text-sm text-black/60 text-center mb-6">Brenda & Diamond Wedding</p>
+          <p className="text-sm text-black/60 text-center mb-6">
+            {weddingInfo?.couple_display_name ? `${weddingInfo.couple_display_name} Wedding` : 'Wedding Admin'}
+          </p>
           {status ? (
             <div className="text-center">
               <p className="text-gold-700 font-medium">{status}</p>

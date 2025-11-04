@@ -9,38 +9,64 @@ services:
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
         SUPABASE_SERVICE_ROLE: ${SUPABASE_SERVICE_ROLE}
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 3G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
     ports:
       - "8080:3000"
     env_file:
       - .env
     environment:
       - NODE_ENV=production
+      - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-saas}
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE=${SUPABASE_SERVICE_ROLE}
-      - CACHE_PROVIDER=${CACHE_PROVIDER:-disabled}
+      - CACHE_PROVIDER=${CACHE_PROVIDER:-redis}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_USERNAME=${REDIS_USERNAME}
-      - CACHE_NAMESPACE=${CACHE_NAMESPACE}
+      - CACHE_NAMESPACE=${CACHE_NAMESPACE:-wg}
       - CACHE_GUESTS_TTL_SECONDS=${CACHE_GUESTS_TTL_SECONDS:-120}
       - CACHE_JITTER_SECONDS=${CACHE_JITTER_SECONDS:-20}
+      - RATE_LIMIT_BASIC=${RATE_LIMIT_BASIC:-50}
+      - RATE_LIMIT_PREMIUM=${RATE_LIMIT_PREMIUM:-200}
+      - RATE_LIMIT_ENTERPRISE=${RATE_LIMIT_ENTERPRISE:-1000}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-https://luwani.com}
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - app-network
 
   # Redis for caching
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 1.2G
+        reservations:
+          cpus: '0.1'
+          memory: 512M
     healthcheck:
       test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 10s

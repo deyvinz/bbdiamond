@@ -33,6 +33,7 @@ export interface InvitationEmailProps {
   travelUrl?: string
   contactEmail?: string
   replyToEmail?: string
+  coupleDisplayName?: string
 }
 
 export function InvitationEmail({
@@ -50,6 +51,7 @@ export function InvitationEmail({
   travelUrl,
   contactEmail,
   replyToEmail,
+  coupleDisplayName = 'Wedding Celebration',
 }: InvitationEmailProps) {
   const preheaderText = `RSVP for ${eventName} — ${eventDate}`
   const mapUrl = eventAddress ? `https://maps.google.com/maps?q=${encodeURIComponent(eventAddress)}` : undefined
@@ -58,7 +60,7 @@ export function InvitationEmail({
     <BaseEmailLayout preheader={preheaderText}>
       {/* Header */}
       <Section style={header}>
-        <Heading style={headerTitle}>Brenda & Diamond</Heading>
+        <Heading style={headerTitle}>{coupleDisplayName}</Heading>
         <Text style={headerSubtitle}>Wedding Celebration</Text>
         <Hr style={headerRule} />
       </Section>
@@ -171,13 +173,13 @@ export function InvitationEmail({
 
         <Text style={paragraph}>
           With love and excitement,<br />
-          Brenda & Diamond
+          {coupleDisplayName}
         </Text>
       </Section>
 
       {/* Footer */}
       <Footer 
-        websiteUrl="https://brendabagsherdiamond.com"
+        websiteUrl={rsvpUrl.split('/rsvp')[0] || "http://luwani.com/demo"}
         contactEmail={contactEmail}
         replyToEmail={replyToEmail}
       />

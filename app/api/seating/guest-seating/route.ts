@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { getWeddingIdFromRequest } from '@/lib/api-wedding-context'
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,15 +14,19 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await supabaseServer()
+    
+    // Try to get wedding ID (optional for public routes)
+    const weddingId = await getWeddingIdFromRequest(request)
 
     // Get guest's seating information using your existing schema
-    const { data: guest, error: guestError } = await supabase
+    let query = supabase
       .from('guests')
       .select(`
         id,
         first_name,
         last_name,
         email,
+        wedding_id,
         seats:seats!seats_guest_id_fkey(
           id,
           seat_number,
@@ -40,7 +45,15 @@ export async function POST(request: NextRequest) {
         )
       `)
       .eq('invite_code', invite_code)
-      .single()
+    
+    if (weddingId) {
+      query = query.eq('wedding_id', weddingId)
+    }
+    
+    const { data: guest, error: guestError } = await query.single()
+    
+    // Use wedding_id from guest if not provided
+    const finalWeddingId = weddingId || guest?.wedding_id
 
     if (guestError || !guest) {
       return NextResponse.json({ 

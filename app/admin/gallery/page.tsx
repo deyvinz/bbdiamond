@@ -10,12 +10,15 @@ import { useToast } from '@/components/ui/use-toast'
 import { ArrowLeft, Plus, Edit, Trash2, Image as ImageIcon } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
+import ImageUpload from '@/components/ImageUpload'
 
 interface GalleryImage {
   id: string
-  url: string
+  image_url: string
+  url?: string // For backward compatibility with form
   caption?: string
-  sort_order: number
+  display_order: number
+  sort_order?: number // For backward compatibility with form
 }
 
 export default function GalleryAdminPage() {
@@ -41,7 +44,13 @@ export default function GalleryAdminPage() {
       const data = await response.json()
       
       if (data.success) {
-        setImages(data.images)
+        // Transform API response to match component expectations
+        const transformedImages = data.images.map((img: any) => ({
+          ...img,
+          url: img.image_url || img.url,
+          sort_order: img.display_order ?? img.sort_order ?? 0
+        }))
+        setImages(transformedImages)
       } else {
         toast({
           title: "Error",
@@ -107,9 +116,9 @@ export default function GalleryAdminPage() {
   const handleEdit = (image: GalleryImage) => {
     setEditingImage(image)
     setFormData({
-      url: image.url,
+      url: image.url || image.image_url || '',
       caption: image.caption || '',
-      sort_order: image.sort_order
+      sort_order: image.sort_order ?? image.display_order ?? 0
     })
     setShowForm(true)
   }
@@ -193,14 +202,11 @@ export default function GalleryAdminPage() {
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="url">Image URL *</Label>
-              <Input
-                id="url"
-                type="url"
+              <ImageUpload
                 value={formData.url}
-                onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                placeholder="https://example.com/image.jpg"
-                required
+                onChange={(url) => setFormData({ ...formData, url })}
+                label="Image *"
+                maxSize={5 * 1024 * 1024} // 5MB
               />
             </div>
             <div>
@@ -253,9 +259,9 @@ export default function GalleryAdminPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {images.map((image) => (
             <Card key={image.id} className="p-0 overflow-hidden">
-              <div className="aspect-square relative">
+                <div className="aspect-square relative">
                 <Image
-                  src={image.url}
+                  src={image.url || image.image_url}
                   alt={image.caption || 'Gallery image'}
                   fill
                   className="object-cover"
@@ -268,7 +274,7 @@ export default function GalleryAdminPage() {
                 )}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <span className="text-xs text-gray-500">
-                    Order: {image.sort_order}
+                    Order: {image.sort_order ?? image.display_order ?? 0}
                   </span>
                   <div className="flex gap-2">
                     <Button

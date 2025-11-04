@@ -73,12 +73,17 @@ export default function InvitationsClient({
   const [selectedInvitation, setSelectedInvitation] = useState<Invitation | undefined>()
   const [viewingInvitation, setViewingInvitation] = useState<Invitation | undefined>()
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [isFiltering, setIsFiltering] = useState(false)
 
   // Sync local state with props when they change (e.g., when filtering)
   useEffect(() => {
     setInvitations(initialInvitations)
-  }, [initialInvitations])
+  }, [initialInvitations, page])
+
+  // Always reset loading states when props update (server data is ready)
+  useEffect(() => {
+    setLoading(false)
+    setIsRefreshing(false)
+  }, [initialInvitations, page])
 
   const refreshData = async () => {
     setIsRefreshing(true)
@@ -576,7 +581,7 @@ export default function InvitationsClient({
         onView={handleViewInvitation}
         onExport={handleExport}
         onBulkAction={handleBulkAction}
-        loading={loading || isRefreshing}
+        loading={loading && initialInvitations.length === 0}
       />
       </div>
 

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { getWeddingIdFromClient } from './wedding-context'
 
 // Create Supabase client for direct database access
 const supabase = createClient(
@@ -47,17 +48,22 @@ export interface RSVPStatus {
 /**
  * Resolve invitation by token
  */
-export async function resolveInvitationByToken(token: string): Promise<InvitationData | null> {
+export async function resolveInvitationByToken(token: string, weddingId?: string): Promise<InvitationData | null> {
   try {
     console.log('Resolving invitation by token:', token)
     
+    // Get wedding ID (optional for public RSVP flow, but recommended)
+    // Use client-side helper since this can be called from client components
+    const resolvedWeddingId = weddingId || getWeddingIdFromClient()
+    
     // Find invitation by token
-    const { data: invitation, error: invitationError } = await supabase
+    let query = supabase
       .from('invitations')
       .select(`
         id,
         token,
         guest_id,
+        wedding_id,
         invitation_events(
           id,
           event_id,
@@ -73,19 +79,32 @@ export async function resolveInvitationByToken(token: string): Promise<Invitatio
         )
       `)
       .eq('token', token)
-      .single()
+    
+    if (resolvedWeddingId) {
+      query = query.eq('wedding_id', resolvedWeddingId)
+    }
+    
+    const { data: invitation, error: invitationError } = await query.single()
 
     if (invitationError || !invitation) {
       console.log('Invitation not found by token:', { token, invitationError, invitation })
       return null
     }
 
+    // Use wedding_id from invitation if not provided
+    const finalWeddingId = resolvedWeddingId || invitation.wedding_id
+
     // Fetch guest details
-    const { data: guest, error: guestError } = await supabase
+    let guestQuery = supabase
       .from('guests')
       .select('id, first_name, last_name, email, invite_code')
       .eq('id', invitation.guest_id)
-      .single()
+    
+    if (finalWeddingId) {
+      guestQuery = guestQuery.eq('wedding_id', finalWeddingId)
+    }
+    
+    const { data: guest, error: guestError } = await guestQuery.single()
 
     if (guestError || !guest) {
       console.log('Guest not found:', guestError)
@@ -113,24 +132,40 @@ export async function resolveInvitationByToken(token: string): Promise<Invitatio
 /**
  * Resolve invitation by invite code
  */
-export async function resolveInvitationByInviteCode(inviteCode: string): Promise<InvitationData | null> {
+export async function resolveInvitationByInviteCode(inviteCode: string, weddingId?: string): Promise<InvitationData | null> {
   try {
     console.log('Resolving invitation by invite code:', inviteCode)
     
+    // Get wedding ID
+    // Use client-side helper since this can be called from client components
+    const resolvedWeddingId = weddingId || getWeddingIdFromClient()
+    if (!resolvedWeddingId) {
+      console.log('No wedding ID available for invite code resolution')
+      // Still try without wedding_id for backward compatibility
+    }
+    
     // First find the guest by invite code
-    const { data: guest, error: guestError } = await supabase
+    let guestQuery = supabase
       .from('guests')
-      .select('id, first_name, last_name, email, invite_code')
+      .select('id, first_name, last_name, email, invite_code, wedding_id')
       .eq('invite_code', inviteCode)
-      .single()
+    
+    if (resolvedWeddingId) {
+      guestQuery = guestQuery.eq('wedding_id', resolvedWeddingId)
+    }
+    
+    const { data: guest, error: guestError } = await guestQuery.single()
 
     if (guestError || !guest) {
       console.log('Guest not found by invite code:', guestError)
       return null
     }
 
+    // Use wedding_id from guest if not provided
+    const finalWeddingId = resolvedWeddingId || guest.wedding_id
+
     // Find invitation for this guest
-    const { data: invitation, error: invitationError } = await supabase
+    let invitationQuery = supabase
       .from('invitations')
       .select(`
         id,
@@ -151,7 +186,12 @@ export async function resolveInvitationByInviteCode(inviteCode: string): Promise
         )
       `)
       .eq('guest_id', guest.id)
-      .single()
+    
+    if (finalWeddingId) {
+      invitationQuery = invitationQuery.eq('wedding_id', finalWeddingId)
+    }
+    
+    const { data: invitation, error: invitationError } = await invitationQuery.single()
 
     if (invitationError || !invitation) {
       console.log('Invitation not found for guest:', invitationError)
@@ -242,6 +282,9 @@ export async function submitRSVP(
     status: 'accepted' | 'declined'
     headcount: number
     goodwill_message?: string
+    dietary_restrictions?: string
+    dietary_information?: string
+    food_choice?: string
   }>
 ): Promise<boolean> {
   try {
@@ -249,14 +292,34 @@ export async function submitRSVP(
 
     // Update each invitation event
     for (const response of eventResponses) {
+      const updateData: any = {
+        status: response.status,
+        headcount: response.headcount,
+        goodwill_message: response.goodwill_message || null,
+        responded_at: new Date().toISOString()
+      }
+
+      // Add dietary and food choice fields if provided (only for accepted)
+      if (response.status === 'accepted') {
+        if (response.dietary_restrictions !== undefined) {
+          updateData.dietary_restrictions = response.dietary_restrictions || null
+        }
+        if (response.dietary_information !== undefined) {
+          updateData.dietary_information = response.dietary_information || null
+        }
+        if (response.food_choice !== undefined) {
+          updateData.food_choice = response.food_choice || null
+        }
+      } else {
+        // Clear dietary/food fields for declined responses
+        updateData.dietary_restrictions = null
+        updateData.dietary_information = null
+        updateData.food_choice = null
+      }
+
       const { error } = await supabase
         .from('invitation_events')
-        .update({
-          status: response.status,
-          headcount: response.headcount,
-          goodwill_message: response.goodwill_message || null,
-          responded_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('invitation_id', invitationId)
         .eq('event_id', response.event_id)
 

@@ -39,6 +39,9 @@ export async function GET(request: NextRequest) {
             id,
             status,
             headcount,
+            dietary_restrictions,
+            dietary_information,
+            food_choice,
             event:events(
               id,
               name,
@@ -73,6 +76,8 @@ export async function GET(request: NextRequest) {
     if (selectedColumns.includes('rsvp_status')) headers.push('RSVP Status')
     if (selectedColumns.includes('headcount')) headers.push('Headcount')
     if (selectedColumns.includes('dietary_restrictions')) headers.push('Dietary Restrictions')
+    if (selectedColumns.includes('dietary_information')) headers.push('Dietary Information')
+    if (selectedColumns.includes('food_choice')) headers.push('Food Choice')
     if (selectedColumns.includes('notes')) headers.push('Notes')
     if (selectedColumns.includes('created_at')) headers.push('Created Date')
 
@@ -122,7 +127,9 @@ export async function GET(request: NextRequest) {
         if (selectedColumns.includes('events')) row.push('')
         if (selectedColumns.includes('rsvp_status')) row.push('')
         if (selectedColumns.includes('headcount')) row.push('')
-        if (selectedColumns.includes('dietary_restrictions')) row.push(guest.dietary_restrictions || '')
+        if (selectedColumns.includes('dietary_restrictions')) row.push('')
+        if (selectedColumns.includes('dietary_information')) row.push('')
+        if (selectedColumns.includes('food_choice')) row.push('')
         if (selectedColumns.includes('notes')) row.push(guest.notes || '')
         if (selectedColumns.includes('created_at')) {
           row.push(guest.created_at ? format(new Date(guest.created_at), 'yyyy-MM-dd HH:mm:ss') : '')
@@ -138,7 +145,9 @@ export async function GET(request: NextRequest) {
           if (selectedColumns.includes('events')) row.push(invEvent.event?.name || '')
           if (selectedColumns.includes('rsvp_status')) row.push(invEvent.status || 'pending')
           if (selectedColumns.includes('headcount')) row.push(invEvent.headcount?.toString() || '1')
-          if (selectedColumns.includes('dietary_restrictions')) row.push(guest.dietary_restrictions || '')
+          if (selectedColumns.includes('dietary_restrictions')) row.push(invEvent.dietary_restrictions || '')
+          if (selectedColumns.includes('dietary_information')) row.push(invEvent.dietary_information || '')
+          if (selectedColumns.includes('food_choice')) row.push(invEvent.food_choice || '')
           if (selectedColumns.includes('notes')) row.push(guest.notes || '')
           if (selectedColumns.includes('created_at')) {
             row.push(guest.created_at ? format(new Date(guest.created_at), 'yyyy-MM-dd HH:mm:ss') : '')

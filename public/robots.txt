@@ -1,0 +1,22 @@
+# robots.txt for Luwāni
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /onboarding/
+Disallow: /auth/
+
+# Allow storefront pages
+Allow: /store
+Allow: /store/
+Allow: /store/*
+Allow: /about
+Allow: /help
+Allow: /privacy
+Allow: /terms
+
+# Sitemap
+Sitemap: https://luwani.com/sitemap.xml
+

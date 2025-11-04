@@ -1,5 +1,6 @@
 export interface AppConfig {
   id: string
+  wedding_id: string
   key: string
   value: string
   description?: string
@@ -14,6 +15,14 @@ export interface ConfigValue {
   rsvp_enabled: boolean
   rsvp_cutoff_date?: string // ISO 8601 date-time string
   rsvp_cutoff_timezone?: string // IANA timezone (e.g., "America/New_York")
+  access_code_enabled: boolean
+  access_code_required_seating: boolean
+  access_code_required_schedule: boolean
+  access_code_required_event_details: boolean
+  food_choices_enabled: boolean
+  food_choices_required: boolean
+  dress_code_message?: string // Custom dress code message for event details page
+  age_restriction_message?: string // Custom age restriction message for event details page
 }
 
 export interface ConfigUpdate {
@@ -23,6 +32,14 @@ export interface ConfigUpdate {
   rsvp_enabled?: boolean
   rsvp_cutoff_date?: string
   rsvp_cutoff_timezone?: string
+  access_code_enabled?: boolean
+  access_code_required_seating?: boolean
+  access_code_required_schedule?: boolean
+  access_code_required_event_details?: boolean
+  food_choices_enabled?: boolean
+  food_choices_required?: boolean
+  dress_code_message?: string
+  age_restriction_message?: string
 }
 
 // Default configuration values
@@ -33,6 +50,14 @@ export const DEFAULT_CONFIG: ConfigValue = {
   rsvp_enabled: true,
   rsvp_cutoff_date: undefined,
   rsvp_cutoff_timezone: 'America/New_York',
+  access_code_enabled: true, // Backward compatible - enabled by default
+  access_code_required_seating: true,
+  access_code_required_schedule: true,
+  access_code_required_event_details: true,
+  food_choices_enabled: false,
+  food_choices_required: false,
+  dress_code_message: undefined,
+  age_restriction_message: undefined,
 }
 
 // Common timezones for RSVP cutoff

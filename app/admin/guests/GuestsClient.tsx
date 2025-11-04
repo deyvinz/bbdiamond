@@ -59,15 +59,18 @@ export default function GuestsClient({
   const [viewGuest, setViewGuest] = useState<Guest | undefined>()
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [isFiltering, setIsFiltering] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
 
   // Update local state when props change (after refresh)
+  // Always reset loading states when props update (data arrives from server)
   useEffect(() => {
     setGuests(initialGuests)
     setTotalCountState(totalCount)
-  }, [initialGuests, totalCount])
+    // Immediately reset loading when props update - server data is ready
+    setLoading(false)
+    setRefreshing(false)
+  }, [initialGuests, totalCount, page])
 
   const handlePageChange = async (newPage: number) => {
     const url = new URL(window.location.href)
@@ -634,7 +637,7 @@ export default function GuestsClient({
           onBulkAction={handleBulkAction}
           onSendInvitesToAll={handleSendInvitesToAll}
           onView={handleView}
-          loading={loading || refreshing}
+          loading={loading && initialGuests.length === 0}
         />
       </div>
 

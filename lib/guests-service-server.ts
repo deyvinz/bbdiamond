@@ -3,6 +3,7 @@ import { supabaseServer } from './supabase-server'
 import { bumpNamespaceVersion } from './cache'
 import { logInviteCodeBackfill, logAdminAction } from './audit'
 import { guestSchema } from './validators'
+import { getWeddingId } from './wedding-context-server'
 
 export interface GuestsListParams {
   page: number
@@ -22,8 +23,14 @@ export async function getGuestsPage(params: GuestsListParams): Promise<GuestList
   throw new Error('getGuestsPage should not be called on server-side')
 }
 
-export async function createGuest(input: Partial<Guest>): Promise<Guest> {
+export async function createGuest(input: Partial<Guest>, weddingId?: string): Promise<Guest> {
   const supabase = await supabaseServer()
+
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to create guests')
+  }
 
   // Validate input
   let validatedGuest
@@ -34,12 +41,13 @@ export async function createGuest(input: Partial<Guest>): Promise<Guest> {
     throw error
   }
 
-  // Check for duplicate email (case-insensitive)
+  // Check for duplicate email (case-insensitive) within wedding
   if (validatedGuest.email) {
     const { data: existingGuest, error: checkError } = await supabase
       .from('guests')
       .select('id, email, first_name, last_name')
       .ilike('email', validatedGuest.email)
+      .eq('wedding_id', resolvedWeddingId)
       .single()
 
     if (existingGuest && !checkError) {
@@ -54,7 +62,10 @@ export async function createGuest(input: Partial<Guest>): Promise<Guest> {
   if (validatedGuest.household_name && !householdId) {
     const { data: household, error: householdError } = await supabase
       .from('households')
-      .insert({ name: validatedGuest.household_name })
+      .insert({ 
+        name: validatedGuest.household_name,
+        wedding_id: resolvedWeddingId
+      })
       .select()
       .single()
 
@@ -78,7 +89,8 @@ export async function createGuest(input: Partial<Guest>): Promise<Guest> {
       household_id: householdId,
       is_vip: validatedGuest.is_vip,
       gender: validatedGuest.gender,
-      invite_code: inviteCode
+      invite_code: inviteCode,
+      wedding_id: resolvedWeddingId
     })
     .select(`
       *,
@@ -103,8 +115,14 @@ export async function createGuest(input: Partial<Guest>): Promise<Guest> {
   return guest
 }
 
-export async function updateGuest(id: string, input: Partial<Guest>): Promise<Guest> {
+export async function updateGuest(id: string, input: Partial<Guest>, weddingId?: string): Promise<Guest> {
   const supabase = await supabaseServer()
+
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to update guests')
+  }
 
   // Validate input
   let validatedUpdates
@@ -120,7 +138,10 @@ export async function updateGuest(id: string, input: Partial<Guest>): Promise<Gu
   if (validatedUpdates.household_name && !householdId) {
     const { data: household, error: householdError } = await supabase
       .from('households')
-      .insert({ name: validatedUpdates.household_name })
+      .insert({ 
+        name: validatedUpdates.household_name,
+        wedding_id: resolvedWeddingId
+      })
       .select()
       .single()
 
@@ -140,6 +161,7 @@ export async function updateGuest(id: string, input: Partial<Guest>): Promise<Gu
       household_name: undefined,
     })
     .eq('id', id)
+    .eq('wedding_id', resolvedWeddingId)
     .select(`
       *,
       household:households(name)
@@ -164,14 +186,21 @@ export async function updateGuest(id: string, input: Partial<Guest>): Promise<Gu
   return guest
 }
 
-export async function deleteGuest(id: string): Promise<boolean> {
+export async function deleteGuest(id: string, weddingId?: string): Promise<boolean> {
   const supabase = await supabaseServer()
+
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to delete guests')
+  }
 
   // Delete related invitations first
   const { error: deleteInvitationsError } = await supabase
     .from('invitations')
     .delete()
     .eq('guest_id', id)
+    .eq('wedding_id', resolvedWeddingId)
 
   if (deleteInvitationsError) {
     throw new Error(`Failed to delete invitations for guest: ${deleteInvitationsError.message}`)
@@ -181,6 +210,7 @@ export async function deleteGuest(id: string): Promise<boolean> {
     .from('guests')
     .delete()
     .eq('id', id)
+    .eq('wedding_id', resolvedWeddingId)
 
   if (error) {
     throw new Error(`Failed to delete guest: ${error.message}`)
@@ -191,6 +221,7 @@ export async function deleteGuest(id: string): Promise<boolean> {
 
   // Log audit
   await logAdminAction('guest_delete', {
+    wedding_id: resolvedWeddingId,
     guest_id: id
   })
 

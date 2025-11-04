@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import QRCode from 'qrcode'
+import { getWeddingIdFromRequest } from '@/lib/api-wedding-context'
+import { getWeddingContext } from '@/lib/wedding-context-server'
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,8 +16,19 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Build RSVP URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://brendabagsherdiamond.com'
+    // Get wedding context to determine the correct base URL
+    const weddingContext = await getWeddingContext()
+    let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://brendabagsherdiamond.com'
+    
+    if (weddingContext?.wedding) {
+      // Use custom domain if available
+      if (weddingContext.wedding.custom_domain) {
+        baseUrl = `https://${weddingContext.wedding.custom_domain}`
+      } else if (weddingContext.wedding.subdomain) {
+        baseUrl = `https://${weddingContext.wedding.subdomain}.${process.env.NEXT_PUBLIC_APP_URL?.replace('https://', '') || 'weddingplatform.com'}`
+      }
+    }
+    
     const rsvpUrl = eventId 
       ? `${baseUrl}/rsvp?token=${token}&eventId=${eventId}`
       : `${baseUrl}/rsvp?token=${token}`

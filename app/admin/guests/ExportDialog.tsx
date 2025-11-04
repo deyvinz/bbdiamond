@@ -37,6 +37,8 @@ const GUEST_COLUMNS = [
   { id: 'rsvp_status', label: 'RSVP Status', default: true },
   { id: 'headcount', label: 'Headcount', default: true },
   { id: 'dietary_restrictions', label: 'Dietary Restrictions', default: false },
+  { id: 'dietary_information', label: 'Dietary Information', default: false },
+  { id: 'food_choice', label: 'Food Choice', default: false },
   { id: 'notes', label: 'Notes', default: false },
   { id: 'created_at', label: 'Created Date', default: false },
 ]

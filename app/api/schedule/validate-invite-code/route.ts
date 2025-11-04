@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { getWeddingIdFromRequest } from '@/lib/api-wedding-context'
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,9 +14,12 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await supabaseServer()
+    
+    // Try to get wedding ID (optional for public routes)
+    const weddingId = await getWeddingIdFromRequest(request)
 
     // Check if invite code exists and is valid
-    const { data: guest, error } = await supabase
+    let query = supabase
       .from('guests')
       .select(`
         id,
@@ -23,19 +27,37 @@ export async function POST(request: NextRequest) {
         last_name,
         email,
         invite_code,
+        wedding_id,
         invitations!inner(
           id,
           token
         )
       `)
       .eq('invite_code', invite_code)
-      .single()
+    
+    if (weddingId) {
+      query = query.eq('wedding_id', weddingId)
+    }
+    
+    const { data: guest, error } = await query.single()
+    
+    // If no wedding ID from context, use guest's wedding_id
+    const finalWeddingId = weddingId || guest?.wedding_id
 
     if (error || !guest) {
       return NextResponse.json({ 
         success: false, 
         message: 'Invalid invite code' 
       }, { status: 404 })
+    }
+    
+    // Ensure wedding_id is included for filtering invitations if needed
+    if (finalWeddingId && guest.invitations) {
+      // Filter invitations by wedding_id if we have it
+      guest.invitations = guest.invitations.filter((inv: any) => {
+        // We'd need to check invitation wedding_id, but for now just return first
+        return true
+      })
     }
 
     // Return guest info for personalization

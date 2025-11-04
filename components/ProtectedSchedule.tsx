@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Section from '@/components/Section'
-import Card from '@/components/Card'
-import { Button } from '@/components/ui/button'
+import { Button, Card, CardBody } from '@heroui/react'
 import { MotionPage, MotionStagger, MotionItem, MotionCard } from '@/components/ui/motion'
 import { 
   Church, 
@@ -19,12 +18,14 @@ import {
   PartyPopper,
   LogOut
 } from 'lucide-react'
+import { renderIcon } from '@/lib/icon-utils'
 
 interface Event {
   name: string
   venue: string
   address: string
   starts_at: string
+  icon?: string
 }
 
 interface Guest {
@@ -37,7 +38,7 @@ interface Guest {
 }
 
 interface ProtectedScheduleProps {
-  guest: Guest
+  guest: Guest | null
   onLogout: () => void
 }
 
@@ -53,7 +54,7 @@ export default function ProtectedSchedule({ guest, onLogout }: ProtectedSchedule
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ invite_code: guest.invite_code }),
+          body: JSON.stringify({ invite_code: guest!.invite_code }),
         })
         
         const data = await response.json()
@@ -70,15 +71,38 @@ export default function ProtectedSchedule({ guest, onLogout }: ProtectedSchedule
       }
     }
 
+    const fetchPublicEvents = async () => {
+      try {
+        const response = await fetch('/api/schedule/events')
+        const data = await response.json()
+        
+        if (data.success && data.events) {
+          setEvents(data.events)
+        }
+      } catch (error) {
+        console.error('Error fetching public events:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     if (guest?.invite_code) {
       fetchGuestEvents()
     } else {
-      setLoading(false)
+      // Fetch public events when guest is null (public access)
+      fetchPublicEvents()
     }
   }, [guest])
 
-  const getEventIcon = (eventName: string) => {
-    const name = eventName.toLowerCase()
+  const getEventIcon = (event: Event) => {
+    // First, try to use the stored icon if available
+    if (event.icon) {
+      const renderedIcon = renderIcon(event.icon, "h-5 w-5 text-gold-600")
+      if (renderedIcon) return renderedIcon
+    }
+    
+    // Fall back to keyword matching for backward compatibility
+    const name = event.name.toLowerCase()
     
     if (name.includes('ceremony') || name.includes('church')) {
       return <Church className="h-5 w-5 text-gold-600" />
@@ -126,25 +150,28 @@ export default function ProtectedSchedule({ guest, onLogout }: ProtectedSchedule
 
   return (
     <MotionPage>
-      {/* Header with logout */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="container max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-serif text-gold-700">Wedding Schedule</h1>
-              <p className="text-gray-600">Welcome, {guest.first_name}!</p>
+      {/* Header with logout - only show when authenticated */}
+      {guest && (
+        <div className="bg-white border-b border-gray-200">
+          <div className="container max-w-6xl mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-serif text-gold-700">Wedding Schedule</h1>
+                <p className="text-gray-600">Welcome, {guest.first_name}!</p>
+              </div>
+              <Button 
+                onClick={onLogout}
+                variant="bordered"
+                size="sm"
+                radius="lg"
+                startContent={<LogOut className="h-4 w-4" />}
+              >
+                Logout
+              </Button>
             </div>
-            <Button 
-              onClick={onLogout}
-              variant="outline"
-              size="sm"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Schedule Content */}
       <Section title="Event Schedule" subtitle="Times & locations" narrow>
@@ -154,34 +181,42 @@ export default function ProtectedSchedule({ guest, onLogout }: ProtectedSchedule
               <MotionItem key={idx} className="ms-6 mb-6">
                 <span className="absolute -start-1.5 mt-4 h-3 w-3 rounded-full bg-gold-500" />
                 <MotionCard>
-                  <Card>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 mt-1">
-                          {getEventIcon(event.name)}
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-medium text-lg">{event.name}</h3>
-                          <div className="flex items-center gap-2 mt-1">
-                            <MapPin className="h-4 w-4 text-gold-500" />
-                            <p className="text-sm text-black/70">{event.venue} • {event.address}</p>
+                  <Card className="border border-gray-200 shadow-md rounded-2xl" radius="lg">
+                    <CardBody className="p-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 mt-1">
+                            {getEventIcon(event)}
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-medium text-lg text-[#1E1E1E]">{event.name}</h3>
+                            <div className="flex items-center gap-2 mt-1">
+                              <MapPin className="h-4 w-4" style={{ color: 'var(--color-primary, #C8A951)' }} />
+                              <p className="text-sm text-[#1E1E1E]/70">{event.venue} • {event.address}</p>
+                            </div>
                           </div>
                         </div>
+                        <div 
+                          className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-lg"
+                          style={{ 
+                            backgroundColor: 'var(--color-gold-50, #FFF8E6)',
+                            color: 'var(--color-primary, #C8A951)'
+                          }}
+                        >
+                          <Clock className="h-4 w-4" style={{ color: 'var(--color-primary, #C8A951)' }} />
+                          <time>
+                            {new Date(event.starts_at).toLocaleDateString([], { 
+                              year: 'numeric', 
+                              month: 'long', 
+                              day: 'numeric', 
+                              hour: '2-digit', 
+                              minute: '2-digit', 
+                              hour12: true 
+                            })}
+                          </time>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gold-600">
-                        <Clock className="h-4 w-4" />
-                        <time>
-                          {new Date(event.starts_at).toLocaleDateString([], { 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric', 
-                            hour: '2-digit', 
-                            minute: '2-digit', 
-                            hour12: true 
-                          })}
-                        </time>
-                      </div>
-                    </div>
+                    </CardBody>
                   </Card>
                 </MotionCard>
               </MotionItem>
@@ -192,12 +227,16 @@ export default function ProtectedSchedule({ guest, onLogout }: ProtectedSchedule
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-gold-100">
               <Calendar className="h-10 w-10 text-gold-600" />
             </div>
-            <h3 className="text-xl font-serif text-gray-900 mb-2">No Events Assigned</h3>
+            <h3 className="text-xl font-serif text-gray-900 mb-2">No Events Available</h3>
             <p className="text-gray-600 mb-4">
-              Hi {guest.first_name}, it looks like you don't have any specific events assigned to your invitation yet.
+              {guest 
+                ? `Hi ${guest.first_name}, it looks like you don't have any specific events assigned to your invitation yet.`
+                : 'No events are currently available.'}
             </p>
             <p className="text-sm text-gray-500">
-              Please contact the couple directly if you believe this is an error, or check back later for updates.
+              {guest 
+                ? 'Please contact the couple directly if you believe this is an error, or check back later for updates.'
+                : 'Please check back later for updates.'}
             </p>
           </div>
         )}

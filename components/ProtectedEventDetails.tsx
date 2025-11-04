@@ -6,6 +6,7 @@ import Card from '@/components/Card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { MotionStagger, MotionItem, MotionCard } from '@/components/ui/motion'
+import type { ConfigValue } from '@/lib/types/config'
 import { 
   Heart, 
   Church, 
@@ -15,12 +16,14 @@ import {
   Lock,
   Users
 } from 'lucide-react'
+import { renderIcon } from '@/lib/icon-utils'
 
 interface Event {
   name: string
   venue: string
   address: string
   starts_at: string
+  icon?: string
 }
 
 interface Guest {
@@ -33,19 +36,38 @@ interface Guest {
 }
 
 interface ProtectedEventDetailsProps {
-  onAccessGranted: (guest: Guest) => void
+  onAccessGranted?: (guest: Guest) => void
+  forcePublic?: boolean
 }
 
-export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEventDetailsProps) {
+export default function ProtectedEventDetails({ onAccessGranted, forcePublic = false }: ProtectedEventDetailsProps) {
   const [inviteCode, setInviteCode] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [guest, setGuest] = useState<Guest | null>(null)
   const [events, setEvents] = useState<Event[]>([])
+  const [config, setConfig] = useState<ConfigValue | null>(null)
+  const [isLoadingConfig, setIsLoadingConfig] = useState(true)
   const { toast } = useToast()
 
-  // Check for existing authentication on mount
+  // Load config and check for existing authentication on mount
   useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const response = await fetch('/api/config')
+        if (response.ok) {
+          const configData = await response.json()
+          setConfig(configData)
+        }
+      } catch (error) {
+        console.error('Error loading config:', error)
+      } finally {
+        setIsLoadingConfig(false)
+      }
+    }
+
+    loadConfig()
+
     const savedGuest = sessionStorage.getItem('schedule-guest')
     if (savedGuest) {
       try {
@@ -66,6 +88,27 @@ export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEven
       fetchGuestEvents()
     }
   }, [guest, isAuthenticated])
+
+  // Determine if access code is required
+  // If forcePublic is true, always make it public (used on home page)
+  // Otherwise: check both global and per-page settings
+  const accessCodeRequired = forcePublic 
+    ? false 
+    : (config?.access_code_enabled && config?.access_code_required_event_details) === true
+  
+  useEffect(() => {
+    if (!accessCodeRequired && !isAuthenticated && config) {
+      // Fetch all events for public view
+      fetch('/api/schedule/events')
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.events) {
+            setEvents(data.events)
+          }
+        })
+        .catch(err => console.error('Error fetching events:', err))
+    }
+  }, [accessCodeRequired, isAuthenticated, config])
 
   const fetchGuestEvents = async () => {
     if (!guest?.invite_code) {
@@ -131,7 +174,10 @@ export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEven
           description: `Welcome, ${guestData.first_name}! You can now view the event details.`,
         })
         
-        onAccessGranted(guestData)
+        // Call optional callback if provided
+        if (onAccessGranted) {
+          onAccessGranted(guestData)
+        }
       } else {
         toast({
           title: "Invalid Invite Code",
@@ -151,8 +197,15 @@ export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEven
     }
   }
 
-  const getEventIcon = (eventName: string) => {
-    const name = eventName.toLowerCase()
+  const getEventIcon = (event: Event) => {
+    // First, try to use the stored icon if available
+    if (event.icon) {
+      const renderedIcon = renderIcon(event.icon, "h-6 w-6 text-gold-600")
+      if (renderedIcon) return renderedIcon
+    }
+    
+    // Fall back to keyword matching for backward compatibility
+    const name = event.name.toLowerCase()
     
     if (name.includes('ceremony') || name.includes('church')) {
       return <Church className="h-6 w-6 text-gold-600" />
@@ -168,8 +221,20 @@ export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEven
     return <Calendar className="h-6 w-6 text-gold-600" />
   }
 
-  // Show login form if not authenticated
-  if (!isAuthenticated) {
+  // Show loading state while config loads
+  // All hooks must be called before any conditional returns
+  if (isLoadingConfig) {
+    return (
+      <Section title="Event Details" subtitle="Loading...">
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="animate-spin h-8 w-8 border-2 border-gold-600 border-t-transparent rounded-full" />
+        </div>
+      </Section>
+    )
+  }
+
+  // Show login form if not authenticated and access code is required
+  if (!isAuthenticated && accessCodeRequired) {
     return (
       <Section title="Event Details" subtitle="Enter your invite code to view details">
         <div className="max-w-md mx-auto">
@@ -203,7 +268,8 @@ export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEven
               
               <Button 
                 type="submit" 
-                className="w-full bg-gold-600 text-white hover:bg-gold-700"
+                variant="gold"
+                className="w-full"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -235,14 +301,16 @@ export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEven
     )
   }
 
-  // Show protected event details
+  // Show event details (authenticated or public if access code not required)
   return (
     <Section title="Event Details" subtitle="Everything you need for the big day">
-      <div className="mb-4 p-3 bg-gold-50 rounded-lg border border-gold-200">
-        <p className="text-sm text-gold-800">
-          <span className="font-medium">Welcome, {guest?.first_name}!</span> Here are the detailed event information for our special day.
-        </p>
-      </div>
+      {guest && (
+        <div className="mb-4 p-3 bg-gold-50 rounded-lg border border-gold-200">
+          <p className="text-sm text-gold-800">
+            <span className="font-medium">Welcome, {guest?.first_name}!</span> Here are the detailed event information for our special day.
+          </p>
+        </div>
+      )}
       
       {events.length > 0 ? (
         <MotionStagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 md:gap-6">
@@ -252,7 +320,7 @@ export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEven
                 <Card>
                   <div className="flex items-start gap-3">
                     <div className="flex-shrink-0 mt-1">
-                      {getEventIcon(event.name)}
+                      {getEventIcon(event)}
                     </div>
                     <div className="flex-1">
                       <h3 className="font-medium text-lg">{event.name}</h3>
@@ -295,27 +363,37 @@ export default function ProtectedEventDetails({ onAccessGranted }: ProtectedEven
           <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-gold-100">
             <Calendar className="h-10 w-10 text-gold-600" />
           </div>
-          <h3 className="text-xl font-serif text-gray-900 mb-2">No Events Assigned</h3>
+          <h3 className="text-xl font-serif text-gray-900 mb-2">No Events Available</h3>
           <p className="text-gray-600 mb-4">
-            Hi {guest?.first_name}, it looks like you don't have any specific events assigned to your invitation yet.
+            {guest 
+              ? `Hi ${guest.first_name}, it looks like you don't have any specific events assigned to your invitation yet.`
+              : 'No events are currently available.'}
           </p>
           <p className="text-sm text-gray-500">
-            Please contact the couple directly if you believe this is an error, or check back later for updates.
+            {guest
+              ? 'Please contact the couple directly if you believe this is an error, or check back later for updates.'
+              : 'Please check back later for updates.'}
           </p>
         </div>
       )}
 
-      <div className="mt-6 rounded-lg bg-gold-50/60 border border-gold-200 px-4 py-3">
-        <p className="text-sm text-gold-900 font-medium">
-          Kindly note:{' '}
-          <span className="font-semibold">White and ivory outfits are not permitted</span> for
-          guests. Please choose other colors to let the couple stand out on their special day.
-        </p>
-        <p className="text-sm text-gold-900 font-medium">
-          Kindly note:{' '}
-          <span className="font-semibold">No kids allowed. This is an adult only event.</span>
-        </p>
-      </div>
+      {((config?.dress_code_message && config.dress_code_message.trim() !== '') || 
+        (config?.age_restriction_message && config.age_restriction_message.trim() !== '')) && (
+        <div className="mt-6 rounded-lg bg-gold-50/60 border border-gold-200 px-4 py-3 space-y-2">
+          {config?.dress_code_message && config.dress_code_message.trim() !== '' && (
+            <p className="text-sm text-gold-900 font-medium">
+              Kindly note:{' '}
+              <span className="font-semibold">{config.dress_code_message}</span>
+            </p>
+          )}
+          {config?.age_restriction_message && config.age_restriction_message.trim() !== '' && (
+            <p className="text-sm text-gold-900 font-medium">
+              Kindly note:{' '}
+              <span className="font-semibold">{config.age_restriction_message}</span>
+            </p>
+          )}
+        </div>
+      )}
     </Section>
   )
 }
