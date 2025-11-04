@@ -7,7 +7,7 @@ This guide covers setting up SSL certificates for Premium/Enterprise tier custom
 ### Quick Setup (Manual)
 ```bash
 # 1. Issue certificate
-sudo certbot certonly --nginx -d domain.com -d www.domain.com
+sudo certbot certonly --nginx -d shiromieandvenkforever.com -d www.shiromieandvenkforever.com
 
 # 2. Create Nginx config (see Method 1 below)
 
@@ -19,7 +19,7 @@ sudo nginx -t && sudo systemctl reload nginx
 ### Automated Setup
 ```bash
 # Use the setup script
-sudo /usr/local/bin/setup-custom-domain-ssl.sh domain.com www.domain.com
+sudo /usr/local/bin/setup-custom-domain-ssl.sh shiromieandvenkforever.com www.shiromieandvenkforever.com
 ```
 
 ### Check Certificate Status
