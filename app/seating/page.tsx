@@ -114,18 +114,22 @@ export default function SeatingPage() {
   }
 
   // Show loading state while config loads
-  if (isLoadingConfig) {
+  // This prevents the access form from flashing before we know if it's needed
+  if (isLoadingConfig || !config) {
     return (
       <Section title="Seating Chart" subtitle="Find your assigned seat">
         <div className="min-h-[60vh] flex items-center justify-center">
-          <div className="animate-spin h-8 w-8 border-2 border-gold-600 border-t-transparent rounded-full" />
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin h-8 w-8 border-2 border-gold-600 border-t-transparent rounded-full" />
+            <p className="text-sm text-gray-600">Loading seating chart...</p>
+          </div>
         </div>
       </Section>
     )
   }
 
-  // Check if access code is required
-  const accessCodeRequired = config?.access_code_enabled && config?.access_code_required_seating
+  // Check if access code is required (only after config is loaded)
+  const accessCodeRequired = config.access_code_enabled && config.access_code_required_seating
 
   // Show seating directly if access code not required
   if (!accessCodeRequired && !isAuthenticated) {

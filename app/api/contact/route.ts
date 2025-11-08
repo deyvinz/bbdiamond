@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getWeddingId } from '@/lib/wedding-context-server'
+import { getEmailConfig, getFromAddress } from '@/lib/email-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,8 +24,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get support email from environment or use default
-    const supportEmail = process.env.SUPPORT_EMAIL || process.env.CONTACT_EMAIL || 'hello@luwani.com'
+    // Get wedding context for email config
+    const weddingId = await getWeddingId()
+    const emailConfigData = weddingId ? await getEmailConfig(weddingId) : null
+    const fromAddress = weddingId ? await getFromAddress(weddingId) : 'Luwāni Contact Form <noreply@luwani.com>'
+    
+    // Get support email from wedding config or environment
+    const supportEmail = emailConfigData?.branding.contactEmail 
+      || process.env.SUPPORT_EMAIL 
+      || process.env.CONTACT_EMAIL 
+      || 'hello@luwani.com'
     const resendApiKey = process.env.RESEND_API_KEY
 
     if (!resendApiKey) {
@@ -164,7 +174,7 @@ Reply to: ${email}
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'Luwāni Contact Form <noreply@luwani.com>',
+          from: fromAddress,
           to: [supportEmail],
           reply_to: email,
           subject: `Contact Form: ${subject}`,

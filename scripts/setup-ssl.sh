@@ -145,8 +145,22 @@ if [ "$UPDATE_MODE" = false ] || [ ! -d "$CERT_PATH" ]; then
     
     # Create temporary HTTP-only Nginx config for certificate issuance
     if [ ! -f "$CONFIG_FILE" ] || [ "$UPDATE_MODE" = true ]; then
+        # Check if upstream exists in main nginx config
+        CHECK_UPSTREAM_TEMP=$(grep -r "upstream $UPSTREAM_BACKEND" /etc/nginx/ 2>/dev/null | head -n 1 || echo "")
+        
+        if [ -z "$CHECK_UPSTREAM_TEMP" ]; then
+            UPSTREAM_DEF_TEMP="upstream $UPSTREAM_BACKEND {
+    server 127.0.0.1:8080 max_fails=3 fail_timeout=30s;
+    keepalive 32;
+}
+
+"
+        else
+            UPSTREAM_DEF_TEMP=""
+        fi
+        
         cat > "$CONFIG_FILE" << EOF
-# Temporary configuration for SSL certificate issuance
+${UPSTREAM_DEF_TEMP}# Temporary configuration for SSL certificate issuance
 server {
     listen 80;
     server_name $DOMAIN${NO_WWW:+}${NO_WWW:- www.$DOMAIN};
@@ -200,8 +214,41 @@ if [ "$NO_WWW" = false ]; then
     SERVER_NAMES="$SERVER_NAMES www.$DOMAIN"
 fi
 
+# Check if upstream is defined in main nginx config
+CHECK_UPSTREAM=$(grep -r "upstream $UPSTREAM_BACKEND" /etc/nginx/ 2>/dev/null | head -n 1 || echo "")
+
+if [ -z "$CHECK_UPSTREAM" ]; then
+    # Upstream not defined globally, include it in this site config
+    echo "ℹ️  Upstream $UPSTREAM_BACKEND not found in main config, defining in site config..."
+    UPSTREAM_DEFINITION="upstream $UPSTREAM_BACKEND {
+    server 127.0.0.1:8080 max_fails=3 fail_timeout=30s;
+    keepalive 32;
+}
+
+"
+else
+    # Upstream exists in main config, don't redefine
+    UPSTREAM_DEFINITION=""
+fi
+
+# Check if SSL protocols are defined globally (to avoid redefinition warning)
+CHECK_SSL_PROTOCOLS=$(grep -r "^[^#]*ssl_protocols" /etc/nginx/nginx.conf 2>/dev/null | grep -v "^#" | head -n 1 || echo "")
+
+if [ -n "$CHECK_SSL_PROTOCOLS" ]; then
+    # SSL protocols defined globally, don't redefine in site config
+    echo "ℹ️  SSL protocols found in global config, omitting from site config to avoid warnings..."
+    SSL_PROTOCOLS_CONFIG=""
+    SSL_CIPHERS_CONFIG=""
+    SSL_PREFER_CONFIG=""
+else
+    # Define SSL settings in site config
+    SSL_PROTOCOLS_CONFIG="ssl_protocols TLSv1.2 TLSv1.3;"
+    SSL_CIPHERS_CONFIG="ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;"
+    SSL_PREFER_CONFIG="ssl_prefer_server_ciphers off;"
+fi
+
 cat > "$CONFIG_FILE" << EOF
-# HTTP server - redirect to HTTPS
+$UPSTREAM_DEFINITION# HTTP server - redirect to HTTPS
 server {
     listen 80;
     listen [::]:80;
@@ -227,9 +274,18 @@ server {
     # SSL configuration
     ssl_certificate $CERT_PATH/fullchain.pem;
     ssl_certificate_key $CERT_PATH/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;
-    ssl_prefer_server_ciphers off;
+EOF
+
+# Add SSL protocol settings conditionally
+if [ -n "$SSL_PROTOCOLS_CONFIG" ]; then
+    cat >> "$CONFIG_FILE" << EOF
+    $SSL_PROTOCOLS_CONFIG
+    $SSL_CIPHERS_CONFIG
+    $SSL_PREFER_CONFIG
+EOF
+fi
+
+cat >> "$CONFIG_FILE" << EOF
     
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
