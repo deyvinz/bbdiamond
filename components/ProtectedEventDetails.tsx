@@ -89,15 +89,18 @@ export default function ProtectedEventDetails({ onAccessGranted, forcePublic = f
     }
   }, [guest, isAuthenticated])
 
-  // Determine if access code is required
+  // Determine if access code is required (only calculate after config is loaded)
   // If forcePublic is true, always make it public (used on home page)
   // Otherwise: check both global and per-page settings
-  const accessCodeRequired = forcePublic 
-    ? false 
-    : (config?.access_code_enabled && config?.access_code_required_event_details) === true
+  const accessCodeRequired = !isLoadingConfig && config 
+    ? (forcePublic 
+        ? false 
+        : (config.access_code_enabled && config.access_code_required_event_details) === true)
+    : false // Default to false while loading to prevent showing form prematurely
   
   useEffect(() => {
-    if (!accessCodeRequired && !isAuthenticated && config) {
+    // Only fetch public events if config is loaded, access not required, and not authenticated
+    if (!isLoadingConfig && !accessCodeRequired && !isAuthenticated && config) {
       // Fetch all events for public view
       fetch('/api/schedule/events')
         .then(res => res.json())
@@ -108,7 +111,7 @@ export default function ProtectedEventDetails({ onAccessGranted, forcePublic = f
         })
         .catch(err => console.error('Error fetching events:', err))
     }
-  }, [accessCodeRequired, isAuthenticated, config])
+  }, [accessCodeRequired, isAuthenticated, config, isLoadingConfig])
 
   const fetchGuestEvents = async () => {
     if (!guest?.invite_code) {
@@ -222,18 +225,23 @@ export default function ProtectedEventDetails({ onAccessGranted, forcePublic = f
   }
 
   // Show loading state while config loads
+  // This prevents the access form from flashing before we know if it's needed
   // All hooks must be called before any conditional returns
-  if (isLoadingConfig) {
+  if (isLoadingConfig || !config) {
     return (
       <Section title="Event Details" subtitle="Loading...">
         <div className="min-h-[60vh] flex items-center justify-center">
-          <div className="animate-spin h-8 w-8 border-2 border-gold-600 border-t-transparent rounded-full" />
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin h-8 w-8 border-2 border-gold-600 border-t-transparent rounded-full" />
+            <p className="text-sm text-gray-600">Loading event details...</p>
+          </div>
         </div>
       </Section>
     )
   }
 
   // Show login form if not authenticated and access code is required
+  // Only check after config is confirmed loaded
   if (!isAuthenticated && accessCodeRequired) {
     return (
       <Section title="Event Details" subtitle="Enter your invite code to view details">

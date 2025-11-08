@@ -41,6 +41,9 @@ export default function Page() {
         }
       } catch (error) {
         console.error('Error loading config:', error)
+      } finally {
+        // Only set loading to false after config is loaded
+        setIsLoading(false)
       }
     }
 
@@ -62,7 +65,6 @@ export default function Page() {
         sessionStorage.removeItem('schedule-guest')
       }
     }
-    setIsLoading(false)
   }, [toast])
 
   const handleAccessGranted = (guestData: any) => {
@@ -77,31 +79,32 @@ export default function Page() {
     setGuest(null)
   }
 
-  // Show loading state while checking session storage
-  if (isLoading) {
+  // Show loading state while config is being loaded
+  // This prevents the access form from flashing before we know if it's needed
+  if (isLoading || !config) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-2 border-gold-600 border-t-transparent rounded-full" />
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin h-8 w-8 border-2 border-gold-600 border-t-transparent rounded-full" />
+          <p className="text-sm text-gray-600">Loading schedule...</p>
+        </div>
       </div>
     )
   }
 
+  // If guest is already authenticated, show schedule immediately
   if (guest) {
     return <ProtectedSchedule guest={guest} onLogout={handleLogout} />
   }
 
-  // Check if access code is required
-  const accessCodeRequired = config?.access_code_enabled && config?.access_code_required_schedule
+  // Check if access code is required (only after config is loaded)
+  const accessCodeRequired = config.access_code_enabled && config.access_code_required_schedule
 
   // Show schedule directly if access code not required
-  if (!accessCodeRequired && config) {
+  if (!accessCodeRequired) {
     return <ProtectedSchedule guest={null} onLogout={handleLogout} />
   }
 
-  // Show access form if required or config not loaded yet
-  if (accessCodeRequired || !config) {
-    return <ScheduleAccessForm onAccessGranted={handleAccessGranted} />
-  }
-
-  return null
+  // Show access form only if access code is required
+  return <ScheduleAccessForm onAccessGranted={handleAccessGranted} />
 }

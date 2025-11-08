@@ -17,6 +17,7 @@ import { EmailButton } from './components/EmailButton'
 import { SectionHeading } from './components/SectionHeading'
 import { InfoRow } from './components/InfoRow'
 import { Footer } from './components/Footer'
+import type { EmailBranding } from '@/lib/email-service'
 
 export interface InvitationEmailProps {
   guestName: string
@@ -34,6 +35,7 @@ export interface InvitationEmailProps {
   contactEmail?: string
   replyToEmail?: string
   coupleDisplayName?: string
+  emailBranding?: EmailBranding
 }
 
 export function InvitationEmail({
@@ -51,18 +53,57 @@ export function InvitationEmail({
   travelUrl,
   contactEmail,
   replyToEmail,
-  coupleDisplayName = 'Wedding Celebration',
+  coupleDisplayName,
+  emailBranding,
 }: InvitationEmailProps) {
+  // Use branding if provided, otherwise fallback to props
+  const displayName = emailBranding?.coupleDisplayName || coupleDisplayName || 'Wedding Celebration'
+  const primaryColor = emailBranding?.primaryColor || '#C7A049'
+  const logoUrl = emailBranding?.logoUrl
+  const websiteUrl = emailBranding?.websiteUrl || rsvpUrl.split('/rsvp')[0] || 'https://luwani.com'
+  const finalContactEmail = emailBranding?.contactEmail || contactEmail
+  const finalReplyToEmail = emailBranding?.replyToEmail || replyToEmail
+
   const preheaderText = `RSVP for ${eventName} — ${eventDate}`
   const mapUrl = eventAddress ? `https://maps.google.com/maps?q=${encodeURIComponent(eventAddress)}` : undefined
 
+  // Dynamic styles based on branding
+  const headerSubtitleStyle = {
+    ...headerSubtitle,
+    color: primaryColor,
+  }
+  const headerRuleStyle = {
+    ...headerRule,
+    borderColor: primaryColor,
+  }
+  const eventCardStyle = {
+    ...eventCard,
+    border: `2px solid ${primaryColor}`,
+  }
+  const qrImageStyle = {
+    ...qrImage,
+    border: `1px solid ${primaryColor}`,
+  }
+  const linkStyleDynamic = {
+    ...linkStyle,
+    color: primaryColor,
+  }
+
   return (
-    <BaseEmailLayout preheader={preheaderText}>
+    <BaseEmailLayout preheader={preheaderText} branding={emailBranding}>
       {/* Header */}
       <Section style={header}>
-        <Heading style={headerTitle}>{coupleDisplayName}</Heading>
-        <Text style={headerSubtitle}>Wedding Celebration</Text>
-        <Hr style={headerRule} />
+        {logoUrl ? (
+          <Img
+            src={logoUrl}
+            alt={displayName}
+            style={logoImage}
+          />
+        ) : (
+          <Heading style={headerTitle}>{displayName}</Heading>
+        )}
+        <Text style={headerSubtitleStyle}>Wedding Celebration</Text>
+        <Hr style={headerRuleStyle} />
       </Section>
 
       {/* Hero Image */}
@@ -89,7 +130,7 @@ export function InvitationEmail({
         </Text>
 
         {/* Event Details Card */}
-        <Section style={eventCard}>
+        <Section style={eventCardStyle}>
           <SectionHeading level={2}>
             {eventName}
           </SectionHeading>
@@ -133,7 +174,7 @@ export function InvitationEmail({
             <Img
               src={qrImageUrl}
               alt={`QR code for ${eventName} RSVP`}
-              style={qrImage}
+              style={qrImageStyle}
             />
           </Section>
         )}
@@ -144,21 +185,21 @@ export function InvitationEmail({
             <Text style={linksTitle}>Helpful Links:</Text>
             {addToCalendarUrl && (
               <Text style={linkItem}>
-                <Link href={addToCalendarUrl} style={linkStyle}>
+                <Link href={addToCalendarUrl} style={linkStyleDynamic}>
                   📅 Add to Calendar
                 </Link>
               </Text>
             )}
             {travelUrl && (
               <Text style={linkItem}>
-                <Link href={travelUrl} style={linkStyle}>
+                <Link href={travelUrl} style={linkStyleDynamic}>
                   ✈️ Travel & Stay
                 </Link>
               </Text>
             )}
             {registryUrl && (
               <Text style={linkItem}>
-                <Link href={registryUrl} style={linkStyle}>
+                <Link href={registryUrl} style={linkStyleDynamic}>
                   🎁 Registry
                 </Link>
               </Text>
@@ -173,15 +214,15 @@ export function InvitationEmail({
 
         <Text style={paragraph}>
           With love and excitement,<br />
-          {coupleDisplayName}
+          {displayName}
         </Text>
       </Section>
 
       {/* Footer */}
       <Footer 
-        websiteUrl={rsvpUrl.split('/rsvp')[0] || "http://luwani.com/demo"}
-        contactEmail={contactEmail}
-        replyToEmail={replyToEmail}
+        websiteUrl={websiteUrl}
+        contactEmail={finalContactEmail}
+        replyToEmail={finalReplyToEmail}
       />
     </BaseEmailLayout>
   )
@@ -194,8 +235,9 @@ export function getInvitationSubject(guestName: string, eventName: string): stri
 
 // Plain text renderer
 export function renderPlainText(invitation: InvitationEmailProps): string {
+  const coupleName = invitation.emailBranding?.coupleDisplayName || invitation.coupleDisplayName || 'Wedding Celebration'
   const lines = [
-    'Brenda & Diamond — Invitation',
+    `${coupleName} — Invitation`,
     '',
     `Dear ${invitation.guestName},`,
     '',
@@ -212,7 +254,7 @@ export function renderPlainText(invitation: InvitationEmailProps): string {
     invitation.addToCalendarUrl || '',
     invitation.travelUrl || '',
     invitation.registryUrl || '',
-    invitation.contactEmail || '',
+    invitation.emailBranding?.contactEmail || invitation.contactEmail || '',
     '',
     "We can't wait to celebrate with you.",
   ]
@@ -380,6 +422,13 @@ const linkStyle = {
   color: '#C7A049',
   textDecoration: 'underline',
   fontSize: '16px',
+}
+
+const logoImage = {
+  maxWidth: '200px',
+  height: 'auto',
+  margin: '0 auto 16px',
+  display: 'block',
 }
 
 export default InvitationEmail

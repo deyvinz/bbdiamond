@@ -237,9 +237,19 @@ async function createDefaultTheme(weddingId: string): Promise<void> {
 async function createDefaultEmailConfig(weddingId: string, contactEmail: string): Promise<void> {
   try {
     const supabase = supabaseService()
+    
+    // Fetch wedding to get couple_display_name
+    const { data: wedding } = await supabase
+      .from('weddings')
+      .select('couple_display_name')
+      .eq('id', weddingId)
+      .single()
+    
+    const fromName = wedding?.couple_display_name || 'Wedding'
+    
     await supabase.from('wedding_email_config').insert({
       wedding_id: weddingId,
-      from_name: 'Wedding',
+      from_name: fromName,
       from_email: contactEmail,
       reply_to_email: contactEmail,
       invitation_subject_template: "You're Invited, {guest_name} — {event_name}",

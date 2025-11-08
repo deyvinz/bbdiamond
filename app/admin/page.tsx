@@ -59,6 +59,13 @@ export default function AdminHome(){
         </a>
         <a 
           className="border border-gold-200 rounded-xl p-4 lg:p-6 bg-white/70 backdrop-blur hover:bg-gold-50/50 transition-all duration-200 hover:scale-105 hover:shadow-lg group" 
+          href="/admin/email"
+        >
+          <h3 className="font-medium text-base lg:text-lg group-hover:text-gold-700 transition-colors">Email Settings</h3>
+          <p className="text-sm text-black/60 mt-1">Manage email configuration and branding</p>
+        </a>
+        <a 
+          className="border border-gold-200 rounded-xl p-4 lg:p-6 bg-white/70 backdrop-blur hover:bg-gold-50/50 transition-all duration-200 hover:scale-105 hover:shadow-lg group" 
           href="/admin/food-choices"
         >
           <h3 className="font-medium text-base lg:text-lg group-hover:text-gold-700 transition-colors">Food Choices</h3>

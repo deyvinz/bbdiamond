@@ -9,6 +9,7 @@ const corsHeaders = {
 interface AnnouncementEmailData {
   announcement_id: string;
   batch_id: string;
+  wedding_id?: string;
   recipients: Array<{
     id: string;
     email: string;
@@ -21,6 +22,72 @@ interface AnnouncementEmailData {
   };
 }
 
+// Helper function to fetch email config and branding
+async function getEmailConfigData(supabase: any, weddingId?: string) {
+  if (!weddingId) {
+    return null;
+  }
+
+  try {
+    // Fetch email config
+    const { data: emailConfig } = await supabase
+      .from('wedding_email_config')
+      .select('*')
+      .eq('wedding_id', weddingId)
+      .single();
+
+    // Fetch wedding data
+    const { data: wedding } = await supabase
+      .from('weddings')
+      .select('couple_display_name, contact_email, custom_domain, subdomain')
+      .eq('id', weddingId)
+      .single();
+
+    // Fetch theme
+    const { data: theme } = await supabase
+      .from('wedding_themes')
+      .select('logo_url, email_logo_url, primary_color')
+      .eq('wedding_id', weddingId)
+      .single();
+
+    if (!wedding) {
+      return null;
+    }
+
+    // Build branding
+    const logoUrl = emailConfig?.logo_url || theme?.email_logo_url || theme?.logo_url || null;
+    const primaryColor = emailConfig?.primary_color || theme?.primary_color || '#C7A049';
+    const coupleDisplayName = wedding.couple_display_name || 'Wedding Celebration';
+    
+    // Build website URL
+    let websiteUrl = 'https://luwani.com';
+    if (wedding.custom_domain) {
+      websiteUrl = `https://${wedding.custom_domain}`;
+    } else if (wedding.subdomain) {
+      const baseDomain = Deno.env.get('NEXT_PUBLIC_APP_URL') 
+        ? new URL(Deno.env.get('NEXT_PUBLIC_APP_URL')!).hostname.replace('www.', '')
+        : 'luwani.com';
+      websiteUrl = `https://${wedding.subdomain}.${baseDomain}`;
+    }
+
+    const contactEmail = emailConfig?.reply_to_email || wedding.contact_email || 'contact@luwani.com';
+
+    return {
+      logoUrl,
+      primaryColor,
+      coupleDisplayName,
+      websiteUrl,
+      contactEmail,
+      fromName: emailConfig?.from_name || coupleDisplayName,
+      fromEmail: emailConfig?.from_email || contactEmail,
+      replyToEmail: emailConfig?.reply_to_email || contactEmail,
+    };
+  } catch (error) {
+    console.error('Error fetching email config:', error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -28,7 +95,7 @@ serve(async (req) => {
   }
 
   try {
-    const { announcement_id, batch_id, recipients, announcement }: AnnouncementEmailData =
+    const { announcement_id, batch_id, wedding_id, recipients, announcement }: AnnouncementEmailData =
       await req.json();
 
     if (!announcement_id || !batch_id || !recipients || !announcement) {
@@ -43,6 +110,34 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Fetch wedding_id from announcement if not provided
+    let finalWeddingId = wedding_id;
+    if (!finalWeddingId) {
+      const { data: announcementData } = await supabase
+        .from('announcements')
+        .select('wedding_id')
+        .eq('id', announcement_id)
+        .single();
+      finalWeddingId = announcementData?.wedding_id;
+    }
+
+    // Fetch email config and branding
+    const branding = await getEmailConfigData(supabase, finalWeddingId);
+    const defaultBranding = {
+      logoUrl: null,
+      primaryColor: '#C7A049',
+      coupleDisplayName: 'Wedding Celebration',
+      websiteUrl: 'https://luwani.com',
+      contactEmail: 'contact@luwani.com',
+      fromName: 'Wedding',
+      fromEmail: 'noreply@luwani.com',
+      replyToEmail: 'contact@luwani.com',
+    };
+    const finalBranding = branding || defaultBranding;
+
+    // Build from address
+    const fromAddress = `"${finalBranding.fromName}" <${finalBranding.fromEmail}>`;
+
     const results = {
       sent: 0,
       failed: 0,
@@ -52,7 +147,11 @@ serve(async (req) => {
     // Process each recipient
     for (const recipient of recipients) {
       try {
-        // Create email content
+        // Create email content with dynamic branding
+        const logoHtml = finalBranding.logoUrl 
+          ? `<img src="${finalBranding.logoUrl}" alt="${finalBranding.coupleDisplayName}" style="max-width: 150px; height: auto; margin: 0 auto; display: block;">`
+          : `<h1 style="color: #111111; font-size: 32px; font-weight: bold; margin: 0 0 8px 0;">${finalBranding.coupleDisplayName}</h1>`;
+        
         const emailHtml = `
 <!DOCTYPE html>
 <html>
@@ -80,7 +179,7 @@ serve(async (req) => {
             text-align: center;
             margin-bottom: 30px;
             padding-bottom: 20px;
-            border-bottom: 2px solid #f0f0f0;
+            border-bottom: 2px solid ${finalBranding.primaryColor};
         }
         .title {
             color: #2c3e50;
@@ -110,7 +209,9 @@ serve(async (req) => {
     <div class="container">
          <!-- Logo Header -->
     <div style="padding: 30px 20px; text-align: center;">
-      <img src="https://utumylehywfktctigkie.supabase.co/storage/v1/object/public/bdiamond/logo.png" alt="Brenda & Diamond" style="max-width: 150px; height: auto; margin: 0 auto; display: block;">
+      ${logoHtml}
+      <p style="color: ${finalBranding.primaryColor}; font-size: 18px; margin: 16px 0 20px 0; font-weight: 300; letter-spacing: 2px;">Wedding Celebration</p>
+      <hr style="border: 2px solid ${finalBranding.primaryColor}; margin: 0; width: 60px;">
     </div>  
         <div class="content">
             <p class="greeting">Dear ${recipient.guest_name || 'Guest'},</p>
@@ -118,11 +219,11 @@ serve(async (req) => {
         </div>
         
         <div class="content">
-           <a href="https://brendabagsherdiamond.com/registry">Visit our registry</a>
+           <a href="${finalBranding.websiteUrl}/registry" style="color: ${finalBranding.primaryColor}; text-decoration: underline;">Visit our registry</a>
         </div>
         <div class="footer">
             <p>This message was sent to you as part of our wedding celebration.</p>
-            <p>If you have any questions, please don't hesitate to contact us. <a href="mailto:bidiamond2025@gmail.com">bidiamond2025@gmail.com</a></p>
+            <p>If you have any questions, please don't hesitate to contact us. <a href="mailto:${finalBranding.contactEmail}" style="color: ${finalBranding.primaryColor}; text-decoration: underline;">${finalBranding.contactEmail}</a></p>
         </div>
     </div>
 </body>
@@ -136,8 +237,9 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'Brenda & Diamond <noreply@brendabagsherdiamond.com>',
+            from: fromAddress,
             to: [recipient.email],
+            replyTo: finalBranding.replyToEmail,
             subject: announcement.subject,
             html: emailHtml,
             headers: {

@@ -17,6 +17,7 @@ interface RsvpConfirmationPayload {
   text: string;
   meta: {
     invitationId: string;
+    weddingId?: string;
     rsvpUrl: string;
     guestName: string;
     inviteCode: string;
@@ -28,12 +29,81 @@ interface RsvpConfirmationPayload {
     }>;
     isAccepted: boolean;
     goodwillMessage?: string;
+    coupleDisplayName?: string;
+    contactEmail?: string;
+    websiteUrl?: string;
   };
   attachments?: Array<{
     filename: string;
     content: string;
     contentType: string;
   }>;
+}
+
+// Helper function to fetch email config and branding
+async function getEmailConfigData(weddingId?: string) {
+  if (!weddingId) {
+    return null;
+  }
+
+  try {
+    // Fetch email config
+    const { data: emailConfig } = await supabase
+      .from('wedding_email_config')
+      .select('*')
+      .eq('wedding_id', weddingId)
+      .single();
+
+    // Fetch wedding data
+    const { data: wedding } = await supabase
+      .from('weddings')
+      .select('couple_display_name, contact_email, custom_domain, subdomain')
+      .eq('id', weddingId)
+      .single();
+
+    // Fetch theme
+    const { data: theme } = await supabase
+      .from('wedding_themes')
+      .select('logo_url, email_logo_url, primary_color')
+      .eq('wedding_id', weddingId)
+      .single();
+
+    if (!wedding) {
+      return null;
+    }
+
+    // Build branding
+    const logoUrl = emailConfig?.logo_url || theme?.email_logo_url || theme?.logo_url || null;
+    const primaryColor = emailConfig?.primary_color || theme?.primary_color || '#C7A049';
+    const coupleDisplayName = wedding.couple_display_name || 'Wedding Celebration';
+    
+    // Build website URL
+    let websiteUrl = 'https://luwani.com';
+    if (wedding.custom_domain) {
+      websiteUrl = `https://${wedding.custom_domain}`;
+    } else if (wedding.subdomain) {
+      const baseDomain = Deno.env.get('NEXT_PUBLIC_APP_URL') 
+        ? new URL(Deno.env.get('NEXT_PUBLIC_APP_URL')!).hostname.replace('www.', '')
+        : 'luwani.com';
+      websiteUrl = `https://${wedding.subdomain}.${baseDomain}`;
+    }
+
+    const contactEmail = emailConfig?.reply_to_email || wedding.contact_email || 'contact@luwani.com';
+
+    return {
+      logoUrl,
+      primaryColor,
+      coupleDisplayName,
+      websiteUrl,
+      contactEmail,
+      fromName: emailConfig?.from_name || coupleDisplayName,
+      fromEmail: emailConfig?.from_email || contactEmail,
+      replyToEmail: emailConfig?.reply_to_email || contactEmail,
+    };
+  } catch (error) {
+    console.error('Error fetching email config:', error);
+    return null;
+  }
 }
 
 // Helper function to generate email HTML
@@ -44,6 +114,7 @@ async function generateRsvpConfirmationHTML({
   events,
   isAccepted,
   goodwillMessage,
+  branding,
 }: {
   guestName: string;
   inviteCode: string;
@@ -56,6 +127,13 @@ async function generateRsvpConfirmationHTML({
   }>;
   isAccepted: boolean;
   goodwillMessage?: string;
+  branding?: {
+    logoUrl?: string | null;
+    primaryColor: string;
+    coupleDisplayName: string;
+    websiteUrl: string;
+    contactEmail: string;
+  };
 }): Promise<string> {
   const formatEventDateTime = (startsAtISO: string) => {
     // Parse text field: "2024-10-16 10:00:00" -> "Wednesday, October 16, 2024 · 10:00"
@@ -84,6 +162,13 @@ async function generateRsvpConfirmationHTML({
     return formattedEventDateTime;
   };
 
+  // Use branding or fallback to defaults
+  const primaryColor = branding?.primaryColor || '#C7A049';
+  const coupleDisplayName = branding?.coupleDisplayName || 'Wedding Celebration';
+  const logoUrl = branding?.logoUrl;
+  const websiteUrl = branding?.websiteUrl || rsvpUrl.split('/rsvp')[0] || 'https://luwani.com';
+  const contactEmail = branding?.contactEmail || 'contact@luwani.com';
+
   if (isAccepted) {
     return `
 <!DOCTYPE html>
@@ -98,9 +183,9 @@ async function generateRsvpConfirmationHTML({
     
     <!-- Header -->
     <div style="background-color: #FFFFFF; padding: 40px 20px; text-align: center;">
-      <img src="https://brendabagsherdiamond.com/images/logo.png" alt="Brenda & Diamond Wedding" style="max-width: 200px; height: auto; margin: 0 auto 16px auto; display: block;">
-      <p style="color: #C7A049; font-size: 18px; margin: 0 0 20px 0; font-weight: 300; letter-spacing: 2px;">Wedding Celebration</p>
-      <hr style="border: 2px solid #C7A049; margin: 0; width: 60px;">
+      ${logoUrl ? `<img src="${logoUrl}" alt="${coupleDisplayName}" style="max-width: 200px; height: auto; margin: 0 auto 16px auto; display: block;">` : `<h1 style="color: #111111; font-size: 32px; font-weight: bold; margin: 0 0 8px 0;">${coupleDisplayName}</h1>`}
+      <p style="color: ${primaryColor}; font-size: 18px; margin: 0 0 20px 0; font-weight: 300; letter-spacing: 2px;">Wedding Celebration</p>
+      <hr style="border: 2px solid ${primaryColor}; margin: 0; width: 60px;">
     </div>
 
     <!-- Main Content -->
@@ -118,7 +203,7 @@ async function generateRsvpConfirmationHTML({
 
       <!-- Confirmed Events -->
       <div style="margin: 32px 0;">
-        <h2 style="color: #111111; font-size: 20px; font-weight: bold; margin: 0 0 24px 0; text-align: center; padding-bottom: 12px; border-bottom: 2px solid #C7A049;">
+        <h2 style="color: #111111; font-size: 20px; font-weight: bold; margin: 0 0 24px 0; text-align: center; padding-bottom: 12px; border-bottom: 2px solid ${primaryColor};">
           Your Confirmed Events
         </h2>
         
@@ -129,7 +214,7 @@ async function generateRsvpConfirmationHTML({
               : undefined;
 
             return `
-          <div style="background-color: #FFFFFF; border: 2px solid #C7A049; border-radius: 8px; padding: 24px; margin: 16px 0;">
+          <div style="background-color: #FFFFFF; border: 2px solid ${primaryColor}; border-radius: 8px; padding: 24px; margin: 16px 0;">
             <h3 style="color: #111111; font-size: 18px; font-weight: bold; margin: 0 0 16px 0; text-align: center;">${event.name}</h3>
             
             <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 8px 0;">
@@ -137,14 +222,14 @@ async function generateRsvpConfirmationHTML({
             </p>
             <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 8px 0;">
               <span style="font-weight: 600; color: #111111; margin-right: 8px;">📍 Venue:</span>
-              ${eventMapUrl ? `<a href="${eventMapUrl}" style="color: #C7A049; text-decoration: underline;">${event.venue}</a>` : event.venue}
+              ${eventMapUrl ? `<a href="${eventMapUrl}" style="color: ${primaryColor}; text-decoration: underline;">${event.venue}</a>` : event.venue}
             </p>
             ${
               event.address
                 ? `
             <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 0 0 8px 0;">
               <span style="font-weight: 600; color: #111111; margin-right: 8px;">🏠 Address:</span>
-              ${eventMapUrl ? `<a href="${eventMapUrl}" style="color: #C7A049; text-decoration: underline;">${event.address}</a>` : event.address}
+              ${eventMapUrl ? `<a href="${eventMapUrl}" style="color: ${primaryColor}; text-decoration: underline;">${event.address}</a>` : event.address}
             </p>
             `
                 : ''
@@ -163,11 +248,11 @@ async function generateRsvpConfirmationHTML({
           Save these to your phone or print them out for easy access to all events.
         </p>
          <div style="text-align: center;">
-         <a href="${rsvpUrl}" style="background-color: #C7A049; border-radius: 8px; color: #111111; font-size: 16px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 12px 24px; border: none; cursor: pointer;">
+         <a href="${rsvpUrl}" style="background-color: ${primaryColor}; border-radius: 8px; color: #111111; font-size: 16px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 12px 24px; border: none; cursor: pointer;">
           View RSVP Details
         </a>
          <span style="display: inline-block; margin-right: 16px;"> </span>
-        <a href="https://brendabagsherdiamond.com/registry" style="background-color: #C7A049; border-radius: 8px; color: #111111; font-size: 18px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 12px 24px; border: none; cursor: pointer; line-height: 1.2;">
+        <a href="${websiteUrl}/registry" style="background-color: ${primaryColor}; border-radius: 8px; color: #111111; font-size: 18px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 12px 24px; border: none; cursor: pointer; line-height: 1.2;">
           Registry
         </a>
         </div>
@@ -187,7 +272,7 @@ async function generateRsvpConfirmationHTML({
 
       <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 20px 0;">
         With love and excitement,<br>
-        Brenda & Diamond
+        ${coupleDisplayName}
       </p>
     </div>
 
@@ -198,10 +283,10 @@ async function generateRsvpConfirmationHTML({
         We can't wait to celebrate with you ✨
       </p>
       <p style="margin: 0 0 16px 0;">
-        <a href="https://brendabagsherdiamond.com" style="color: #C7A049; text-decoration: underline;">Visit our website</a>
+        <a href="${websiteUrl}" style="color: ${primaryColor}; text-decoration: underline;">Visit our website</a>
       </p>
       <p style="color: #666666; font-size: 14px; line-height: 20px; margin: 0;">
-        Questions? Contact us at <a href="mailto:bidiamond2025@gmail.com" style="color: #C7A049; text-decoration: underline;">bidiamond2025@gmail.com</a>
+        Questions? Contact us at <a href="mailto:${contactEmail}" style="color: ${primaryColor}; text-decoration: underline;">${contactEmail}</a>
       </p>
     </div>
   </div>
@@ -222,9 +307,9 @@ async function generateRsvpConfirmationHTML({
     
     <!-- Header -->
     <div style="background-color: #FFFFFF; padding: 40px 20px; text-align: center;">
-      <img src="https://brendabagsherdiamond.com/images/logo.png" alt="Brenda & Diamond Wedding" style="max-width: 200px; height: auto; margin: 0 auto 16px auto; display: block;">
-      <p style="color: #C7A049; font-size: 18px; margin: 0 0 20px 0; font-weight: 300; letter-spacing: 2px;">Wedding Celebration</p>
-      <hr style="border: 2px solid #C7A049; margin: 0; width: 60px;">
+      ${logoUrl ? `<img src="${logoUrl}" alt="${coupleDisplayName}" style="max-width: 200px; height: auto; margin: 0 auto 16px auto; display: block;">` : `<h1 style="color: #111111; font-size: 32px; font-weight: bold; margin: 0 0 8px 0;">${coupleDisplayName}</h1>`}
+      <p style="color: ${primaryColor}; font-size: 18px; margin: 0 0 20px 0; font-weight: 300; letter-spacing: 2px;">Wedding Celebration</p>
+      <hr style="border: 2px solid ${primaryColor}; margin: 0; width: 60px;">
     </div>
 
     <!-- Main Content -->
@@ -254,7 +339,7 @@ async function generateRsvpConfirmationHTML({
 
       <p style="color: #4a4a4a; font-size: 16px; line-height: 24px; margin: 20px 0;">
         With love and appreciation,<br>
-        Brenda & Diamond
+        ${coupleDisplayName}
       </p>
 
       <!-- Invite Code -->
@@ -271,10 +356,10 @@ async function generateRsvpConfirmationHTML({
         Thank you for being part of our lives ✨
       </p>
       <p style="margin: 0 0 16px 0;">
-        <a href="https://brendabagsherdiamond.com" style="color: #C7A049; text-decoration: underline;">Visit our website</a>
+        <a href="${websiteUrl}" style="color: ${primaryColor}; text-decoration: underline;">Visit our website</a>
       </p>
       <p style="color: #666666; font-size: 14px; line-height: 20px; margin: 0;">
-        Questions? Contact us at <a href="mailto:bidiamond2025@gmail.com" style="color: #C7A049; text-decoration: underline;">bidiamond2025@gmail.com</a>
+        Questions? Contact us at <a href="mailto:${contactEmail}" style="color: ${primaryColor}; text-decoration: underline;">${contactEmail}</a>
       </p>
     </div>
   </div>
@@ -292,6 +377,7 @@ function generateRsvpConfirmationText({
   events,
   isAccepted,
   goodwillMessage,
+  branding,
 }: {
   guestName: string;
   inviteCode: string;
@@ -304,6 +390,11 @@ function generateRsvpConfirmationText({
   }>;
   isAccepted: boolean;
   goodwillMessage?: string;
+  branding?: {
+    coupleDisplayName: string;
+    websiteUrl: string;
+    contactEmail: string;
+  };
 }): string {
   const formatEventDateTime = (startsAtISO: string) => {
     // Parse text field: "2024-10-16 10:00:00" -> "Wednesday, October 16, 2024 · 10:00"
@@ -332,7 +423,11 @@ function generateRsvpConfirmationText({
     return formattedEventDateTime;
   };
 
-  const lines = ['Brenda & Diamond — RSVP Confirmation', '', `Dear ${guestName},`, ''];
+  const coupleDisplayName = branding?.coupleDisplayName || 'Wedding Celebration';
+  const websiteUrl = branding?.websiteUrl || rsvpUrl.split('/rsvp')[0] || 'https://luwani.com';
+  const contactEmail = branding?.contactEmail || 'contact@luwani.com';
+  
+  const lines = [`${coupleDisplayName} — RSVP Confirmation`, '', `Dear ${guestName},`, ''];
 
   if (isAccepted) {
     lines.push(
@@ -369,14 +464,14 @@ function generateRsvpConfirmationText({
       'Thank you for being part of our lives.',
       '',
       'With love and appreciation,',
-      'Brenda & Diamond'
+      coupleDisplayName
     );
   }
 
   lines.push(
     '',
-    'Visit our website: https://brendabagsherdiamond.com',
-    'Questions? Contact us at bidiamond2025@gmail.com'
+    `Visit our website: ${websiteUrl}`,
+    `Questions? Contact us at ${contactEmail}`
   );
 
   return lines.filter((line) => line.trim()).join('\n');
@@ -406,6 +501,40 @@ serve(async (req: Request) => {
     }
 
     const { meta, attachments = [] } = payload;
+
+    // Fetch email config and branding
+    const branding = await getEmailConfigData(meta.weddingId);
+    
+    // Use branding from config or fallback to meta values
+    const finalBranding = branding || {
+      logoUrl: null,
+      primaryColor: '#C7A049',
+      coupleDisplayName: meta.coupleDisplayName || 'Wedding Celebration',
+      websiteUrl: meta.websiteUrl || 'https://luwani.com',
+      contactEmail: meta.contactEmail || 'contact@luwani.com',
+    };
+
+    // Build from address
+    const fromAddress = branding 
+      ? `"${branding.fromName}" <${branding.fromEmail}>`
+      : `"${finalBranding.coupleDisplayName}" <noreply@luwani.com>`;
+
+    // Use subject template if available
+    let subject = payload.subject;
+    if (meta.weddingId) {
+      const { data: emailConfig } = await supabase
+        .from('wedding_email_config')
+        .select('rsvp_confirmation_subject_template')
+        .eq('wedding_id', meta.weddingId)
+        .single();
+      
+      if (emailConfig?.rsvp_confirmation_subject_template) {
+        const template = emailConfig.rsvp_confirmation_subject_template;
+        subject = template
+          .replace('{guest_name}', meta.guestName)
+          .replace('{event_name}', meta.events[0]?.name || 'Event');
+      }
+    }
 
     // Check rate limit (max 3 emails per day per invitation) - skip if table doesn't exist
     let rateLimitExceeded = false;
@@ -449,6 +578,7 @@ serve(async (req: Request) => {
       events: meta.events,
       isAccepted: meta.isAccepted,
       goodwillMessage: meta.goodwillMessage,
+      branding: finalBranding,
     });
 
     const text = generateRsvpConfirmationText({
@@ -458,14 +588,16 @@ serve(async (req: Request) => {
       events: meta.events,
       isAccepted: meta.isAccepted,
       goodwillMessage: meta.goodwillMessage,
+      branding: finalBranding,
     });
 
     // Send email with high priority headers
-    console.log('Sending email to:', payload.to, 'with subject:', payload.subject);
+    console.log('Sending email to:', payload.to, 'with subject:', subject, 'from:', fromAddress);
     const { data, error } = await resend.emails.send({
-      from: 'RSVP Confirmation <rsvpconfirmation@brendabagsherdiamond.com>',
+      from: fromAddress,
       to: payload.to,
-      subject: payload.subject,
+      replyTo: branding?.replyToEmail || finalBranding.contactEmail,
+      subject: subject,
       html,
       text,
       attachments: attachments.map((att) => ({

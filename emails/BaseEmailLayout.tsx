@@ -7,13 +7,18 @@ import {
   Text,
 } from '@react-email/components'
 import * as React from 'react'
+import type { EmailBranding } from '@/lib/email-service'
 
 interface BaseEmailLayoutProps {
   children: React.ReactNode
   preheader?: string
+  branding?: EmailBranding
 }
 
-export function BaseEmailLayout({ children, preheader }: BaseEmailLayoutProps) {
+export function BaseEmailLayout({ children, preheader, branding }: BaseEmailLayoutProps) {
+  // Use branding colors if provided, otherwise use defaults
+  const primaryColor = branding?.primaryColor || '#C7A049'
+  
   return (
     <Html>
       <Head />
