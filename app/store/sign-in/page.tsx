@@ -1,62 +1,16 @@
 'use client'
-import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase-browser'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase-browser'
 
-function SignInForm() {
+export default function StoreSignInPage() {
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
-  const [weddingInfo, setWeddingInfo] = useState<{ couple_display_name?: string } | null>(null)
   const router = useRouter()
-  const searchParams = useSearchParams()
-
-  useEffect(() => {
-    const fetchWeddingInfo = async () => {
-      try {
-        const response = await fetch('/api/wedding-info')
-        const data = await response.json()
-        if (data.success && data.wedding) {
-          setWeddingInfo(data.wedding)
-        }
-      } catch (error) {
-        console.error('Error fetching wedding info:', error)
-      }
-    }
-    fetchWeddingInfo()
-  }, [])
-
-  useEffect(() => {
-    const errorParam = searchParams.get('error')
-    
-    if (errorParam) {
-      let errorMessage = decodeURIComponent(errorParam)
-      
-      // Convert technical error codes to user-friendly messages
-      switch (errorParam) {
-        case 'access_denied':
-          errorMessage = 'You do not have access to this wedding. Please sign in with the account that owns this wedding.'
-          break
-        case 'invalid_credentials':
-          errorMessage = 'Invalid email. Please try again.'
-          break
-        case 'no_session':
-          errorMessage = 'Failed to create session. Please try again.'
-          break
-        case 'callback_error':
-          errorMessage = 'Authentication callback error. Please try again.'
-          break
-        default:
-          // Use the decoded error message as-is
-          break
-      }
-      
-      setError(errorMessage)
-    }
-  }, [searchParams])
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,8 +55,7 @@ function SignInForm() {
       }
 
       if (data?.session) {
-        const nextUrl = searchParams.get('next') || '/admin'
-        router.push(nextUrl)
+        router.push('/dashboard')
         router.refresh()
       } else {
         setError('Failed to verify OTP. Please try again.')
@@ -115,13 +68,12 @@ function SignInForm() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center">
-      <div className="fixed inset-0 -z-10 bg-subtleGrid bg-[length:16px_16px]" />
-      <section className="container max-w-md py-16 px-4">
-        <div className="bg-white/80 backdrop-blur border border-gold-100 rounded-2xl p-8 shadow-gold">
-          <h1 className="font-serif font-bold text-3xl mb-2 text-center">Admin Sign-in</h1>
-          <p className="text-sm text-black/60 text-center mb-6">
-            {weddingInfo?.couple_display_name ? `${weddingInfo.couple_display_name} Wedding` : 'Wedding Admin'}
+    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-background to-default-50">
+      <div className="w-full max-w-md">
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-xl p-8">
+          <h1 className="text-3xl font-serif font-bold mb-2 text-center">Sign In</h1>
+          <p className="text-sm text-muted-foreground text-center mb-6">
+            Sign in to your account to manage your weddings
           </p>
 
           {error && (
@@ -144,7 +96,7 @@ function SignInForm() {
                   placeholder="Enter 6-digit code"
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  className="w-full border border-gold-200 px-4 py-3 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 transition-colors text-center text-2xl tracking-widest"
+                  className="w-full border border-gray-300 px-4 py-3 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors text-center text-2xl tracking-widest"
                   disabled={loading}
                   maxLength={6}
                 />
@@ -152,7 +104,7 @@ function SignInForm() {
               <button
                 type="submit"
                 disabled={loading || otp.length !== 6}
-                className="w-full px-5 py-3 bg-gold-600 text-white rounded-lg hover:bg-gold-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-5 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Verifying...' : 'Verify OTP'}
               </button>
@@ -162,7 +114,7 @@ function SignInForm() {
                   setEmailSent(false)
                   setOtp('')
                 }}
-                className="w-full px-5 py-3 border border-gold-200 rounded-lg hover:bg-gold-50 transition-colors font-medium"
+                className="w-full px-5 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
               >
                 Use a different email
               </button>
@@ -176,14 +128,14 @@ function SignInForm() {
                   placeholder="you@yourdomain.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full border border-gold-200 px-4 py-3 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 transition-colors"
+                  className="w-full border border-gray-300 px-4 py-3 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
                   disabled={loading}
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full px-5 py-3 bg-gold-600 text-white rounded-lg hover:bg-gold-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-5 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Sending OTP...' : 'Send OTP'}
               </button>
@@ -191,27 +143,16 @@ function SignInForm() {
           )}
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-black/60">
+            <p className="text-sm text-muted-foreground">
               Don't have an account?{' '}
-              <Link href="/store/signup" className="text-gold-700 hover:text-gold-800 underline">
+              <Link href="/store/signup" className="text-primary-700 hover:text-primary-800 underline">
                 Sign up
               </Link>
             </p>
           </div>
         </div>
-      </section>
+      </div>
     </div>
   )
 }
 
-export default function SignInPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-600"></div>
-      </div>
-    }>
-      <SignInForm />
-    </Suspense>
-  )
-}
