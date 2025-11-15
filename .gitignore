@@ -48,3 +48,4 @@ deploy.sh
 deploy-email-functions.sh
 deploy-email-functions.ps1
 deploy.sh
+env.production.example

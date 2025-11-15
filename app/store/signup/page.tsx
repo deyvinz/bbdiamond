@@ -14,9 +14,10 @@ export default function SignupPage() {
   const router = useRouter()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [otp, setOtp] = useState('')
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
     fullName: '',
     plan: 'basic' // basic, premium, enterprise
   })
@@ -25,65 +26,76 @@ export default function SignupPage() {
     trackConversion.signupStarted()
   }, [])
 
-  const handleSignup = async (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      // 1. Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // Send OTP for signup
+      const { error: authError } = await supabase.auth.signInWithOtp({
         email: formData.email,
-        password: formData.password,
         options: {
           data: {
-            full_name: formData.fullName
-          }
-        }
+            full_name: formData.fullName,
+            plan: formData.plan,
+          },
+        },
       })
 
       if (authError) throw authError
 
-      if (!authData.user) {
-        throw new Error('Failed to create user')
-      }
-
-      // 2. Create customer record
-      const { error: customerError } = await supabase
-        .from('customers')
-        .insert({
-          id: authData.user.id,
-          email: formData.email,
-          full_name: formData.fullName,
-          subscription_status: 'trial',
-          current_plan_id: (
-            await supabase
-              .from('subscription_plans')
-              .select('id')
-              .eq('name', formData.plan === 'basic' ? 'Basic' : formData.plan === 'premium' ? 'Premium' : 'Enterprise')
-              .single()
-          ).data?.id,
-          trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() // 14 days
-        })
-
-      if (customerError) throw customerError
-
-      // Track conversion
-      trackConversion.signupCompleted(formData.plan)
-      trackConversion.trialStarted(formData.plan)
-      trackConversion.onboardingStarted()
-
-      // 3. Redirect to onboarding
+      setEmailSent(true)
+      trackConversion.signupStarted()
+      
       toast({
-        title: 'Account created!',
-        description: 'Welcome! Let\'s set up your wedding website.',
+        title: 'Check your email!',
+        description: 'We\'ve sent you a 6-digit code to complete your signup.',
       })
-
-      router.push(`/onboarding?customer_id=${authData.user.id}`)
     } catch (error: any) {
       console.error('Signup error:', error)
       toast({
         title: 'Error',
-        description: error.message || 'Failed to create account',
+        description: error.message || 'Failed to send OTP',
+        variant: 'destructive',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+
+    try {
+      const { data, error: verifyError } = await supabase.auth.verifyOtp({
+        email: formData.email,
+        token: otp,
+        type: 'email',
+      })
+
+      if (verifyError) throw verifyError
+
+      if (data?.session && data?.user) {
+        // Customer record will be created in the callback route
+        trackConversion.signupCompleted(formData.plan)
+        trackConversion.trialStarted(formData.plan)
+        trackConversion.onboardingStarted()
+
+        toast({
+          title: 'Account created!',
+          description: 'Welcome! Let\'s set up your wedding website.',
+        })
+
+        router.push(`/onboarding?customer_id=${data.user.id}`)
+      } else {
+        throw new Error('Failed to create session')
+      }
+    } catch (error: any) {
+      console.error('OTP verification error:', error)
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to verify OTP',
         variant: 'destructive',
       })
     } finally {
@@ -105,7 +117,51 @@ export default function SignupPage() {
           </div>
         </CardHeader>
         <CardBody className="pt-8 pb-8 px-8">
-          <form onSubmit={handleSignup} className="space-y-5">
+          {emailSent ? (
+            <form onSubmit={handleVerifyOtp} className="space-y-5">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-800 text-center">
+                  Check your email! We've sent you a 6-digit code. Enter it below to complete your signup.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="otp">Verification Code *</Label>
+                <Input
+                  id="otp"
+                  type="text"
+                  required
+                  placeholder="Enter 6-digit code"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="rounded-xl text-center text-2xl tracking-widest"
+                  maxLength={6}
+                  disabled={loading}
+                />
+              </div>
+              <Button 
+                type="submit" 
+                color="primary" 
+                className="w-full font-semibold rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]" 
+                size="lg" 
+                isLoading={loading}
+                radius="lg"
+                disabled={otp.length !== 6}
+              >
+                {loading ? 'Verifying...' : 'Verify OTP & Create Account'}
+              </Button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmailSent(false)
+                  setOtp('')
+                }}
+                className="w-full px-5 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors font-medium"
+              >
+                Use a different email
+              </button>
+            </form>
+          ) : (
+          <form onSubmit={handleSendOtp} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name *</Label>
               <Input
@@ -133,21 +189,6 @@ export default function SignupPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password *</Label>
-              <Input
-                id="password"
-                type="password"
-                required
-                minLength={8}
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                placeholder="At least 8 characters"
-                className="rounded-xl"
-              />
-              <p className="text-xs text-muted-foreground">Must be at least 8 characters</p>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="plan">Choose a Plan *</Label>
               <Select
                 value={formData.plan}
@@ -172,13 +213,14 @@ export default function SignupPage() {
               isLoading={loading}
               radius="lg"
             >
-              {loading ? 'Creating Account...' : 'Start Free Trial'}
+              {loading ? 'Sending OTP...' : 'Send OTP'}
             </Button>
 
             <p className="text-xs text-center text-default-400">
               By signing up, you agree to our Terms of Service and Privacy Policy
             </p>
           </form>
+          )}
 
           <div className="mt-6 text-center">
             <p className="text-sm text-default-500">

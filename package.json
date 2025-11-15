@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "cross-env NODE_OPTIONS=\"--max-old-space-size=4096\" next dev",
-    "dev:clean": "cross-env NODE_OPTIONS=\"--max-old-space-size=4096\" next dev --turbo",
+    "dev": "cross-env NODE_OPTIONS=\"--max-old-space-size=4096\" PORT=3006 next dev",
+    "dev:clean": "cross-env NODE_OPTIONS=\"--max-old-space-size=4096\" PORT=3006 next dev --turbo",
     "build": "cross-env NODE_OPTIONS=\"--max-old-space-size=8192\" next build",
-    "start": "next start",
+    "start": "cross-env PORT=3006 next start",
     "lint": "eslint",
     "clean": "rm -rf .next node_modules/.cache",
     "clean:win": "if exist .next rmdir /s /q .next && if exist node_modules\\.cache rmdir /s /q node_modules\\.cache"

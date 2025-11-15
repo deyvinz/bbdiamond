@@ -116,6 +116,27 @@ export async function middleware(req: Request) {
       url.searchParams.set('next', url.pathname)
       return NextResponse.redirect(url)
     }
+
+    // Verify wedding ownership for admin routes
+    // Get wedding ID from context (already set earlier in middleware)
+    const weddingIdFromHeader = res.headers.get('x-wedding-id')
+    if (weddingIdFromHeader) {
+      // Check if user owns this wedding
+      const { data: ownership, error: ownershipError } = await supabase
+        .from('wedding_owners')
+        .select('wedding_id')
+        .eq('wedding_id', weddingIdFromHeader)
+        .eq('customer_id', user.id)
+        .single()
+
+      if (ownershipError || !ownership) {
+        // User doesn't own this wedding, redirect to sign-in with error
+        url.pathname = '/auth/sign-in'
+        url.searchParams.set('error', 'access_denied')
+        url.searchParams.set('next', url.pathname)
+        return NextResponse.redirect(url)
+      }
+    }
   }
 
   return res
