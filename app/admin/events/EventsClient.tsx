@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
@@ -169,22 +169,22 @@ export default function EventsClient({ initialEvents }: EventsClientProps) {
     setEditingEvent(event)
   }
 
-  const handleFormClose = () => {
+  const handleFormClose = useCallback(() => {
     setShowForm(false)
     setEditingEvent(undefined)
-  }
+  }, [])
 
-  const handleCreateClick = () => {
+  const handleCreateClick = useCallback(() => {
     setShowForm(true)
-  }
+  }, [])
 
-  const handleFormSave = (data: CreateEventInput | UpdateEventInput) => {
+  const handleFormSave = useCallback((data: CreateEventInput | UpdateEventInput) => {
     if (editingEvent) {
       handleUpdateEvent(data as UpdateEventInput)
     } else {
       handleCreateEvent(data as CreateEventInput)
     }
-  }
+  }, [editingEvent])
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('en-US', {
@@ -233,6 +233,15 @@ export default function EventsClient({ initialEvents }: EventsClientProps) {
             <Card key={event.id}>
               <CardContent className="p-4 sm:p-6">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                  {event.picture_url && (
+                    <div className="w-full sm:w-32 h-32 sm:h-auto rounded-lg overflow-hidden flex-shrink-0">
+                      <img
+                        src={event.picture_url}
+                        alt={event.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
                   <div className="space-y-2 flex-1">
                     <h3 className="text-lg sm:text-xl font-semibold">{event.name}</h3>
                     <div className="flex items-center gap-2 text-muted-foreground">

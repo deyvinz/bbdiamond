@@ -21,7 +21,8 @@ import {
   User,
   Users,
   QrCode,
-  Utensils
+  Utensils,
+  MessageCircle
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from '@/components/ui/use-toast'
@@ -56,6 +57,7 @@ export default function ViewInvitationDialog({
   config,
 }: ViewInvitationDialogProps) {
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false)
 
   if (!invitation) return null
 
@@ -84,6 +86,60 @@ export default function ViewInvitationDialog({
       title: "Copied!",
       description: "Invite code copied to clipboard",
     })
+  }
+
+  const handleSendWhatsApp = async () => {
+    if (!invitation || !invitation.guest?.phone_number) {
+      toast({
+        title: "Error",
+        description: "Guest phone number is required to send WhatsApp",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const eventIds = invitation.invitation_events?.map((ie: any) => ie.event_id) || []
+    if (eventIds.length === 0) {
+      toast({
+        title: "Error",
+        description: "No events found for this invitation",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setSendingWhatsApp(true)
+    try {
+      const response = await fetch('/api/admin/invitations/send-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invitationId: invitation.id,
+          eventIds,
+          phoneNumber: invitation.guest.phone_number,
+        }),
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        toast({
+          title: "✅ WhatsApp Sent",
+          description: "Invitation has been sent via WhatsApp",
+        })
+        onOpenChange(false)
+      } else {
+        throw new Error(data.error || 'Failed to send WhatsApp')
+      }
+    } catch (error) {
+      console.error('Error sending WhatsApp:', error)
+      toast({
+        title: "❌ Send Failed",
+        description: error instanceof Error ? error.message : "Failed to send WhatsApp invitation",
+        variant: "destructive",
+      })
+    } finally {
+      setSendingWhatsApp(false)
+    }
   }
 
   return (
@@ -330,6 +386,17 @@ export default function ViewInvitationDialog({
                   <QrCode className="h-4 w-4" />
                   View RSVP Page
                 </Button>
+                {invitation.guest?.phone_number && (
+                  <Button
+                    variant="outline"
+                    onClick={handleSendWhatsApp}
+                    disabled={sendingWhatsApp}
+                    className="flex items-center gap-2"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    {sendingWhatsApp ? 'Sending...' : 'Send via WhatsApp'}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

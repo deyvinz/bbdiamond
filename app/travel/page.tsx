@@ -67,6 +67,7 @@ export default async function TravelPage() {
   // Transform data to match component expectations
   const transformedSections = (sections || []).map((section: { id: string; section_type: string; title: string; description: string | null }) => ({
     id: section.section_type,
+    section_type: section.section_type,
     title: section.title,
     description: section.description,
     items: (items || [])
@@ -224,10 +225,12 @@ export default async function TravelPage() {
                         </div>
                       )}
 
-                      {/* Tips */}
+                      {/* Tips / Amenities */}
                       {'tips' in item && item.tips && (
                         <div className="bg-blue-50 p-3 rounded-lg">
-                          <h4 className="text-sm font-medium text-blue-800 mb-2">💡 Tips:</h4>
+                          <h4 className="text-sm font-medium text-blue-800 mb-2">
+                            {section.section_type === 'accommodation' ? '🏨 Amenities:' : '💡 Tips:'}
+                          </h4>
                           <ul className="space-y-1">
                             {item.tips.map((tip: any, tipIndex: number) => (
                               <li key={tipIndex} className="text-sm text-blue-700 flex items-start gap-2">

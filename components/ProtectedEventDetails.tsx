@@ -17,14 +17,7 @@ import {
   Users
 } from 'lucide-react'
 import { renderIcon } from '@/lib/icon-utils'
-
-interface Event {
-  name: string
-  venue: string
-  address: string
-  starts_at: string
-  icon?: string
-}
+import type { Event } from '@/lib/events-service'
 
 interface Guest {
   id: string
@@ -326,7 +319,16 @@ export default function ProtectedEventDetails({ onAccessGranted, forcePublic = f
             <MotionItem key={idx}>
               <MotionCard>
                 <Card>
-                  <div className="flex items-start gap-3">
+                  {event.picture_url && (
+                    <div className="w-full h-48 rounded-t-lg overflow-hidden mb-3">
+                      <img
+                        src={event.picture_url}
+                        alt={event.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-start gap-3 p-4">
                     <div className="flex-shrink-0 mt-1">
                       {getEventIcon(event)}
                     </div>

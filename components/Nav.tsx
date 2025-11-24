@@ -25,18 +25,25 @@ export default async function Nav() {
     if (wedding.enable_gallery) {
       links.push(['Gallery', '/gallery']);
     }
-    links.push(['Things to do', '/things-to-do']);
+    if (wedding.enable_things_to_do) {
+      links.push(['Things to do', '/things-to-do']);
+    }
     if (wedding.enable_faq) {
       links.push(['FAQ', '/faq']);
     }
+    if (wedding.enable_seating) {
+      links.push(['Seating', '/seating']);
+    }
     links.push(['RSVP', '/rsvp']);
+    if (wedding.enable_guest_notes) {
+      links.push(['Well Wishes', '/guest-notes']);
+    }
   } else {
     // Fallback links if no wedding context
     links.push(
       ['Wedding Party', '/wedding-party'],
       ['Registry', '/registry'],
       ['Gallery', '/gallery'],
-      ['Things to do', '/things-to-do'],
       ['FAQ', '/faq'],
       ['RSVP', '/rsvp']
     );

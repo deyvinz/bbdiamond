@@ -114,6 +114,7 @@ export const eventSchema = z.object({
   address: z.string().optional().or(z.literal('')),
   starts_at: z.string().min(1, 'Start date and time is required'),
   icon: z.string().optional(),
+  picture_url: z.string().url().optional().or(z.literal('')),
 })
 
 export const createEventSchema = eventSchema

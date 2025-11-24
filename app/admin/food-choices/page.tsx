@@ -26,7 +26,8 @@ export default function FoodChoicesAdminPage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    display_order: 0
+    display_order: 0,
+    is_active: true
   })
   const { toast } = useToast()
 
@@ -95,7 +96,7 @@ export default function FoodChoicesAdminPage() {
         })
         setShowForm(false)
         setEditingItem(null)
-        setFormData({ name: '', description: '', display_order: 0 })
+        setFormData({ name: '', description: '', display_order: 0, is_active: true })
         loadItems()
       } else {
         toast({
@@ -119,7 +120,8 @@ export default function FoodChoicesAdminPage() {
     setFormData({
       name: item.name,
       description: item.description || '',
-      display_order: item.display_order
+      display_order: item.display_order,
+      is_active: item.is_active
     })
     setShowForm(true)
   }
@@ -160,7 +162,7 @@ export default function FoodChoicesAdminPage() {
   const handleCancel = () => {
     setShowForm(false)
     setEditingItem(null)
-    setFormData({ name: '', description: '', display_order: 0 })
+    setFormData({ name: '', description: '', display_order: 0, is_active: true })
   }
 
   if (loading) {

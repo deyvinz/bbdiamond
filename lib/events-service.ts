@@ -17,6 +17,7 @@ export interface Event {
   address?: string
   starts_at: string
   icon?: string
+  picture_url?: string
   created_at: string
   updated_at: string
 }

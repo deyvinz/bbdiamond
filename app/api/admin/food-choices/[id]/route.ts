@@ -53,7 +53,7 @@ export async function PUT(
         )
       }
       return NextResponse.json(
-        { success: false, error: 'Failed to update food choice' },
+        { success: false, error: error.message || 'Failed to update food choice' },
         { status: 500 }
       )
     }

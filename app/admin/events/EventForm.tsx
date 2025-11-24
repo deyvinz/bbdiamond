@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,11 +17,15 @@ import { useToast } from '@/components/ui/use-toast'
 import type { Event } from '@/lib/events-service'
 import type { CreateEventInput, UpdateEventInput } from '@/lib/validators'
 import IconPicker from './IconPicker'
+import Image from 'next/image'
+import { Upload, X } from 'lucide-react'
 
 interface EventFormProps {
   open: boolean
+  // Note: Function props are valid for client components. Next.js serialization warning is a false positive.
   onOpenChange: (open: boolean) => void
   event?: Event
+  // Note: Function props are valid for client components. Next.js serialization warning is a false positive.
   onSave: (data: CreateEventInput | UpdateEventInput) => void
   loading?: boolean
 }
@@ -33,6 +37,10 @@ export default function EventForm({
   onSave,
   loading = false,
 }: EventFormProps) {
+  // Internal handler wrapper
+  const handleDialogOpenChange = (newOpen: boolean) => {
+    onOpenChange(newOpen)
+  }
   const [formData, setFormData] = useState({
     name: '',
     venue: '',
@@ -40,6 +48,9 @@ export default function EventForm({
     starts_at: '',
     icon: undefined as string | undefined,
   })
+  const [pictureUrl, setPictureUrl] = useState<string | null>(null)
+  const [uploadingPicture, setUploadingPicture] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
   // Initialize form with existing event data
@@ -58,6 +69,7 @@ export default function EventForm({
         starts_at: localDateTime,
         icon: event.icon,
       })
+      setPictureUrl(event.picture_url || null)
     } else {
       setFormData({
         name: '',
@@ -66,6 +78,7 @@ export default function EventForm({
         starts_at: '',
         icon: undefined,
       })
+      setPictureUrl(null)
     }
   }, [event, open])
 
@@ -152,8 +165,79 @@ export default function EventForm({
     }))
   }
 
+  const handlePictureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !event) return
+
+    setUploadingPicture(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch(`/api/admin/events/${event.id}/upload-picture`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setPictureUrl(data.url)
+        toast({
+          title: "✅ Picture Uploaded",
+          description: "Event picture has been uploaded successfully.",
+        })
+      } else {
+        throw new Error(data.error || 'Failed to upload picture')
+      }
+    } catch (error) {
+      console.error('Error uploading picture:', error)
+      toast({
+        title: "❌ Upload Failed",
+        description: error instanceof Error ? error.message : "Failed to upload picture",
+        variant: "destructive",
+      })
+    } finally {
+      setUploadingPicture(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const handleRemovePicture = async () => {
+    if (!event || !pictureUrl) return
+
+    try {
+      const response = await fetch(`/api/admin/events/${event.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ picture_url: null }),
+      })
+
+      if (response.ok) {
+        setPictureUrl(null)
+        toast({
+          title: "✅ Picture Removed",
+          description: "Event picture has been removed.",
+        })
+      } else {
+        throw new Error('Failed to remove picture')
+      }
+    } catch (error) {
+      console.error('Error removing picture:', error)
+      toast({
+        title: "❌ Failed to Remove",
+        description: "Failed to remove picture. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>
@@ -221,6 +305,77 @@ export default function EventForm({
                 onChange={(icon) => setFormData(prev => ({ ...prev, icon }))}
               />
             </div>
+
+            {event && (
+              <div className="space-y-2">
+                <Label>Event Picture</Label>
+                {pictureUrl ? (
+                  <div className="relative">
+                    <div className="relative w-full h-48 rounded-lg overflow-hidden border border-gray-200">
+                      <Image
+                        src={pictureUrl}
+                        alt={event.name}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingPicture}
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Replace
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRemovePicture}
+                        disabled={uploadingPicture}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Remove
+                      </Button>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePictureUpload}
+                      className="hidden"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingPicture}
+                      className="w-full"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {uploadingPicture ? 'Uploading...' : 'Upload Picture'}
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePictureUpload}
+                      className="hidden"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Upload a picture of the event venue (max 5MB)
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <DialogFooter className="flex-shrink-0 pt-4 border-t">

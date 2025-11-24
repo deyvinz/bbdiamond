@@ -19,6 +19,12 @@ export interface WeddingContext {
     enable_travel?: boolean
     enable_wedding_party?: boolean
     enable_faq?: boolean
+    enable_seating?: boolean
+    enable_guest_notes?: boolean
+    enable_things_to_do?: boolean
+    show_dietary_restrictions?: boolean
+    show_additional_dietary_info?: boolean
+    rsvp_banner_days_before?: number
     registry_url?: string | null
     travel_url?: string | null
     gallery_url?: string | null
