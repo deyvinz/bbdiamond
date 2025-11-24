@@ -163,7 +163,7 @@ export async function getWeddingContext(): Promise<WeddingContext | null> {
     const supabase = supabaseService()
     const { data: wedding, error } = await supabase
       .from('weddings')
-      .select('id, slug, bride_name, groom_name, couple_display_name, hashtag, primary_date, venue_name, city, country, contact_email, custom_domain, subdomain, enable_gallery, enable_registry, enable_travel, enable_wedding_party, enable_faq, registry_url, travel_url, gallery_url')
+      .select('id, slug, bride_name, groom_name, couple_display_name, hashtag, primary_date, venue_name, city, country, contact_email, custom_domain, subdomain, enable_gallery, enable_registry, enable_travel, enable_wedding_party, enable_faq, enable_seating, enable_guest_notes, enable_things_to_do, registry_url, travel_url, gallery_url, show_dietary_restrictions, show_additional_dietary_info, rsvp_banner_days_before')
       .eq('id', weddingId)
       .eq('status', 'active')
       .single()
@@ -194,6 +194,12 @@ export async function getWeddingContext(): Promise<WeddingContext | null> {
         enable_travel: wedding.enable_travel,
         enable_wedding_party: wedding.enable_wedding_party,
         enable_faq: wedding.enable_faq,
+        enable_seating: wedding.enable_seating,
+        enable_guest_notes: wedding.enable_guest_notes,
+        enable_things_to_do: wedding.enable_things_to_do,
+        show_dietary_restrictions: wedding.show_dietary_restrictions,
+        show_additional_dietary_info: wedding.show_additional_dietary_info,
+        rsvp_banner_days_before: wedding.rsvp_banner_days_before,
         registry_url: wedding.registry_url,
         travel_url: wedding.travel_url,
         gallery_url: wedding.gallery_url,

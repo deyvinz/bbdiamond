@@ -52,6 +52,8 @@ export interface Invitation {
     first_name: string
     last_name: string
     email: string
+    phone_number?: string | null
+    preferred_contact_method?: string | null
     is_vip: boolean
     invite_code: string
   }
@@ -416,6 +418,8 @@ export async function createInvitationsForGuests(
           first_name,
           last_name,
           email,
+          phone_number,
+          preferred_contact_method,
           is_vip,
           invite_code
         ),
@@ -530,6 +534,8 @@ export async function updateInvitation(
         first_name,
         last_name,
         email,
+        phone_number,
+        preferred_contact_method,
         is_vip,
         invite_code
       ),
@@ -700,6 +706,113 @@ export async function regenerateEventToken(invitationEventId: string, weddingId?
   })
 
   return newToken
+}
+
+export interface SendWhatsAppInput {
+  invitationId: string
+  eventIds: string[]
+  phoneNumber: string
+  ignoreRateLimit?: boolean
+}
+
+export async function sendInviteWhatsApp(params: SendWhatsAppInput): Promise<{ success: boolean; message: string }> {
+  const supabase = await supabaseServer()
+  
+  // Get invitation details
+  const { data: invitation, error: invitationError } = await supabase
+    .from('invitations')
+    .select(`
+      *,
+      guest:guests(phone_number, first_name, last_name, invite_code),
+      invitation_events(
+        *,
+        event:events(name, starts_at, venue, address)
+      )
+    `)
+    .eq('id', params.invitationId)
+    .single()
+
+  if (invitationError || !invitation) {
+    throw new Error('Invitation not found')
+  }
+
+  // Get selected events
+  const selectedEvents = invitation.invitation_events?.filter((ie: any) => 
+    params.eventIds.includes(ie.event_id)
+  ) || []
+  
+  if (selectedEvents.length === 0) {
+    throw new Error('No valid events found for invitation')
+  }
+
+  // Get wedding ID
+  const weddingId = invitation.wedding_id
+  if (!weddingId) {
+    throw new Error('Wedding ID not found for invitation')
+  }
+  
+  // Get email config for branding
+  const { getEmailConfig, getWebsiteUrl } = await import('./email-service')
+  const emailConfigData = weddingId ? await getEmailConfig(weddingId) : null
+  const websiteUrl = weddingId ? await getWebsiteUrl(weddingId) : (process.env.NEXT_PUBLIC_APP_URL || 'https://luwani.com')
+  
+  // Prepare data
+  const guestName = `${invitation.guest.first_name} ${invitation.guest.last_name}`
+  const primaryEvent = selectedEvents[0]
+  
+  // Format event date and time
+  const [datePart, timePart] = primaryEvent.event.starts_at.split(' ')
+  const [year, month, day] = datePart.split('-')
+  const eventDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+  const eventTime = timePart ? timePart.substring(0, 5) : '00:00'
+  const formattedEventDate = `${eventDate} · ${eventTime}`
+  
+  const rsvpUrl = `${websiteUrl}/rsvp?token=${invitation.token}`
+  const coupleName = emailConfigData?.branding.coupleDisplayName || 'The Couple'
+
+  // Call edge function to send WhatsApp message
+  const { data, error } = await supabase.functions.invoke('send-whatsapp-invite', {
+    body: {
+      invitationId: params.invitationId,
+      weddingId,
+      eventIds: params.eventIds,
+      phoneNumber: params.phoneNumber,
+      guestName,
+      coupleName,
+      eventName: primaryEvent.event.name,
+      eventDate: formattedEventDate,
+      eventTime,
+      venue: primaryEvent.event.venue,
+      address: primaryEvent.event.address,
+      rsvpUrl,
+      inviteCode: invitation.guest.invite_code,
+    },
+  })
+
+  if (error) {
+    console.error('WhatsApp send error:', error)
+    throw new Error(`Failed to send WhatsApp: ${error.message}`)
+  }
+
+  if (!data?.success) {
+    throw new Error(data?.error || 'Failed to send WhatsApp invitation')
+  }
+
+  // Log audit
+  await logAdminAction('invite_whatsapp_send', {
+    invitation_id: params.invitationId,
+    phone_number: params.phoneNumber,
+  })
+
+  return {
+    success: true,
+    message: 'WhatsApp invitation sent successfully',
+  }
 }
 
 export async function sendInviteEmail(params: SendEmailInput): Promise<{ success: boolean; message: string }> {

@@ -66,9 +66,15 @@ export default function RSVPForm(){
   const [prefilledInviteCode, setPrefilledInviteCode] = useState<string | null>(null)
   const [invitationData, setInvitationData] = useState<InvitationData | null>(null)
   const [currentRsvpStatus, setCurrentRsvpStatus] = useState<RSVPStatus | null>(null)
-  const [weddingInfo, setWeddingInfo] = useState<{ contact_email?: string } | null>(null)
+  const [weddingInfo, setWeddingInfo] = useState<{
+    contact_email?: string
+    show_dietary_restrictions?: boolean
+    show_additional_dietary_info?: boolean
+    rsvp_banner_days_before?: number
+  } | null>(null)
+  const [isConfigLoading, setIsConfigLoading] = useState(true)
+  const [isWeddingInfoLoading, setIsWeddingInfoLoading] = useState(true)
   const [foodChoices, setFoodChoices] = useState<Array<{ id: string; name: string; description?: string }>>([])
-  const [customFoodChoice, setCustomFoodChoice] = useState('')
 
   const response = watch('response')
   const inviteCode = watch('invite_code')
@@ -92,16 +98,38 @@ export default function RSVPForm(){
         }
       })
       .catch(err => console.error('Failed to load config:', err))
+      .finally(() => setIsConfigLoading(false))
     
     // Fetch wedding info for contact email
     fetch('/api/wedding-info')
       .then(res => res.json())
       .then(data => {
         if (data.success && data.wedding) {
-          setWeddingInfo(data.wedding)
+          setWeddingInfo({
+            contact_email: data.wedding.contact_email,
+            show_dietary_restrictions: data.wedding.show_dietary_restrictions ?? true,
+            show_additional_dietary_info: data.wedding.show_additional_dietary_info ?? true,
+            rsvp_banner_days_before: data.wedding.rsvp_banner_days_before ?? 30,
+          })
+        } else {
+          setWeddingInfo({
+            contact_email: undefined,
+            show_dietary_restrictions: true,
+            show_additional_dietary_info: true,
+            rsvp_banner_days_before: 30,
+          })
         }
       })
-      .catch(err => console.error('Failed to load wedding info:', err))
+      .catch(err => {
+        console.error('Failed to load wedding info:', err)
+        setWeddingInfo({
+          contact_email: undefined,
+          show_dietary_restrictions: true,
+          show_additional_dietary_info: true,
+          rsvp_banner_days_before: 30,
+        })
+      })
+      .finally(() => setIsWeddingInfoLoading(false))
   }, [])
 
   // Pre-populate form if token is provided and check RSVP status
@@ -190,11 +218,7 @@ export default function RSVPForm(){
     if (v.dietary_information) formData.append('dietary_information', v.dietary_information)
     // Handle food choice
     if (v.food_choice) {
-      if (v.food_choice === '__custom__' && customFoodChoice) {
-        formData.append('food_choice', customFoodChoice)
-      } else if (v.food_choice !== '__custom__') {
-        formData.append('food_choice', v.food_choice)
-      }
+      formData.append('food_choice', v.food_choice)
     }
     
     const actionResult = await submitRsvpAction(formData)
@@ -640,6 +664,45 @@ export default function RSVPForm(){
   // Check if RSVP is allowed based on configuration
   const rsvpCheck = config ? isRsvpAllowed(config) : { allowed: true }
   const timeRemaining = config ? getTimeUntilCutoff(config) : { hasDeadline: false, isPast: false }
+  const bannerWindowDays = weddingInfo?.rsvp_banner_days_before ?? 30
+  const shouldShowDeadlineBanner =
+    Boolean(
+      config &&
+        timeRemaining.hasDeadline &&
+        !timeRemaining.isPast &&
+        timeRemaining.formattedTime &&
+        (timeRemaining.daysRemaining ?? 0) <= bannerWindowDays
+    )
+  const showDietaryRestrictionsField = weddingInfo?.show_dietary_restrictions ?? true
+  const showAdditionalDietaryInfoField = weddingInfo?.show_additional_dietary_info ?? true
+  const isInitialLoading = (isConfigLoading || isWeddingInfoLoading) && !currentRsvpStatus && !result
+
+  if (isInitialLoading) {
+    return (
+      <Section title="RSVP" subtitle="Loading your personalized form..." narrow>
+        <Card className="border border-gray-200 shadow-lg rounded-3xl bg-white" radius="lg">
+          <CardBody className="p-6 md:p-8 space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-amber-100 animate-pulse" aria-hidden />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-gray-200 rounded-lg animate-pulse" />
+                <div className="h-3 bg-gray-100 rounded-lg animate-pulse w-2/3" />
+              </div>
+            </div>
+            <div className="space-y-4">
+              {[1, 2, 3].map((key) => (
+                <div key={key} className="space-y-2">
+                  <div className="h-4 w-1/3 bg-gray-200 rounded-lg animate-pulse" />
+                  <div className="h-11 bg-gray-100 rounded-2xl animate-pulse" />
+                </div>
+              ))}
+            </div>
+            <div className="h-12 bg-gray-200 rounded-2xl animate-pulse" />
+          </CardBody>
+        </Card>
+      </Section>
+    )
+  }
 
   // If RSVP is not allowed, show a message
   if (!rsvpCheck.allowed && config) {
@@ -690,7 +753,7 @@ export default function RSVPForm(){
       <Card className="border border-gray-200 shadow-lg rounded-3xl bg-white" radius="lg">
         <CardBody className="p-6 md:p-8">
           {/* RSVP Deadline Warning */}
-        {timeRemaining.hasDeadline && !timeRemaining.isPast && timeRemaining.formattedTime && (
+        {shouldShowDeadlineBanner && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
             <div className="flex items-start gap-3">
               <div className="text-2xl">⏰</div>
@@ -802,15 +865,9 @@ export default function RSVPForm(){
                   </Label>
                   {foodChoices.length > 0 ? (
                     <Select 
-                      value={watch('food_choice') === '__custom__' ? '__custom__' : (watch('food_choice') || '')}
+                      value={watch('food_choice') || ''}
                       onValueChange={(value) => {
-                        if (value === '__custom__') {
-                          setValue('food_choice', '__custom__', { shouldValidate: false })
-                          setCustomFoodChoice('')
-                        } else {
-                          setValue('food_choice', value, { shouldValidate: true })
-                          setCustomFoodChoice('')
-                        }
+                        setValue('food_choice', value, { shouldValidate: true })
                       }}
                     >
                       <SelectTrigger 
@@ -826,7 +883,6 @@ export default function RSVPForm(){
                             {choice.description && ` - ${choice.description}`}
                           </SelectItem>
                         ))}
-                        <SelectItem value="__custom__">Other (specify)</SelectItem>
                       </SelectContent>
                     </Select>
                   ) : (
@@ -838,19 +894,6 @@ export default function RSVPForm(){
                       {...register('food_choice', {
                         required: config.food_choices_required ? 'Please select or enter your meal preference' : false
                       })}
-                    />
-                  )}
-                  {watch('food_choice') === '__custom__' && (
-                    <Input 
-                      id="food_choice_custom"
-                      type="text"
-                      placeholder="Specify your meal preference"
-                      className={errors.food_choice ? 'border-red-500 rounded-xl' : 'rounded-xl'}
-                      value={customFoodChoice}
-                      onChange={(e) => {
-                        setCustomFoodChoice(e.target.value)
-                        setValue('food_choice', e.target.value, { shouldValidate: true })
-                      }}
                     />
                   )}
                   <input
@@ -867,47 +910,48 @@ export default function RSVPForm(){
                   )}
                 </div>
 
-                {/* Dietary Restrictions */}
-                <div className="space-y-2">
-                  <Label htmlFor="dietary_restrictions">Dietary Restrictions or Allergies</Label>
-                  <Textarea 
-                    id="dietary_restrictions"
-                    rows={3}
-                    placeholder="e.g., Nut allergy, Vegetarian, Gluten-free..."
-                    className={errors.dietary_restrictions ? 'border-red-500 rounded-xl resize-none' : 'rounded-xl resize-none'}
-                    {...register('dietary_restrictions', {
-                      maxLength: {
-                        value: 500,
-                        message: 'Dietary restrictions must be less than 500 characters'
-                      }
-                    })}
-                  />
-                  {errors.dietary_restrictions && (
-                    <p className="text-sm text-red-600">{errors.dietary_restrictions.message}</p>
-                  )}
-                  <p className="text-xs text-gray-500">Please let us know about any allergies or dietary restrictions</p>
-                </div>
-
-                {/* Additional Dietary Information */}
-                <div className="space-y-2">
-                  <Label htmlFor="dietary_information">Additional Dietary Information (Optional)</Label>
-                  <Textarea 
-                    id="dietary_information"
-                    rows={2}
-                    placeholder="Any additional information about your dietary needs..."
-                    className={errors.dietary_information ? 'border-red-500 rounded-xl resize-none' : 'rounded-xl resize-none'}
-                    {...register('dietary_information', {
-                      maxLength: {
-                        value: 500,
-                        message: 'Dietary information must be less than 500 characters'
-                      }
-                    })}
-                  />
-                  {errors.dietary_information && (
-                    <p className="text-sm text-red-600">{errors.dietary_information.message}</p>
-                  )}
-                </div>
               </>
+            )}
+            {response === 'accepted' && showDietaryRestrictionsField && (
+              <div className="space-y-2">
+                <Label htmlFor="dietary_restrictions">Dietary Restrictions or Allergies</Label>
+                <Textarea 
+                  id="dietary_restrictions"
+                  rows={3}
+                  placeholder="e.g., Nut allergy, Vegetarian, Gluten-free..."
+                  className={errors.dietary_restrictions ? 'border-red-500 rounded-xl resize-none' : 'rounded-xl resize-none'}
+                  {...register('dietary_restrictions', {
+                    maxLength: {
+                      value: 500,
+                      message: 'Dietary restrictions must be less than 500 characters'
+                    }
+                  })}
+                />
+                {errors.dietary_restrictions && (
+                  <p className="text-sm text-red-600">{errors.dietary_restrictions.message}</p>
+                )}
+                <p className="text-xs text-gray-500">Please let us know about any allergies or dietary restrictions</p>
+              </div>
+            )}
+            {response === 'accepted' && showAdditionalDietaryInfoField && (
+              <div className="space-y-2">
+                <Label htmlFor="dietary_information">Additional Dietary Information (Optional)</Label>
+                <Textarea 
+                  id="dietary_information"
+                  rows={2}
+                  placeholder="Any additional information about your dietary needs..."
+                  className={errors.dietary_information ? 'border-red-500 rounded-xl resize-none' : 'rounded-xl resize-none'}
+                  {...register('dietary_information', {
+                    maxLength: {
+                      value: 500,
+                      message: 'Dietary information must be less than 500 characters'
+                    }
+                  })}
+                />
+                {errors.dietary_information && (
+                  <p className="text-sm text-red-600">{errors.dietary_information.message}</p>
+                )}
+              </div>
             )}
 
             {/* Goodwill Message (only shown when declined) */}

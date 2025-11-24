@@ -6,12 +6,11 @@ import { Sidebar, SidebarContent, SidebarHeader, useSidebar } from '@/components
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase-browser'
 
-const links: Array<[string,string]> = [
+const baseLinks: Array<[string,string]> = [
   ['Schedule','/schedule'],
   ['Wedding Party','/wedding-party'],
   ['Registry','/registry'],
   ['Gallery','/gallery'],
-  ['Things to do','/things-to-do'],
   ['FAQ','/faq'],
   ['RSVP','/rsvp'],
 ]
@@ -20,6 +19,7 @@ export function AppSidebar(){
   const { setOpen } = useSidebar()
   const [isAdmin, setIsAdmin] = useState(false)
   const [logoAlt, setLogoAlt] = useState('Wedding')
+  const [links, setLinks] = useState<Array<[string,string]>>(baseLinks)
 
   useEffect(() => {
     const run = async () => {
@@ -42,8 +42,41 @@ export function AppSidebar(){
       try {
         const response = await fetch('/api/wedding-info')
         const data = await response.json()
-        if (data.success && data.wedding?.couple_display_name) {
-          setLogoAlt(data.wedding.couple_display_name)
+        if (data.success && data.wedding) {
+          if (data.wedding.couple_display_name) {
+            setLogoAlt(data.wedding.couple_display_name)
+          }
+          
+          // Build links based on wedding features
+          const weddingLinks: Array<[string,string]> = [['Schedule','/schedule']]
+          
+          if (data.wedding.enable_travel) {
+            weddingLinks.push(['Travel & Hotels', '/travel'])
+          }
+          if (data.wedding.enable_wedding_party) {
+            weddingLinks.push(['Wedding Party', '/wedding-party'])
+          }
+          if (data.wedding.enable_registry && data.wedding.registry_url) {
+            weddingLinks.push(['Registry', '/registry'])
+          }
+          if (data.wedding.enable_gallery) {
+            weddingLinks.push(['Gallery', '/gallery'])
+          }
+          if (data.wedding.enable_things_to_do) {
+            weddingLinks.push(['Things to do', '/things-to-do'])
+          }
+          if (data.wedding.enable_faq) {
+            weddingLinks.push(['FAQ', '/faq'])
+          }
+          if (data.wedding.enable_seating) {
+            weddingLinks.push(['Seating', '/seating'])
+          }
+          weddingLinks.push(['RSVP', '/rsvp'])
+          if (data.wedding.enable_guest_notes) {
+            weddingLinks.push(['Well Wishes', '/guest-notes'])
+          }
+          
+          setLinks(weddingLinks)
         }
       } catch (error) {
         console.error('Error fetching wedding info:', error)

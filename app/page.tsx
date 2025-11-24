@@ -1,13 +1,13 @@
 import { redirect } from 'next/navigation'
 import { getWeddingContext } from '@/lib/wedding-context-server'
-import Link from 'next/link'
-import { Button } from '@heroui/react'
 import Image from 'next/image'
-import { MotionPage, MotionText, MotionFadeIn, MotionSection } from '@/components/ui/motion'
+import { MotionPage, MotionText, MotionSection, MotionFadeIn } from '@/components/ui/motion'
 import ProtectedEventDetails from '@/components/ProtectedEventDetails'
 import CountdownTimer from '@/components/CountdownTimer'
+import HomepageCTAs from '@/components/HomepageCTAs'
 import { getWeddingTheme, getDefaultTheme } from '@/lib/theme-service'
 import { getAppConfig } from '@/lib/config-service'
+import { getHomepageCTAs } from '@/lib/homepage-ctas-service'
 import { format } from 'date-fns'
 
 export default async function Home() {
@@ -22,6 +22,17 @@ export default async function Home() {
   const { wedding } = context
   const theme = await getWeddingTheme(context.weddingId) || getDefaultTheme()
   const config = await getAppConfig(context.weddingId)
+  
+  // Get customizable CTAs, fallback to defaults if none exist
+  const customCTAs = await getHomepageCTAs(context.weddingId)
+  
+  // Default CTAs (used if no custom CTAs exist)
+  const defaultCTAs = [
+    { label: 'RSVP', href: '/rsvp', variant: 'primary' as const },
+    { label: 'Schedule', href: '/schedule', variant: 'bordered' as const },
+    { label: 'Seating', href: '/seating', variant: 'bordered' as const, condition: wedding.enable_seating },
+    { label: 'Travel & Hotels', href: '/travel', variant: 'bordered' as const, condition: wedding.enable_travel },
+  ]
   
   // Format wedding date
   const weddingDate = new Date(wedding.primary_date)
@@ -60,58 +71,7 @@ export default async function Home() {
               <MotionText delay={0.6}>
                 <p className="mt-3 md:mt-4 text-sm sm:text-base text-black/70 px-4">{formattedDate} • {locationText}</p>
               </MotionText>
-              <MotionFadeIn delay={0.8} direction="up">
-                <div className="mt-6 sm:mt-7 flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center items-stretch sm:items-center px-4">
-                <Link href="/rsvp" className="w-full sm:w-auto">
-                  <Button 
-                    color="primary" 
-                    size="lg"
-                    className="w-full sm:w-auto rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 text-sm sm:text-base"
-                    radius="lg"
-                  >
-                    RSVP
-                  </Button>
-                </Link>
-                <Link href="/schedule" className="w-full sm:w-auto">
-                  <Button 
-                    color="primary" 
-                    variant="bordered" 
-                    size="lg"
-                    className="w-full sm:w-auto rounded-2xl font-semibold border-2 text-primary bg-transparent hover:bg-primary/10 transition-all duration-300 text-sm sm:text-base !bg-transparent"
-                    radius="lg"
-                    style={{ backgroundColor: 'transparent', color: 'var(--color-primary, var(--heroui-primary))' }}
-                  >
-                    Schedule
-                  </Button>
-                </Link>
-                <Link href="/seating" className="w-full sm:w-auto">
-                  <Button 
-                    color="primary" 
-                    variant="bordered" 
-                    size="lg"
-                    className="w-full sm:w-auto rounded-2xl font-semibold border-2 text-primary bg-transparent hover:bg-primary/10 transition-all duration-300 text-sm sm:text-base !bg-transparent"
-                    radius="lg"
-                    style={{ backgroundColor: 'transparent', color: 'var(--color-primary, var(--heroui-primary))' }}
-                  >
-                    Seating
-                  </Button>
-                </Link>
-                {wedding.enable_travel && (
-                  <Link href="/travel" className="w-full sm:w-auto">
-                    <Button 
-                      color="primary" 
-                      variant="bordered" 
-                      size="lg"
-                      className="w-full sm:w-auto rounded-2xl font-semibold border-2 text-primary bg-transparent hover:bg-primary/10 transition-all duration-300 text-sm sm:text-base !bg-transparent"
-                      radius="lg"
-                      style={{ backgroundColor: 'transparent', color: 'var(--color-primary, var(--heroui-primary))' }}
-                    >
-                      Travel & Hotels
-                    </Button>
-                  </Link>
-                )}
-                </div>
-              </MotionFadeIn>
+              <HomepageCTAs ctas={customCTAs} defaultCTAs={defaultCTAs} />
             </div>
           </div>
         </div>

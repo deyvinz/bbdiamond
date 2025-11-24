@@ -16,11 +16,20 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
-import { Save, RotateCcw, Settings, Clock, Calendar, Lock, Utensils } from 'lucide-react'
+import { Save, RotateCcw, Settings, Clock, Calendar, Lock, Utensils, Users } from 'lucide-react'
 import Link from 'next/link'
 import type { ConfigValue } from '@/lib/types/config'
 import { COMMON_TIMEZONES } from '@/lib/types/config'
 import type { UpdateConfigInput } from '@/lib/validators'
+
+interface WeddingSettingsState {
+  enable_seating: boolean
+  enable_guest_notes: boolean
+  enable_things_to_do: boolean
+  show_dietary_restrictions: boolean
+  show_additional_dietary_info: boolean
+  rsvp_banner_days_before: number
+}
 
 interface ConfigClientProps {
   initialConfig: ConfigValue
@@ -30,9 +39,41 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
   console.log('🔄 [ConfigClient] Rendered with initialConfig:', initialConfig)
   
   const [config, setConfig] = useState<ConfigValue>(initialConfig)
+  const [weddingSettings, setWeddingSettings] = useState<WeddingSettingsState>({
+    enable_seating: false,
+    enable_guest_notes: false,
+    enable_things_to_do: false,
+    show_dietary_restrictions: true,
+    show_additional_dietary_info: true,
+    rsvp_banner_days_before: 30,
+  })
+  const [bannerSaving, setBannerSaving] = useState(false)
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
+
+  // Load wedding settings on mount
+  useEffect(() => {
+    const loadWeddingSettings = async () => {
+      try {
+        const response = await fetch('/api/admin/wedding-settings')
+        const data = await response.json()
+        if (data.success) {
+          setWeddingSettings({
+            enable_seating: data.settings.enable_seating || false,
+            enable_guest_notes: data.settings.enable_guest_notes || false,
+            enable_things_to_do: data.settings.enable_things_to_do || false,
+            show_dietary_restrictions: data.settings.show_dietary_restrictions ?? true,
+            show_additional_dietary_info: data.settings.show_additional_dietary_info ?? true,
+            rsvp_banner_days_before: data.settings.rsvp_banner_days_before ?? 30,
+          })
+        }
+      } catch (error) {
+        console.error('Error loading wedding settings:', error)
+      }
+    }
+    loadWeddingSettings()
+  }, [])
 
   // Sync state when initialConfig prop changes (after router.refresh())
   useEffect(() => {
@@ -621,6 +662,304 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
               <RotateCcw className="h-4 w-4 mr-2" />
               Reset to Defaults
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Wedding Features
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="enable_seating" className="text-base">
+                  Enable Seating Navigation
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Show the Seating link in the navigation menu
+                </p>
+              </div>
+              <Switch
+                id="enable_seating"
+                checked={weddingSettings.enable_seating}
+                onCheckedChange={async (checked) => {
+                  setWeddingSettings(prev => ({ ...prev, enable_seating: checked }))
+                  try {
+                    const response = await fetch('/api/admin/wedding-settings', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ enable_seating: checked }),
+                    })
+                    const data = await response.json()
+                    if (data.success) {
+                      toast({
+                        title: "✅ Setting Updated",
+                        description: "Seating navigation setting has been saved.",
+                      })
+                      router.refresh()
+                    } else {
+                      throw new Error(data.error || 'Failed to update setting')
+                    }
+                  } catch (error) {
+                    console.error('Error updating seating setting:', error)
+                    setWeddingSettings(prev => ({ ...prev, enable_seating: !checked }))
+                    toast({
+                      title: "❌ Update Failed",
+                      description: error instanceof Error ? error.message : "Failed to update setting",
+                      variant: "destructive",
+                    })
+                  }
+                }}
+                disabled={loading}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="enable_guest_notes" className="text-base">
+                  Enable Guest Notes Page
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Allow guests to submit notes, well wishes, or memories
+                </p>
+              </div>
+              <Switch
+                id="enable_guest_notes"
+                checked={weddingSettings.enable_guest_notes}
+                onCheckedChange={async (checked) => {
+                  setWeddingSettings(prev => ({ ...prev, enable_guest_notes: checked }))
+                  try {
+                    const response = await fetch('/api/admin/wedding-settings', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ enable_guest_notes: checked }),
+                    })
+                    const data = await response.json()
+                    if (data.success) {
+                      toast({
+                        title: "✅ Setting Updated",
+                        description: "Guest notes setting has been saved.",
+                      })
+                      router.refresh()
+                    } else {
+                      throw new Error(data.error || 'Failed to update setting')
+                    }
+                  } catch (error) {
+                    console.error('Error updating guest notes setting:', error)
+                    setWeddingSettings(prev => ({ ...prev, enable_guest_notes: !checked }))
+                    toast({
+                      title: "❌ Update Failed",
+                      description: error instanceof Error ? error.message : "Failed to update setting",
+                      variant: "destructive",
+                    })
+                  }
+                }}
+                disabled={loading}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="enable_things_to_do" className="text-base">
+                  Enable Things to Do Navigation
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Show the Things to do link in the navigation menu
+                </p>
+              </div>
+              <Switch
+                id="enable_things_to_do"
+                checked={weddingSettings.enable_things_to_do}
+                onCheckedChange={async (checked) => {
+                  setWeddingSettings(prev => ({ ...prev, enable_things_to_do: checked }))
+                  try {
+                    const response = await fetch('/api/admin/wedding-settings', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ enable_things_to_do: checked }),
+                    })
+                    const data = await response.json()
+                    if (data.success) {
+                      toast({
+                        title: "✅ Setting Updated",
+                        description: "Things to do navigation setting has been saved.",
+                      })
+                      router.refresh()
+                    } else {
+                      throw new Error(data.error || 'Failed to update setting')
+                    }
+                  } catch (error) {
+                    console.error('Error updating things to do setting:', error)
+                    setWeddingSettings(prev => ({ ...prev, enable_things_to_do: !checked }))
+                    toast({
+                      title: "❌ Update Failed",
+                      description: error instanceof Error ? error.message : "Failed to update setting",
+                      variant: "destructive",
+                    })
+                  }
+                }}
+                disabled={loading}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="show_dietary_restrictions" className="text-base">
+                  Show Dietary Restrictions Field
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Control visibility of the dietary restrictions / allergies input on the RSVP form
+                </p>
+              </div>
+              <Switch
+                id="show_dietary_restrictions"
+                checked={weddingSettings.show_dietary_restrictions}
+                onCheckedChange={async (checked) => {
+                  setWeddingSettings(prev => ({ ...prev, show_dietary_restrictions: checked }))
+                  try {
+                    const response = await fetch('/api/admin/wedding-settings', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ show_dietary_restrictions: checked }),
+                    })
+                    const data = await response.json()
+                    if (data.success) {
+                      toast({
+                        title: "✅ Setting Updated",
+                        description: "Dietary restrictions field visibility has been saved.",
+                      })
+                      router.refresh()
+                    } else {
+                      throw new Error(data.error || 'Failed to update setting')
+                    }
+                  } catch (error) {
+                    console.error('Error updating dietary restrictions toggle:', error)
+                    setWeddingSettings(prev => ({ ...prev, show_dietary_restrictions: !checked }))
+                    toast({
+                      title: "❌ Update Failed",
+                      description: error instanceof Error ? error.message : "Failed to update setting",
+                      variant: "destructive",
+                    })
+                  }
+                }}
+                disabled={loading}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="show_additional_dietary_info" className="text-base">
+                  Show Additional Dietary Info Field
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Allow guests to share optional extra notes about their dietary needs
+                </p>
+              </div>
+              <Switch
+                id="show_additional_dietary_info"
+                checked={weddingSettings.show_additional_dietary_info}
+                onCheckedChange={async (checked) => {
+                  setWeddingSettings(prev => ({ ...prev, show_additional_dietary_info: checked }))
+                  try {
+                    const response = await fetch('/api/admin/wedding-settings', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ show_additional_dietary_info: checked }),
+                    })
+                    const data = await response.json()
+                    if (data.success) {
+                      toast({
+                        title: "✅ Setting Updated",
+                        description: "Additional dietary info field visibility has been saved.",
+                      })
+                      router.refresh()
+                    } else {
+                      throw new Error(data.error || 'Failed to update setting')
+                    }
+                  } catch (error) {
+                    console.error('Error updating additional dietary info toggle:', error)
+                    setWeddingSettings(prev => ({ ...prev, show_additional_dietary_info: !checked }))
+                    toast({
+                      title: "❌ Update Failed",
+                      description: error instanceof Error ? error.message : "Failed to update setting",
+                      variant: "destructive",
+                    })
+                  }
+                }}
+                disabled={loading}
+              />
+            </div>
+          </div>
+          <div className="space-y-3 border-t pt-4">
+            <Label htmlFor="rsvp_banner_days_before" className="text-base">
+              RSVP Deadline Banner Lead Time (days)
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              The banner will appear this many days before your configured RSVP deadline. Minimum 1 day, maximum 365 days.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Input
+                id="rsvp_banner_days_before"
+                type="number"
+                min={1}
+                max={365}
+                value={weddingSettings.rsvp_banner_days_before}
+                onChange={(e) => {
+                  const nextValue = Number.parseInt(e.target.value, 10)
+                  setWeddingSettings(prev => ({
+                    ...prev,
+                    rsvp_banner_days_before: Number.isNaN(nextValue) ? 1 : nextValue,
+                  }))
+                }}
+                disabled={bannerSaving || loading}
+                className="sm:max-w-[200px]"
+              />
+              <Button
+                type="button"
+                onClick={async () => {
+                  const value = weddingSettings.rsvp_banner_days_before
+                  if (!Number.isFinite(value) || value < 1 || value > 365) {
+                    toast({
+                      title: "Invalid Value",
+                      description: "Please enter a number between 1 and 365.",
+                      variant: "destructive",
+                    })
+                    return
+                  }
+                  setBannerSaving(true)
+                  try {
+                    const response = await fetch('/api/admin/wedding-settings', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ rsvp_banner_days_before: value }),
+                    })
+                    const data = await response.json()
+                    if (data.success) {
+                      toast({
+                        title: "✅ Setting Updated",
+                        description: `Deadline banner will now show ${value} day${value === 1 ? '' : 's'} before the RSVP cutoff.`,
+                      })
+                      router.refresh()
+                    } else {
+                      throw new Error(data.error || 'Failed to update setting')
+                    }
+                  } catch (error) {
+                    console.error('Error updating RSVP banner days:', error)
+                    toast({
+                      title: "❌ Update Failed",
+                      description: error instanceof Error ? error.message : "Failed to update setting",
+                      variant: "destructive",
+                    })
+                  } finally {
+                    setBannerSaving(false)
+                  }
+                }}
+                disabled={bannerSaving || loading}
+              >
+                {bannerSaving ? 'Saving...' : 'Save Lead Time'}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

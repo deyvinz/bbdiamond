@@ -25,7 +25,10 @@ export async function GET(request: NextRequest) {
         groom_name: context.wedding.groom_name,
         hashtag: context.wedding.hashtag,
         contact_email: context.wedding.contact_email,
-        logo_url: theme?.logo_url || null
+        logo_url: theme?.logo_url || null,
+        show_dietary_restrictions: context.wedding.show_dietary_restrictions ?? true,
+        show_additional_dietary_info: context.wedding.show_additional_dietary_info ?? true,
+        rsvp_banner_days_before: context.wedding.rsvp_banner_days_before ?? 30,
       }
     })
   } catch (error) {
