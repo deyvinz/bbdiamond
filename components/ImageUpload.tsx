@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
 import { Upload, X, Image as ImageIcon, Loader2 } from 'lucide-react'
 import Image from 'next/image'
+import heic2any from 'heic2any'
 
 interface ImageUploadProps {
   value?: string // Current image URL
@@ -76,12 +77,57 @@ export default function ImageUpload({
         return
       }
 
+      // Convert HEIC/HEIF to JPEG on client side before upload
+      let fileToUpload = file
+      const extension = file.name.split('.').pop()?.toLowerCase()
+      const isHeic = file.type === 'image/heic' || file.type === 'image/heif' || 
+                     extension === 'heic' || extension === 'heif'
+
+      if (isHeic) {
+        try {
+          toast({
+            title: 'Converting Image',
+            description: 'Converting HEIC/HEIF to JPEG...',
+          })
+          
+          // Convert HEIC to JPEG using heic2any
+          const convertedBlob = await heic2any({
+            blob: file,
+            toType: 'image/jpeg',
+            quality: 0.9,
+          })
+          
+          // heic2any returns an array, get the first item
+          const convertedBlobItem = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
+          
+          // Create a new File object with .jpg extension
+          const newFileName = file.name.replace(/\.[^.]+$/, '.jpg')
+          fileToUpload = new File([convertedBlobItem], newFileName, {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          })
+          
+          toast({
+            title: 'Conversion Complete',
+            description: 'Image converted to JPEG, ready to upload.',
+          })
+        } catch (conversionError) {
+          console.error('HEIC conversion error:', conversionError)
+          toast({
+            title: 'Conversion Failed',
+            description: 'Failed to convert HEIC image. Please convert to JPEG/PNG before uploading.',
+            variant: 'destructive',
+          })
+          return
+        }
+      }
+
       // Create preview
       const reader = new FileReader()
       reader.onloadend = () => {
         setPreview(reader.result as string)
       }
-      reader.readAsDataURL(file)
+      reader.readAsDataURL(fileToUpload)
 
       // Upload file
       setUploading(true)
@@ -89,7 +135,7 @@ export default function ImageUpload({
 
       try {
         const formData = new FormData()
-        formData.append('file', file)
+        formData.append('file', fileToUpload) // Use converted file
 
         // Use XMLHttpRequest for upload progress
         const xhr = new XMLHttpRequest()
