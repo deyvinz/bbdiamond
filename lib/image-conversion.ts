@@ -28,6 +28,9 @@ export async function convertImageIfNeeded(
       .jpeg({ quality: 90, mozjpeg: true })
       .toBuffer()
 
+    // Ensure type compatibility by creating a new Buffer
+    const convertedBuffer = Buffer.from(jpegBuffer)
+
     // Update filename to use .jpg extension
     const baseFilename = originalFilename.replace(/\.[^.]+$/, '')
     const newFilename = `${baseFilename}.jpg`
@@ -35,7 +38,7 @@ export async function convertImageIfNeeded(
     console.log(`[convertImageIfNeeded] Converted ${originalFilename} (${mimeType}) to ${newFilename}`)
 
     return {
-      buffer: jpegBuffer,
+      buffer: convertedBuffer,
       filename: newFilename,
       contentType: 'image/jpeg',
     }
