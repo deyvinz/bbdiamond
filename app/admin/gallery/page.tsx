@@ -207,6 +207,7 @@ export default function GalleryAdminPage() {
                 onChange={(url) => setFormData({ ...formData, url })}
                 label="Image *"
                 maxSize={5 * 1024 * 1024} // 5MB
+                accept="image/*,.heic,.heif,image/heic,image/heif"
               />
             </div>
             <div>

@@ -29,6 +29,16 @@ export async function GET(request: NextRequest) {
         show_dietary_restrictions: context.wedding.show_dietary_restrictions ?? true,
         show_additional_dietary_info: context.wedding.show_additional_dietary_info ?? true,
         rsvp_banner_days_before: context.wedding.rsvp_banner_days_before ?? 30,
+        // Add all feature flags for navigation
+        enable_travel: context.wedding.enable_travel ?? false,
+        enable_wedding_party: context.wedding.enable_wedding_party ?? false,
+        enable_registry: context.wedding.enable_registry ?? false,
+        registry_url: context.wedding.registry_url || null,
+        enable_gallery: context.wedding.enable_gallery ?? false,
+        enable_faq: context.wedding.enable_faq ?? false,
+        enable_seating: context.wedding.enable_seating ?? false,
+        enable_things_to_do: context.wedding.enable_things_to_do ?? false,
+        enable_guest_notes: context.wedding.enable_guest_notes ?? false,
       }
     })
   } catch (error) {

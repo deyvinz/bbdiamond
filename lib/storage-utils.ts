@@ -8,6 +8,8 @@ const ALLOWED_MIME_TYPES = [
   'image/png',
   'image/gif',
   'image/webp',
+  'image/heic',
+  'image/heif',
 ]
 
 /**
@@ -111,7 +113,15 @@ export async function ensureWeddingBucket(weddingId: string): Promise<string> {
         name: bucketName,
         public: true, // Public bucket for read access
         file_size_limit: 5242880, // 5MB in bytes
-        allowed_mime_types: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'],
+        allowed_mime_types: [
+          'image/jpeg', 
+          'image/jpg', 
+          'image/png', 
+          'image/gif', 
+          'image/webp',
+          'image/heic',
+          'image/heif',
+        ],
       }),
     })
     
@@ -175,17 +185,30 @@ export function validateImageFile(file: File): { valid: boolean; error?: string 
     }
   }
   
-  // Check MIME type
+  // Check file extension first (more reliable for HEIC/HEIF)
+  const extension = file.name.split('.').pop()?.toLowerCase()
+  const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif']
+  const isHeicExtension = extension === 'heic' || extension === 'heif'
+  
+  // For HEIC/HEIF, allow based on extension even if MIME type is missing/incorrect
+  if (isHeicExtension) {
+    return { valid: true }
+  }
+  
+  // Check MIME type for other formats
   if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    // If MIME type is missing or empty, check extension as fallback
+    if (!file.type && extension && allowedExtensions.includes(extension)) {
+      return { valid: true }
+    }
+    
     return {
       valid: false,
-      error: `File type ${file.type} is not allowed. Allowed types: ${ALLOWED_MIME_TYPES.join(', ')}`,
+      error: `File type ${file.type || 'unknown'} is not allowed. Allowed types: ${ALLOWED_MIME_TYPES.join(', ')}, or HEIC/HEIF files`,
     }
   }
   
-  // Check file extension as additional validation
-  const extension = file.name.split('.').pop()?.toLowerCase()
-  const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+  // Additional extension check for non-HEIC files
   if (!extension || !allowedExtensions.includes(extension)) {
     return {
       valid: false,

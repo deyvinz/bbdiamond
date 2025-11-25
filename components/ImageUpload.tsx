@@ -37,8 +37,12 @@ export default function ImageUpload({
   // Validate file before upload
   const validateFile = useCallback(
     (file: File): { valid: boolean; error?: string } => {
-      // Check file type
-      if (!file.type.startsWith('image/')) {
+      // Check file type - allow image/* or HEIC/HEIF specifically
+      const isImage = file.type.startsWith('image/')
+      const extension = file.name.split('.').pop()?.toLowerCase()
+      const isHeicExtension = extension === 'heic' || extension === 'heif'
+      
+      if (!isImage && !isHeicExtension) {
         return {
           valid: false,
           error: 'Please select an image file',
@@ -285,7 +289,9 @@ export default function ImageUpload({
           <input
             ref={fileInputRef}
             type="file"
-            accept={accept}
+            accept={accept.includes('*') 
+              ? 'image/*,.heic,.heif,image/heic,image/heif' 
+              : accept}
             onChange={handleInputChange}
             disabled={disabled || uploading}
             className="hidden"
@@ -319,7 +325,7 @@ export default function ImageUpload({
                     or drag and drop
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    PNG, JPG, GIF, WEBP up to {(maxSize / 1024 / 1024).toFixed(1)}MB
+                    PNG, JPG, GIF, WEBP, HEIC, HEIF up to {(maxSize / 1024 / 1024).toFixed(1)}MB
                   </p>
                 </div>
               </>

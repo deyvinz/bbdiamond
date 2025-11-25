@@ -54,12 +54,12 @@ export default async function Page(){
           {imgs.map((img, index) => (
             <Card key={img.image_url || index} className="p-0 overflow-hidden group hover:scale-105 transition-transform duration-200 border border-gray-200 shadow-md rounded-2xl" radius="lg">
               <CardBody className="p-0">
-                <div className="aspect-square relative">
+                <div className="aspect-square relative overflow-hidden rounded-2xl">
                   <Image
                     src={img.image_url}
                     alt={img.caption || `Gallery image ${index + 1}`}
                     fill
-                    className="object-cover group-hover:scale-110 transition-transform duration-300 rounded-2xl"
+                    className="object-cover group-hover:scale-110 transition-transform duration-300"
                     sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                   />
                   {img.caption && (

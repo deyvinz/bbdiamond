@@ -8,6 +8,53 @@ import {
   validateImageFile,
   generateImageFilename,
 } from '@/lib/storage-utils'
+import sharp from 'sharp'
+
+/**
+ * Convert HEIC/HEIF images to JPEG for web compatibility
+ * Returns the converted buffer and new filename, or original if conversion not needed
+ */
+export async function convertImageIfNeeded(
+  buffer: Buffer,
+  originalFilename: string,
+  mimeType: string
+): Promise<{ buffer: Buffer; filename: string; contentType: string }> {
+  const isHeic = mimeType === 'image/heic' || mimeType === 'image/heif'
+  const extension = originalFilename.split('.').pop()?.toLowerCase()
+  const isHeicExtension = extension === 'heic' || extension === 'heif'
+
+  // If it's not HEIC/HEIF, return as-is
+  if (!isHeic && !isHeicExtension) {
+    return {
+      buffer,
+      filename: originalFilename,
+      contentType: mimeType,
+    }
+  }
+
+  try {
+    // Convert HEIC/HEIF to JPEG using sharp
+    const jpegBuffer = await sharp(buffer)
+      .jpeg({ quality: 90, mozjpeg: true })
+      .toBuffer()
+
+    // Update filename to use .jpg extension
+    const baseFilename = originalFilename.replace(/\.[^.]+$/, '')
+    const newFilename = `${baseFilename}.jpg`
+
+    console.log(`[convertImageIfNeeded] Converted ${originalFilename} (${mimeType}) to ${newFilename}`)
+
+    return {
+      buffer: jpegBuffer,
+      filename: newFilename,
+      contentType: 'image/jpeg',
+    }
+  } catch (error) {
+    console.error(`[convertImageIfNeeded] Error converting image:`, error)
+    // If conversion fails, try to return original (might fail on upload, but better than silent failure)
+    throw new Error(`Failed to convert HEIC/HEIF image: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -90,6 +137,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Convert HEIC/HEIF to JPEG if needed
+    const arrayBuffer = await file.arrayBuffer()
+    let buffer = Buffer.from(arrayBuffer)
+    let finalFileName = generateImageFilename(file.name)
+    let finalContentType = file.type
+
+    try {
+      const converted = await convertImageIfNeeded(buffer, file.name, file.type)
+      buffer = converted.buffer
+      finalFileName = generateImageFilename(converted.filename)
+      finalContentType = converted.contentType
+    } catch (conversionError) {
+      console.error('[upload] Image conversion error:', conversionError)
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: conversionError instanceof Error 
+            ? conversionError.message 
+            : 'Failed to process image. Please try a different format.' 
+        },
+        { status: 400 }
+      )
+    }
+
     // Get bucket name
     const bucketName = getWeddingBucketName(weddingId)
 
@@ -124,12 +195,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate unique filename
-    const fileName = generateImageFilename(file.name)
-
-    // Convert file to buffer
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    // Generate unique filename (already done above if converted)
+    const fileName = finalFileName
 
     // Upload to Supabase Storage with retry logic
     // Use supabaseServer() which respects storage policies
@@ -146,7 +213,7 @@ export async function POST(request: NextRequest) {
       const result = await supabase.storage
         .from(bucketName)
         .upload(fileName, buffer, {
-          contentType: file.type,
+          contentType: finalContentType, // Use converted content type
           cacheControl: '3600', // 1 hour cache
           upsert: false, // Don't overwrite existing files
         })
@@ -215,7 +282,7 @@ export async function POST(request: NextRequest) {
         const serviceResult = await serviceClient.storage
           .from(bucketName)
           .upload(fileName, buffer, {
-            contentType: file.type,
+            contentType: finalContentType,
             cacheControl: '3600',
             upsert: false,
           })
