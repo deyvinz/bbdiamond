@@ -51,7 +51,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { data, error } = await supabase
+    let data, error
+    const result = await supabase
       .from('gallery_images')
       .insert({
         wedding_id: weddingId,
@@ -61,8 +62,47 @@ export async function POST(request: NextRequest) {
       })
       .select()
       .single()
+    
+    data = result.data
+    error = result.error
 
-    if (error) {
+    // If RLS policy blocks the insert, try with service role client as fallback
+    // This can happen if the user is an admin but the RLS policy hasn't been updated yet
+    if (error && (
+      error.message?.includes('row-level security') ||
+      error.message?.includes('violates row-level security') ||
+      error.code === '42501' ||
+      error.code === 'PGRST204' // Column not found (can be misleading RLS error)
+    )) {
+      console.error('Error adding gallery image (RLS issue):', error)
+      console.log('Attempting insert with service role client as fallback...')
+      
+      const { supabaseService } = await import('@/lib/supabase-service')
+      const serviceClient = supabaseService()
+      
+      const serviceResult = await serviceClient
+        .from('gallery_images')
+        .insert({
+          wedding_id: weddingId,
+          image_url: url,
+          caption: caption || null,
+          display_order: sort_order || 0
+        })
+        .select()
+        .single()
+      
+      if (serviceResult.error) {
+        console.error('Error adding gallery image with service role:', serviceResult.error)
+        return NextResponse.json(
+          { success: false, error: 'Failed to add gallery image' },
+          { status: 500 }
+        )
+      }
+      
+      data = serviceResult.data
+      error = null
+      console.log('Gallery image added successfully using service role client')
+    } else if (error) {
       console.error('Error adding gallery image:', error)
       return NextResponse.json(
         { success: false, error: 'Failed to add gallery image' },

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Sidebar, SidebarContent, SidebarHeader, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { supabase } from '@/lib/supabase-browser'
 
 const baseLinks: Array<[string,string]> = [
@@ -18,6 +19,7 @@ const baseLinks: Array<[string,string]> = [
 export function AppSidebar(){
   const { setOpen } = useSidebar()
   const [isAdmin, setIsAdmin] = useState(false)
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [logoAlt, setLogoAlt] = useState('Wedding')
   const [links, setLinks] = useState<Array<[string,string]>>(baseLinks)
 
@@ -43,11 +45,13 @@ export function AppSidebar(){
         const response = await fetch('/api/wedding-info')
         const data = await response.json()
         if (data.success && data.wedding) {
+          // Set logo from API response
+          setLogoUrl(data.wedding.logo_url || null)
           if (data.wedding.couple_display_name) {
             setLogoAlt(data.wedding.couple_display_name)
           }
           
-          // Build links based on wedding features
+          // Build links based on wedding features (matching Nav.tsx logic exactly)
           const weddingLinks: Array<[string,string]> = [['Schedule','/schedule']]
           
           if (data.wedding.enable_travel) {
@@ -87,17 +91,39 @@ export function AppSidebar(){
     fetchWeddingInfo()
   }, [])
 
+  // Get initials for fallback avatar (same logic as NavClient)
+  const getInitials = () => {
+    if (logoAlt && logoAlt !== 'Wedding') {
+      const parts = logoAlt.split(/\s+/)
+      if (parts.length >= 2) {
+        const firstInitial = parts[0].charAt(0).toUpperCase()
+        const lastInitial = parts[parts.length - 1].charAt(0).toUpperCase()
+        return `${firstInitial} ❤️ ${lastInitial}`
+      }
+      return logoAlt.substring(0, 2).toUpperCase()
+    }
+    return 'W'
+  }
+
   return (
     <Sidebar>
       <SidebarHeader>
-      <Link href="/">
-          <Image
-            src="/images/logo.png"
-            className="rounded-full"
-            alt={logoAlt}
-            width={40}
-            height={40}
-          />
+        <Link href="/">
+          {logoUrl ? (
+            <Image
+              src={logoUrl}
+              className="rounded-full object-cover"
+              alt={logoAlt}
+              width={40}
+              height={40}
+            />
+          ) : (
+            <Avatar className="h-10 w-10">
+              <AvatarFallback className="text-xs font-semibold bg-gold-100 text-gold-700 border-2 border-gold-200/30 flex items-center justify-center whitespace-nowrap overflow-hidden">
+                {getInitials()}
+              </AvatarFallback>
+            </Avatar>
+          )}
         </Link>
       </SidebarHeader>
       <SidebarContent>
