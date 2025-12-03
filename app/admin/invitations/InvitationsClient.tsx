@@ -190,10 +190,8 @@ export default function InvitationsClient({
 
   const handleDeleteInvitation = async (invitationId: string) => {
     try {
-      console.log('Deleting invitation:', invitationId)
       setLoading(true)
       await deleteInvitationsAction([invitationId])
-      console.log('Invitation deleted successfully')
       toast({
         title: "Success",
         description: "Invitation deleted successfully",
@@ -266,7 +264,6 @@ export default function InvitationsClient({
   }) => {
     setSendingEmail(true)
     try {
-      console.log('Sending email to:', data.to)
       await sendInviteEmailAction({
         ...data,
         includeQr: data.includeQr ?? true,

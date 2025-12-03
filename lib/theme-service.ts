@@ -187,6 +187,7 @@ export function getHeroUIThemeCSS(theme: WeddingTheme): string {
     button:not(input):not(textarea):not(select)[style*="#C8A951"],
     button:not(input):not(textarea):not(select)[style*="#CDA349"],
     button:not(input):not(textarea):not(select)[style*="#B38D39"],
+    
     button:not(input):not(textarea):not(select)[style*="#E1B858"] {
       background-color: ${primary} !important;
     }
@@ -355,7 +356,6 @@ export function getHeroUIThemeCSS(theme: WeddingTheme): string {
     svg[class*="text-primary"],
     path[fill*="#C8A951"],
     path[fill*="#CDA349"] {
-      fill: ${primary} !important;
       color: ${primary} !important;
     }
     
@@ -375,7 +375,6 @@ export function getHeroUIThemeCSS(theme: WeddingTheme): string {
     input[type="checkbox"]:checked,
     input[type="radio"]:checked,
     [data-state="checked"][class*="bg-"]:not([role="switch"]) {
-      background-color: ${primary} !important;
       border-color: ${primary} !important;
     }
     

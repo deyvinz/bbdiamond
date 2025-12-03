@@ -9,8 +9,6 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status')
     const columnsParam = searchParams.get('columns')
 
-    console.log('Guest export request:', { eventId, status, columnsParam })
-
     if (!columnsParam) {
       return NextResponse.json(
         { error: 'No columns specified' },
@@ -60,8 +58,6 @@ export async function GET(request: NextRequest) {
         { status: 500 }
       )
     }
-
-    console.log('Guests data:', { count: guests?.length, sample: guests?.[0] })
 
     // Transform data to CSV format
     const csvRows: string[][] = []
@@ -170,9 +166,6 @@ export async function GET(request: NextRequest) {
         }).join(',')
       )
       .join('\n')
-
-    console.log('CSV content preview:', csvContent.substring(0, 200) + '...')
-    console.log('CSV rows count:', csvRows.length)
 
     // Return CSV file
     return new NextResponse(csvContent, {

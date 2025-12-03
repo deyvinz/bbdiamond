@@ -10,6 +10,7 @@ import ImportCsvDialog from './ImportCsvDialog'
 import GuestDetailsDialog from './GuestDetailsDialog'
 import { BackfillInviteCodesDialog } from './BackfillInviteCodesDialog'
 import CleanupDuplicatesDialog from './CleanupDuplicatesDialog'
+import CleanupHouseholdsDialog from './CleanupHouseholdsDialog'
 import ExportDialog from './ExportDialog'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
@@ -54,6 +55,7 @@ export default function GuestsClient({
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [showBackfillDialog, setShowBackfillDialog] = useState(false)
   const [showCleanupDialog, setShowCleanupDialog] = useState(false)
+  const [showCleanupHouseholdsDialog, setShowCleanupHouseholdsDialog] = useState(false)
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [editingGuest, setEditingGuest] = useState<Guest | undefined>()
   const [viewGuest, setViewGuest] = useState<Guest | undefined>()
@@ -175,7 +177,6 @@ export default function GuestsClient({
             for (const eventId of data.invitation.event_ids) {
               await createInvitationForGuest(updatedGuest.id, eventId)
             }
-            console.log(`Created invitations for ${data.invitation.event_ids.length} events`)
           } catch (invitationError) {
             console.error('Error creating invitations:', invitationError)
             toast({
@@ -189,7 +190,7 @@ export default function GuestsClient({
         setGuests(prev => prev.map(g => g.id === editingGuest.id ? updatedGuest : g))
         toast({
           title: "✅ Guest Updated Successfully!",
-          description: `${updatedGuest.first_name} ${updatedGuest.last_name} has been updated.`,
+          description: `${updatedGuest.first_name} ${updatedGuest.last_name || ''} has been updated.`,
         })
       } else {
         // Create new guest
@@ -200,7 +201,6 @@ export default function GuestsClient({
             for (const eventId of data.invitation.event_ids) {
               await createInvitationForGuest(newGuest.id, eventId)
             }
-            console.log(`Created invitations for ${data.invitation.event_ids.length} events`)
           } catch (invitationError) {
             console.error('Error creating invitations:', invitationError)
             toast({
@@ -215,7 +215,7 @@ export default function GuestsClient({
         setTotalCountState(prev => prev + 1)
         toast({
           title: "🎉 Guest Created Successfully!",
-          description: `${newGuest.first_name} ${newGuest.last_name} has been added to your guest list.`,
+          description: `${newGuest.first_name} ${newGuest.last_name || ''} has been added to your guest list.`,
         })
       }
       setShowGuestForm(false)
@@ -236,7 +236,7 @@ export default function GuestsClient({
 
   const handleDelete = async (guestId: string) => {
     const guestToDelete = guests.find(g => g.id === guestId)
-    const guestName = guestToDelete ? `${guestToDelete.first_name} ${guestToDelete.last_name}` : 'this guest'
+    const guestName = guestToDelete ? `${guestToDelete.first_name} ${guestToDelete.last_name || ''}` : 'this guest'
     
     if (!confirm(`Are you sure you want to delete ${guestName}? This action cannot be undone and will remove all associated invitations.`)) {
       return
@@ -309,14 +309,18 @@ export default function GuestsClient({
       }
       
       if (!guest.invitations || guest.invitations.length === 0) {
-        throw new Error(`No invitations found for ${guest.first_name} ${guest.last_name}`)
+        throw new Error(`No invitations found for ${guest.first_name} ${guest.last_name || ''}`)
       }
       
       const invitation = guest.invitations[0]
       const invitationEvent = invitation.invitation_events?.find(ie => ie.event_id === eventId)
       
       if (!invitationEvent) {
-        throw new Error(`No invitation found for this event for ${guest.first_name} ${guest.last_name}`)
+        throw new Error(`No invitation found for this event for ${guest.first_name} ${guest.last_name || ''}`)
+      }
+      
+      if (!guest.email) {
+        throw new Error(`${guest.first_name} ${guest.last_name || ''} does not have an email address`)
       }
       
       await sendInviteEmailAction({
@@ -329,7 +333,7 @@ export default function GuestsClient({
       
       toast({
         title: "Success",
-        description: `Invitation email sent to ${guest.first_name} ${guest.last_name}`,
+        description: `Invitation email sent to ${guest.first_name} ${guest.last_name || ''}`,
       })
       // Refresh data to get updated state
       await refreshData()
@@ -369,7 +373,7 @@ export default function GuestsClient({
               
               // Check if guest has invitations
               if (!guest.invitations || guest.invitations.length === 0) {
-                console.error(`No invitations found for guest: ${guest.first_name} ${guest.last_name}`)
+                console.error(`No invitations found for guest: ${guest.first_name} ${guest.last_name || ''}`)
                 errorCount++
                 continue
               }
@@ -379,6 +383,11 @@ export default function GuestsClient({
               
               if (eventIds.length === 0) {
                 console.error(`No events found for invitation: ${invitation.id}`)
+                errorCount++
+                continue
+              }
+              
+              if (!guest.email) {
                 errorCount++
                 continue
               }
@@ -607,6 +616,15 @@ export default function GuestsClient({
               <span className="hidden sm:inline">Clean Duplicates</span>
             </Button>
             <Button
+              onClick={() => setShowCleanupHouseholdsDialog(true)}
+              variant="outline"
+              size="sm"
+              className="border-purple-200 text-purple-700 hover:bg-purple-50 flex-1 sm:flex-none"
+            >
+              <Settings className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Clean Households</span>
+            </Button>
+            <Button
               onClick={() => {
                 setEditingGuest(undefined)
                 setShowGuestForm(true)
@@ -662,6 +680,12 @@ export default function GuestsClient({
       <CleanupDuplicatesDialog
         open={showCleanupDialog}
         onOpenChange={setShowCleanupDialog}
+        onComplete={refreshData}
+      />
+
+      <CleanupHouseholdsDialog
+        open={showCleanupHouseholdsDialog}
+        onOpenChange={setShowCleanupHouseholdsDialog}
         onComplete={refreshData}
       />
 

@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { logger } from './logger'
 
 export async function supabaseServer() {
   // Check if environment variables are available
@@ -41,14 +42,14 @@ export async function supabaseServer() {
           try { 
             cookieStore.set({ name, value, ...options }) 
           } catch (error) {
-            console.log(`Error setting cookie ${name}:`, error)
+            logger.error(`Error setting cookie ${name}:`, error) 
           }
         },
         remove(name: string, options: CookieOptions) {
           try { 
             cookieStore.set({ name, value: '', ...options }) 
           } catch (error) {
-            console.log(`Error removing cookie ${name}:`, error)
+            logger.error(`Error removing cookie ${name}:`, error)
           }
         },
       },

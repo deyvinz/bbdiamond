@@ -2,24 +2,62 @@ import { z } from 'zod'
 
 export const guestSchema = z.object({
   first_name: z.string().min(1, 'First name is required').max(50, 'First name too long'),
-  last_name: z.string().min(1, 'Last name is required').max(50, 'Last name too long'),
-  email: z.string().email('Invalid email address').max(100, 'Email too long'),
+  last_name: z.string().max(50, 'Last name too long').optional().or(z.literal('')),
+  email: z.string().email('Invalid email address').max(100, 'Email too long').optional().or(z.literal('')),
   phone: z.string().optional().or(z.literal('')),
   household_id: z.string().optional(),
   household_name: z.string().optional(),
   is_vip: z.boolean().default(false),
   gender: z.enum(['male', 'female', 'other']).optional(),
+  total_guests: z.number().int().min(1).max(20).optional(),
 })
 
-// CSV columns provided: Timestamp, Gender, First Name, Last Name, Email, Phone Number
-export const csvGuestSchema = z.object({
+// CSV columns provided: Timestamp, Gender, First Name, Last Name, Email, Phone Number, Total Guests, Household Name
+// Note: Column names are matched case-insensitively and with flexible spacing
+export const csvGuestSchema = z.preprocess((data: any) => {
+  // Normalize column names - handle case-insensitive matching and spacing variations
+  if (typeof data !== 'object' || data === null) return data
+  
+  const normalized: any = {}
+  const columnMap: Record<string, string> = {
+    'timestamp': 'Timestamp',
+    'first name': 'First Name',
+    'firstname': 'First Name',
+    'first_name': 'First Name',
+    'last name': 'Last Name',
+    'lastname': 'Last Name',
+    'last_name': 'Last Name',
+    'email': 'Email',
+    'phone number': 'Phone Number',
+    'phonenumber': 'Phone Number',
+    'phone_number': 'Phone Number',
+    'phone': 'Phone Number',
+    'gender': 'Gender',
+    'total guests': 'Total Guests',
+    'totalguests': 'Total Guests',
+    'total_guests': 'Total Guests',
+    'household name': 'Household Name',
+    'householdname': 'Household Name',
+    'household_name': 'Household Name',
+  }
+  
+  // Map all keys to normalized names
+  Object.keys(data).forEach(key => {
+    const normalizedKey = columnMap[key.toLowerCase().trim()] || key
+    normalized[normalizedKey] = data[key]
+  })
+  
+  return normalized
+}, z.object({
   Timestamp: z.string().optional(),
   Gender: z.string().optional(),
-  'First Name': z.string().min(1, 'First name is required'),
-  'Last Name': z.string().min(1, 'Last name is required'),
-  Email: z.string().email('Invalid email address'),
-  'Phone Number': z.string().optional().or(z.literal('')),
-}).transform((row) => {
+  'First Name': z.string().trim().min(1, 'First name is required'),
+  'Last Name': z.string().trim().optional().or(z.literal('')),
+  Email: z.string().trim().email('Invalid email address').optional().or(z.literal('')),
+  'Phone Number': z.string().trim().optional().or(z.literal('')),
+  'Total Guests': z.string().trim().optional(),
+  'Household Name': z.string().trim().optional().or(z.literal('')),
+})).transform((row) => {
   const genderRaw = (row.Gender || '').trim().toLowerCase()
   const gender = genderRaw === 'male' || genderRaw === 'm'
     ? 'male'
@@ -28,12 +66,24 @@ export const csvGuestSchema = z.object({
     : genderRaw
       ? 'other'
       : undefined
+  
+  // Parse Total Guests - convert string to number if present
+  let totalGuests: number | undefined = undefined
+  if (row['Total Guests']) {
+    const parsed = parseInt(row['Total Guests'].trim(), 10)
+    if (!isNaN(parsed) && parsed >= 1 && parsed <= 20) {
+      totalGuests = parsed
+    }
+  }
+  
   return {
-    first_name: row['First Name'],
-    last_name: row['Last Name'],
-    email: row.Email,
+    first_name: (row['First Name'] || '').trim(),
+    last_name: row['Last Name'] && row['Last Name'].trim() ? row['Last Name'].trim() : undefined,
+    email: row.Email && row.Email.trim() ? row.Email.trim() : undefined,
     phone: row['Phone Number'] || '',
     gender,
+    total_guests: totalGuests,
+    household_name: row['Household Name'] || undefined,
   }
 })
 
@@ -137,6 +187,7 @@ export const updateConfigSchema = z.object({
   food_choices_required: z.boolean().optional(),
   dress_code_message: z.string().optional(),
   age_restriction_message: z.string().optional(),
+  rsvp_footer: z.string().optional(),
   // Notification channel settings
   notification_email_enabled: z.boolean().optional(),
   notification_whatsapp_enabled: z.boolean().optional(),

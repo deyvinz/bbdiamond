@@ -23,6 +23,7 @@ export interface ConfigValue {
   food_choices_required: boolean
   dress_code_message?: string // Custom dress code message for event details page
   age_restriction_message?: string // Custom age restriction message for event details page
+  rsvp_footer?: string // WYSIWYG HTML content for RSVP form footer
   // Notification channel settings
   notification_email_enabled: boolean
   notification_whatsapp_enabled: boolean
@@ -44,6 +45,7 @@ export interface ConfigUpdate {
   food_choices_required?: boolean
   dress_code_message?: string
   age_restriction_message?: string
+  rsvp_footer?: string
   // Notification channel settings
   notification_email_enabled?: boolean
   notification_whatsapp_enabled?: boolean
@@ -66,6 +68,7 @@ export const DEFAULT_CONFIG: ConfigValue = {
   food_choices_required: false,
   dress_code_message: undefined,
   age_restriction_message: undefined,
+  rsvp_footer: undefined,
   // Notification channel settings - email enabled by default
   notification_email_enabled: true,
   notification_whatsapp_enabled: false,

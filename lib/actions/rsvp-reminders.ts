@@ -201,16 +201,12 @@ export async function sendBulkRsvpRemindersAction(
       )
       return !hasResponded
     })
-
-    console.log(`Found ${pendingInvitations.length} invitations with pending RSVPs`)
-
     // Send reminders
     for (const invitation of pendingInvitations) {
       try {
         const guest = invitation.guest as any
 
         if (!guest.email) {
-          console.log(`Skipping invitation ${invitation.id}: No email address`)
           result.skipped++
           continue
         }
@@ -225,7 +221,6 @@ export async function sendBulkRsvpRemindersAction(
             .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
 
           if (recentReminders && recentReminders.length > 0) {
-            console.log(`Skipping invitation ${invitation.id}: Reminder sent in last 24 hours`)
             result.skipped++
             continue
           }
@@ -240,7 +235,6 @@ export async function sendBulkRsvpRemindersAction(
         }
 
         if (eventsToInclude.length === 0) {
-          console.log(`Skipping invitation ${invitation.id}: No matching events`)
           result.skipped++
           continue
         }
@@ -280,7 +274,6 @@ export async function sendBulkRsvpRemindersAction(
         }
 
         result.sent++
-        console.log(`✓ Sent reminder to ${guest.email}`)
 
         // Add delay to avoid rate limiting (100ms between emails)
         await new Promise(resolve => setTimeout(resolve, 100))
@@ -293,7 +286,6 @@ export async function sendBulkRsvpRemindersAction(
       }
     }
 
-    console.log(`Bulk RSVP reminder complete: ${result.sent} sent, ${result.skipped} skipped, ${result.errors.length} errors`)
 
     return result
   } catch (error) {

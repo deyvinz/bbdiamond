@@ -89,6 +89,7 @@ export async function createGuest(input: Partial<Guest>, weddingId?: string): Pr
       household_id: householdId,
       is_vip: validatedGuest.is_vip,
       gender: validatedGuest.gender,
+      total_guests: validatedGuest.total_guests || 1,
       invite_code: inviteCode,
       wedding_id: resolvedWeddingId
     })
@@ -348,7 +349,6 @@ async function generateInviteCode(): Promise<string> {
     }
     
     // If code exists, try again
-    console.log(`Invite code ${result} already exists, generating new one...`)
   }
 }
 
@@ -673,6 +673,355 @@ export async function cleanupDuplicateEmails(dryRun: boolean = false): Promise<C
       duplicates_found: result.duplicatesFound,
       guests_removed: result.guestsRemoved,
       guests_kept: result.guestsKept,
+      errors: result.errors.length
+    })
+  }
+
+  return result
+}
+
+/**
+ * Find duplicate households (same name, same wedding_id)
+ */
+export async function findDuplicateHouseholds(weddingId?: string): Promise<Array<{
+  name: string
+  count: number
+  households: Array<{
+    id: string
+    name: string
+    wedding_id: string
+    guest_count: number
+  }>
+}>> {
+  const supabase = await supabaseServer()
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required')
+  }
+
+  // Get all households for this wedding
+  const { data: households, error } = await supabase
+    .from('households')
+    .select('id, name, wedding_id')
+    .eq('wedding_id', resolvedWeddingId)
+    .order('name', { ascending: true })
+
+  if (error) {
+    throw new Error(`Failed to fetch households: ${error.message}`)
+  }
+
+  if (!households || households.length === 0) {
+    return []
+  }
+
+  // Get guest counts for each household
+  const householdIds = households.map((h: { id: string }) => h.id)
+  const { data: guestCounts } = await supabase
+    .from('guests')
+    .select('household_id')
+    .in('household_id', householdIds)
+
+  const guestCountMap = new Map<string, number>()
+  guestCounts?.forEach((g: { household_id: string | null }) => {
+    if (g.household_id) {
+      guestCountMap.set(g.household_id, (guestCountMap.get(g.household_id) || 0) + 1)
+    }
+  })
+
+  // Group by name (case-insensitive)
+  const nameMap = new Map<string, Array<{
+    id: string
+    name: string
+    wedding_id: string
+    guest_count: number
+  }>>()
+
+  households.forEach((household: { id: string; name: string; wedding_id: string }) => {
+    const normalizedName = household.name.toLowerCase().trim()
+    if (!nameMap.has(normalizedName)) {
+      nameMap.set(normalizedName, [])
+    }
+    nameMap.get(normalizedName)!.push({
+      id: household.id,
+      name: household.name,
+      wedding_id: household.wedding_id,
+      guest_count: guestCountMap.get(household.id) || 0
+    })
+  })
+
+  // Find duplicates (groups with more than 1 household)
+  const duplicates: Array<{
+    name: string
+    count: number
+    households: Array<{
+      id: string
+      name: string
+      wedding_id: string
+      guest_count: number
+    }>
+  }> = []
+
+  nameMap.forEach((householdList, normalizedName) => {
+    if (householdList.length > 1) {
+      // Sort by: households with guests first, then by id (for consistent ordering)
+      householdList.sort((a, b) => {
+        if (a.guest_count !== b.guest_count) {
+          return b.guest_count - a.guest_count // More guests first
+        }
+        return a.id.localeCompare(b.id) // Use ID for consistent ordering
+      })
+
+      duplicates.push({
+        name: householdList[0].name, // Use the first household's name (normalized)
+        count: householdList.length,
+        households: householdList
+      })
+    }
+  })
+
+  return duplicates.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/**
+ * Find orphaned households (households with no guests)
+ */
+export async function findOrphanedHouseholds(weddingId?: string): Promise<Array<{
+  id: string
+  name: string
+  wedding_id: string
+}>> {
+  const supabase = await supabaseServer()
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required')
+  }
+
+  // Get all households for this wedding
+  const { data: households, error } = await supabase
+    .from('households')
+    .select('id, name, wedding_id')
+    .eq('wedding_id', resolvedWeddingId)
+
+  if (error) {
+    throw new Error(`Failed to fetch households: ${error.message}`)
+  }
+
+  if (!households || households.length === 0) {
+    return []
+  }
+
+  // Get all households that have guests
+  const householdIds = households.map((h: { id: string }) => h.id)
+  const { data: guests } = await supabase
+    .from('guests')
+    .select('household_id')
+    .in('household_id', householdIds)
+    .not('household_id', 'is', null)
+
+  const householdsWithGuests = new Set<string>()
+  guests?.forEach((g: { household_id: string | null }) => {
+    if (g.household_id) {
+      householdsWithGuests.add(g.household_id)
+    }
+  })
+
+  // Return households without guests
+  return households.filter((h: { id: string }) => !householdsWithGuests.has(h.id))
+}
+
+export interface CleanupHouseholdsResult {
+  duplicatesFound: number
+  orphanedFound: number
+  householdsRemoved: number
+  householdsMerged: number
+  guestsReassigned: number
+  errors: Array<{ householdId: string; error: string }>
+  details: Array<{
+    type: 'duplicate' | 'orphaned'
+    name: string
+    removed: Array<{ id: string; name: string; guest_count: number }>
+    kept?: { id: string; name: string; guest_count: number }
+  }>
+}
+
+/**
+ * Cleanup duplicate and orphaned households
+ * For duplicates: Keep the household with the most guests (or oldest if tied), merge others
+ * For orphaned: Remove households with no guests
+ */
+export async function cleanupHouseholds(dryRun: boolean = false, weddingId?: string): Promise<CleanupHouseholdsResult> {
+  const supabase = await supabaseServer()
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required')
+  }
+
+  const duplicates = await findDuplicateHouseholds(resolvedWeddingId)
+  const orphaned = await findOrphanedHouseholds(resolvedWeddingId)
+
+  const result: CleanupHouseholdsResult = {
+    duplicatesFound: duplicates.length,
+    orphanedFound: orphaned.length,
+    householdsRemoved: 0,
+    householdsMerged: 0,
+    guestsReassigned: 0,
+    errors: [],
+    details: []
+  }
+
+  // Process duplicates
+  for (const duplicate of duplicates) {
+    const [toKeep, ...toRemove] = duplicate.households
+
+    const detail = {
+      type: 'duplicate' as const,
+      name: duplicate.name,
+      removed: toRemove.map(h => ({
+        id: h.id,
+        name: h.name,
+        guest_count: h.guest_count
+      })),
+      kept: {
+        id: toKeep.id,
+        name: toKeep.name,
+        guest_count: toKeep.guest_count
+      }
+    }
+
+    result.details.push(detail)
+
+    if (!dryRun) {
+      // Reassign guests from removed households to the kept household
+      for (const householdToRemove of toRemove) {
+        try {
+          // Reassign guests
+          const { data: guestsToReassign, error: guestsError } = await supabase
+            .from('guests')
+            .select('id')
+            .eq('household_id', householdToRemove.id)
+
+          if (guestsError) {
+            throw new Error(`Failed to fetch guests: ${guestsError.message}`)
+          }
+
+          if (guestsToReassign && guestsToReassign.length > 0) {
+            const { error: updateError } = await supabase
+              .from('guests')
+              .update({ household_id: toKeep.id })
+              .eq('household_id', householdToRemove.id)
+
+            if (updateError) {
+              result.errors.push({
+                householdId: householdToRemove.id,
+                error: `Failed to reassign guests: ${updateError.message}`
+              })
+              continue
+            }
+
+            result.guestsReassigned += guestsToReassign.length
+          }
+
+          // Delete the household
+          const { error: deleteError } = await supabase
+            .from('households')
+            .delete()
+            .eq('id', householdToRemove.id)
+
+          if (deleteError) {
+            result.errors.push({
+              householdId: householdToRemove.id,
+              error: `Failed to delete household: ${deleteError.message}`
+            })
+          } else {
+            result.householdsRemoved++
+            result.householdsMerged++
+            
+            // Log audit
+            await logAdminAction('household_duplicate_removed', {
+              household_id: householdToRemove.id,
+              household_name: householdToRemove.name,
+              kept_household_id: toKeep.id,
+              guests_reassigned: guestsToReassign?.length || 0,
+              reason: 'Duplicate household cleanup'
+            })
+          }
+        } catch (error) {
+          result.errors.push({
+            householdId: householdToRemove.id,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          })
+        }
+      }
+    } else {
+      // Dry run - just count
+      result.householdsRemoved += toRemove.length
+      result.householdsMerged += toRemove.length
+      result.guestsReassigned += toRemove.reduce((sum: number, h: { guest_count: number }) => sum + h.guest_count, 0)
+    }
+  }
+
+  // Process orphaned households
+  for (const household of orphaned) {
+    const detail = {
+      type: 'orphaned' as const,
+      name: household.name,
+      removed: [{
+        id: household.id,
+        name: household.name,
+        guest_count: 0
+      }]
+    }
+
+    result.details.push(detail)
+
+    if (!dryRun) {
+      try {
+        const { error: deleteError } = await supabase
+          .from('households')
+          .delete()
+          .eq('id', household.id)
+
+        if (deleteError) {
+          result.errors.push({
+            householdId: household.id,
+            error: `Failed to delete household: ${deleteError.message}`
+          })
+        } else {
+          result.householdsRemoved++
+          
+          // Log audit
+          await logAdminAction('household_orphaned_removed', {
+            household_id: household.id,
+            household_name: household.name,
+            reason: 'Orphaned household cleanup'
+          })
+        }
+      } catch (error) {
+        result.errors.push({
+          householdId: household.id,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+      }
+    } else {
+      // Dry run - just count
+      result.householdsRemoved++
+    }
+  }
+
+  // Invalidate cache if changes were made
+  if (!dryRun && result.householdsRemoved > 0) {
+    await bumpNamespaceVersion()
+
+    // Log overall cleanup action
+    await logAdminAction('households_cleanup', {
+      duplicates_found: result.duplicatesFound,
+      orphaned_found: result.orphanedFound,
+      households_removed: result.householdsRemoved,
+      households_merged: result.householdsMerged,
+      guests_reassigned: result.guestsReassigned,
       errors: result.errors.length
     })
   }

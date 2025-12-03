@@ -21,9 +21,6 @@ export async function POST(request: NextRequest) {
       actualToken = url.searchParams.get('token') || token
     }
 
-    console.log('Original token:', token)
-    console.log('Extracted token:', actualToken)
-
     const supabase = await supabaseServer()
     
     // Find invitation by token (scoped to this wedding)
@@ -50,10 +47,7 @@ export async function POST(request: NextRequest) {
       .eq('wedding_id', weddingId)
       .single()
 
-    console.log('Token lookup result:', { actualToken, invitationError, invitation })
-
     if (invitationError || !invitation) {
-      console.log('Invitation not found or error:', { invitationError, invitation })
       return NextResponse.json({ 
         success: false, 
         message: 'Invalid token or invitation not found' 
@@ -64,7 +58,6 @@ export async function POST(request: NextRequest) {
     const acceptedEvents = invitation.invitation_events.filter((ie: any) => ie.status === 'accepted')
     
     if (acceptedEvents.length === 0) {
-      console.log('No accepted events found:', invitation.invitation_events)
       return NextResponse.json({ 
         success: false, 
         message: 'No accepted invitations found for this token' 
@@ -90,7 +83,6 @@ export async function POST(request: NextRequest) {
     const { data: existingCheckin, error: checkError } = await checkinQuery
 
     if (checkError && checkError.code !== 'PGRST116') {
-      console.error('Error checking existing check-in:', checkError)
       return NextResponse.json({ 
         success: false, 
         message: 'Failed to check existing check-in status' 
@@ -130,7 +122,6 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (checkinError) {
-      console.error('Check-in error:', checkinError)
       return NextResponse.json({ 
         success: false, 
         message: 'Failed to check in guest' 
@@ -145,7 +136,6 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (eventError) {
-      console.error('Error fetching event details:', eventError)
     }
 
     return NextResponse.json({

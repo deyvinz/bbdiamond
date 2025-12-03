@@ -44,8 +44,89 @@ export async function getNotificationConfig(weddingId?: string): Promise<Notific
 }
 
 /**
- * Send invitation notifications through all enabled channels
- * Implements smart routing for SMS/WhatsApp based on registration status
+ * Determine the best notification channel to use based on priority and availability
+ * Priority order (only considers enabled channels): email (0) > WhatsApp (1) > SMS (2)
+ * 
+ * Logic:
+ * 1. Check enabled channels in priority order
+ * 2. For each enabled channel, check if guest has required contact info
+ * 3. For WhatsApp, also verify phone is registered
+ * 4. Return first available channel in priority order
+ */
+async function determineBestChannel(
+  notificationConfig: NotificationConfig,
+  guest: { email?: string; phone?: string },
+  weddingId: string
+): Promise<{ channel: NotificationChannel | null; phoneNumber?: string; skipReason?: string }> {
+  // Build list of enabled channels in priority order
+  const enabledChannels: Array<{ channel: NotificationChannel; priority: number }> = []
+  
+  if (notificationConfig.notification_email_enabled) {
+    enabledChannels.push({ channel: 'email', priority: 0 })
+  }
+  if (notificationConfig.notification_whatsapp_enabled) {
+    enabledChannels.push({ channel: 'whatsapp', priority: 1 })
+  }
+  if (notificationConfig.notification_sms_enabled) {
+    enabledChannels.push({ channel: 'sms', priority: 2 })
+  }
+
+  // If no channels are enabled, return early
+  if (enabledChannels.length === 0) {
+    return { 
+      channel: null, 
+      skipReason: 'No notification channels are enabled for this wedding' 
+    }
+  }
+
+  // Check channels in priority order (already sorted by priority)
+  for (const { channel } of enabledChannels) {
+    if (channel === 'email') {
+      // Priority 0: Email - check if guest has email
+      if (guest.email) {
+        return { channel: 'email' }
+      }
+      // Email enabled but guest has no email - continue to next priority
+    } else if (channel === 'whatsapp') {
+      // Priority 1: WhatsApp - check if guest has phone and is registered
+      if (guest.phone) {
+        const formattedPhone = formatPhoneNumber(guest.phone)
+        const waStatus = await checkWhatsAppRegistration(formattedPhone)
+        
+        if (waStatus.isRegistered) {
+          return { channel: 'whatsapp', phoneNumber: formattedPhone }
+        }
+        // WhatsApp enabled, phone available, but not registered - continue to SMS if enabled
+      }
+      // WhatsApp enabled but guest has no phone - continue to next priority
+    } else if (channel === 'sms') {
+      // Priority 2: SMS - check if guest has phone
+      if (guest.phone) {
+        const formattedPhone = formatPhoneNumber(guest.phone)
+        return { channel: 'sms', phoneNumber: formattedPhone }
+      }
+      // SMS enabled but guest has no phone - no more channels to check
+    }
+  }
+
+  // No channel available - generate detailed skip reason
+  const enabledChannelNames = enabledChannels.map(c => c.channel).join(', ')
+  let skipReason = `No available contact method for enabled channels: ${enabledChannelNames}`
+  
+  if (!guest.email && !guest.phone) {
+    skipReason = `Guest has no email or phone number. Enabled channels: ${enabledChannelNames}`
+  } else if (!guest.email && enabledChannels.some(c => c.channel === 'email')) {
+    skipReason = `Guest has no email address. Enabled channels: ${enabledChannelNames}`
+  } else if (guest.phone && enabledChannels.some(c => c.channel === 'whatsapp') && !enabledChannels.some(c => c.channel === 'sms')) {
+    skipReason = `Phone not registered on WhatsApp and SMS is not enabled. Enabled channels: ${enabledChannelNames}`
+  }
+
+  return { channel: null, skipReason }
+}
+
+/**
+ * Send invitation notifications using priority-based routing
+ * Sends via ONE channel only based on priority: email > WhatsApp > SMS
  */
 export async function sendInvitationNotification(
   options: SendNotificationOptions
@@ -72,7 +153,7 @@ export async function sendInvitationNotification(
         first_name,
         last_name,
         email,
-        phone_number,
+        phone,
         preferred_contact_method,
         invite_code
       ),
@@ -90,7 +171,7 @@ export async function sendInvitationNotification(
   }
 
   const guest = invitation.guest
-  const guestName = `${guest.first_name} ${guest.last_name}`
+  const guestName = `${guest.first_name} ${guest.last_name || ''}`
 
   // Get selected events
   const selectedEvents = invitation.invitation_events?.filter((ie: any) =>
@@ -131,17 +212,27 @@ export async function sendInvitationNotification(
     websiteUrl,
   }
 
-  // Determine which channels to use
-  const channelsToUse = options.channels || determineChannels(notificationConfig)
+  // Determine best channel to use based on priority
+  const channelDecision = await determineBestChannel(notificationConfig, guest, weddingId)
 
-  // 1. Handle Email Channel
-  if (channelsToUse.includes('email') && notificationConfig.notification_email_enabled) {
-    if (guest.email) {
-      try {
+  if (!channelDecision.channel) {
+    // No channel available
+    results.push({
+      channel: 'email', // Default for tracking purposes
+      success: false,
+      skipped: true,
+      skipReason: channelDecision.skipReason || 'No notification channel available',
+    })
+  } else {
+    // Send via the determined channel
+    const channel = channelDecision.channel
+
+    try {
+      if (channel === 'email') {
         const emailResult = await sendInviteEmail({
           invitationId: options.invitationId,
           eventIds: options.eventIds,
-          to: guest.email,
+          to: guest.email!,
           includeQr: true,
           ignoreRateLimit: options.ignoreRateLimit ?? false,
         })
@@ -151,121 +242,23 @@ export async function sendInvitationNotification(
           success: emailResult.success,
           error: emailResult.success ? undefined : emailResult.message,
         })
-      } catch (error) {
-        results.push({
-          channel: 'email',
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown email error',
+      } else if (channel === 'whatsapp') {
+        const waResult = await sendInviteWhatsApp({
+          invitationId: options.invitationId,
+          eventIds: options.eventIds,
+          phoneNumber: channelDecision.phoneNumber!,
+          ignoreRateLimit: options.ignoreRateLimit,
         })
-      }
-    } else {
-      results.push({
-        channel: 'email',
-        success: false,
-        skipped: true,
-        skipReason: 'Guest has no email address',
-      })
-    }
-  }
 
-  // 2. Handle SMS/WhatsApp with smart routing
-  if (guest.phone_number) {
-    const formattedPhone = formatPhoneNumber(guest.phone_number)
-    const smsEnabled = channelsToUse.includes('sms') && notificationConfig.notification_sms_enabled
-    const whatsappEnabled = channelsToUse.includes('whatsapp') && notificationConfig.notification_whatsapp_enabled
-
-    if (smsEnabled && whatsappEnabled) {
-      // Both enabled - check WhatsApp registration first
-      const waStatus = await checkWhatsAppRegistration(formattedPhone)
-
-      if (waStatus.isRegistered) {
-        // Send via WhatsApp
-        try {
-          const waResult = await sendInviteWhatsApp({
-            invitationId: options.invitationId,
-            eventIds: options.eventIds,
-            phoneNumber: formattedPhone,
-            ignoreRateLimit: options.ignoreRateLimit,
-          })
-
-          results.push({
-            channel: 'whatsapp',
-            success: waResult.success,
-            error: waResult.success ? undefined : waResult.message,
-          })
-        } catch (error) {
-          results.push({
-            channel: 'whatsapp',
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown WhatsApp error',
-          })
-        }
-      } else {
-        // Fallback to SMS
-        try {
-          const smsResult = await sendInvitationSms({
-            ...notificationParams,
-            phoneNumber: formattedPhone,
-          })
-
-          results.push({
-            channel: 'sms',
-            success: smsResult.success,
-            messageId: smsResult.messageId,
-            error: smsResult.error,
-          })
-
-          // Log SMS to mail_logs for tracking
-          if (smsResult.success) {
-            await logSmsDelivery(invitation.token, formattedPhone, smsResult.messageId, weddingId)
-          }
-        } catch (error) {
-          results.push({
-            channel: 'sms',
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown SMS error',
-          })
-        }
-      }
-    } else if (whatsappEnabled) {
-      // WhatsApp only - send if registered, skip otherwise
-      const waStatus = await checkWhatsAppRegistration(formattedPhone)
-
-      if (waStatus.isRegistered) {
-        try {
-          const waResult = await sendInviteWhatsApp({
-            invitationId: options.invitationId,
-            eventIds: options.eventIds,
-            phoneNumber: formattedPhone,
-            ignoreRateLimit: options.ignoreRateLimit,
-          })
-
-          results.push({
-            channel: 'whatsapp',
-            success: waResult.success,
-            error: waResult.success ? undefined : waResult.message,
-          })
-        } catch (error) {
-          results.push({
-            channel: 'whatsapp',
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown WhatsApp error',
-          })
-        }
-      } else {
         results.push({
           channel: 'whatsapp',
-          success: false,
-          skipped: true,
-          skipReason: 'Phone not registered on WhatsApp',
+          success: waResult.success,
+          error: waResult.success ? undefined : waResult.message,
         })
-      }
-    } else if (smsEnabled) {
-      // SMS only
-      try {
+      } else if (channel === 'sms') {
         const smsResult = await sendInvitationSms({
           ...notificationParams,
-          phoneNumber: formattedPhone,
+          phoneNumber: channelDecision.phoneNumber!,
         })
 
         results.push({
@@ -277,32 +270,14 @@ export async function sendInvitationNotification(
 
         // Log SMS to mail_logs for tracking
         if (smsResult.success) {
-          await logSmsDelivery(invitation.token, formattedPhone, smsResult.messageId, weddingId)
+          await logSmsDelivery(invitation.token, channelDecision.phoneNumber!, smsResult.messageId, weddingId)
         }
-      } catch (error) {
-        results.push({
-          channel: 'sms',
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown SMS error',
-        })
       }
-    }
-  } else {
-    // No phone number
-    if (channelsToUse.includes('whatsapp') && notificationConfig.notification_whatsapp_enabled) {
+    } catch (error) {
       results.push({
-        channel: 'whatsapp',
+        channel,
         success: false,
-        skipped: true,
-        skipReason: 'Guest has no phone number',
-      })
-    }
-    if (channelsToUse.includes('sms') && notificationConfig.notification_sms_enabled) {
-      results.push({
-        channel: 'sms',
-        success: false,
-        skipped: true,
-        skipReason: 'Guest has no phone number',
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
     }
   }
@@ -372,24 +347,6 @@ export async function sendBulkInvitationNotifications(
   return results
 }
 
-/**
- * Determine which channels to use based on config
- */
-function determineChannels(config: NotificationConfig): NotificationChannel[] {
-  const channels: NotificationChannel[] = []
-
-  if (config.notification_email_enabled) {
-    channels.push('email')
-  }
-  if (config.notification_whatsapp_enabled) {
-    channels.push('whatsapp')
-  }
-  if (config.notification_sms_enabled) {
-    channels.push('sms')
-  }
-
-  return channels
-}
 
 /**
  * Log SMS delivery to mail_logs table for tracking

@@ -244,7 +244,6 @@ export async function sendRsvpConfirmationEmail(
     const contactEmail = emailConfigData?.branding.contactEmail || 'contact@luwani.com'
     
     // Skip rate limiting for now to test email sending
-    console.log('Skipping rate limiting check for testing')
 
     const recipientEmail = emailOverride || invitation.guest.email
     const guestName = `${invitation.guest.first_name} ${invitation.guest.last_name}`
@@ -295,9 +294,6 @@ export async function sendRsvpConfirmationEmail(
     }
 
     // Call edge function to send email
-    console.log('Calling send-rsvp-confirmation function for:', recipientEmail)
-    console.log('Supabase client configured:', !!supabase)
-    console.log('Function name: send-rsvp-confirmation')
     
     const { data, error } = await supabase.functions.invoke('send-rsvp-confirmation', {
       body: {
@@ -329,8 +325,6 @@ export async function sendRsvpConfirmationEmail(
       console.error('Error details:', JSON.stringify(error, null, 2))
       return { success: false, message: 'Failed to send confirmation email' }
     }
-
-    console.log('Edge function response:', { data, error })
 
     // Log successful email send
     await logRsvpConfirmationEmailSend(

@@ -3,6 +3,7 @@ import { guestSchema, csvGuestSchema } from './validators'
 import { Guest } from './types/guests'
 import { CsvRow, downloadCsv } from './csv'
 import { bumpNamespaceVersion } from './cache-client'
+import { getWeddingIdFromClient } from './wedding-context'
 
 // Generate a unique human-readable invite code
 async function generateInviteCode(): Promise<string> {
@@ -26,22 +27,77 @@ async function generateInviteCode(): Promise<string> {
     }
     
     // If code exists, try again
-    console.log(`Invite code ${result} already exists, generating new one...`)
   }
 }
 
 // Client-side functions
-export async function createGuest(guestData: Partial<Guest>, invitationData?: { event_ids?: string[]; headcount?: number }) {
-  console.log('createGuest called with:', { guestData, invitationData })
+export async function createGuest(
+  guestData: Partial<Guest>, 
+  invitationData?: { event_ids?: string[]; headcount?: number },
+  weddingIdParam?: string
+) {
   
   // Validate input
   let validatedGuest
   try {
     validatedGuest = guestSchema.parse(guestData)
-    console.log('Validated guest data:', validatedGuest)
   } catch (error) {
     console.error('Validation error:', error)
     throw error
+  }
+  
+  // Get wedding ID - use parameter first, then try client context, then database
+  let weddingId = weddingIdParam || getWeddingIdFromClient()
+  
+  // If wedding ID not available, try to get it from database
+  if (!weddingId) {
+    // Try to get from existing guest or household (don't use .single() to avoid errors)
+    const { data: existingGuests } = await supabase
+      .from('guests')
+      .select('wedding_id')
+      .limit(1)
+    
+    if (existingGuests && existingGuests.length > 0 && existingGuests[0]?.wedding_id) {
+      weddingId = existingGuests[0].wedding_id
+    } else {
+      const { data: existingHouseholds } = await supabase
+        .from('households')
+        .select('wedding_id')
+        .limit(1)
+      
+      if (existingHouseholds && existingHouseholds.length > 0 && existingHouseholds[0]?.wedding_id) {
+        weddingId = existingHouseholds[0].wedding_id
+      } else {
+        // Try to get from user's profile
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: ownedWeddings } = await supabase
+            .from('weddings')
+            .select('id')
+            .eq('owner_id', user.id)
+            .eq('status', 'active')
+            .limit(1)
+          
+          if (ownedWeddings && ownedWeddings.length > 0 && ownedWeddings[0]?.id) {
+            weddingId = ownedWeddings[0].id
+          } else {
+            const { data: weddingOwners } = await supabase
+              .from('wedding_owners')
+              .select('wedding_id')
+              .eq('customer_id', user.id)
+              .limit(1)
+            
+            if (weddingOwners && weddingOwners.length > 0 && weddingOwners[0]?.wedding_id) {
+              weddingId = weddingOwners[0].wedding_id
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  if (!weddingId) {
+    throw new Error('Wedding ID is required to create guests. Please ensure you are in a valid wedding context.')
   }
   
   // Create household if needed
@@ -49,7 +105,10 @@ export async function createGuest(guestData: Partial<Guest>, invitationData?: { 
   if (validatedGuest.household_name && !householdId) {
     const { data: household, error: householdError } = await supabase
       .from('households')
-      .insert({ name: validatedGuest.household_name })
+      .insert({ 
+        name: validatedGuest.household_name,
+        wedding_id: weddingId
+      })
       .select()
       .single()
     
@@ -63,7 +122,6 @@ export async function createGuest(guestData: Partial<Guest>, invitationData?: { 
   const inviteCode = await generateInviteCode()
   
   // Create guest
-  console.log('Creating guest with data:', { ...validatedGuest, household_id: householdId, invite_code: inviteCode })
   const { data: guest, error: guestError } = await supabase
     .from('guests')
     .insert({
@@ -74,7 +132,9 @@ export async function createGuest(guestData: Partial<Guest>, invitationData?: { 
       household_id: householdId,
       is_vip: validatedGuest.is_vip,
       gender: validatedGuest.gender,
-      invite_code: inviteCode
+      total_guests: validatedGuest.total_guests || 1,
+      invite_code: inviteCode,
+      wedding_id: weddingId
     })
     .select(`
       *,
@@ -87,11 +147,9 @@ export async function createGuest(guestData: Partial<Guest>, invitationData?: { 
     throw new Error(`Failed to create guest: ${guestError.message}`)
   }
   
-  console.log('Created guest:', guest)
 
   // Create invitation if specified
   if (invitationData?.event_ids && invitationData.event_ids.length > 0) {
-    console.log('Creating invitation with events:', invitationData.event_ids)
     
     // First, create the main invitation record
     const { data: invitation, error: invitationError } = await supabase
@@ -109,7 +167,6 @@ export async function createGuest(guestData: Partial<Guest>, invitationData?: { 
       throw new Error(`Failed to create invitation: ${invitationError.message}`)
     }
     
-    console.log('Main invitation created:', invitation.id)
     
     // Then create invitation_events records for each selected event
     const invitationEventInserts = invitationData.event_ids.map((eventId: string) => ({
@@ -119,7 +176,6 @@ export async function createGuest(guestData: Partial<Guest>, invitationData?: { 
       event_token: crypto.randomUUID()
     }))
     
-    console.log('Creating invitation events:', invitationEventInserts)
     
     const { error: invitationEventsError } = await supabase
       .from('invitation_events')
@@ -130,7 +186,6 @@ export async function createGuest(guestData: Partial<Guest>, invitationData?: { 
       throw new Error(`Failed to create invitation events: ${invitationEventsError.message}`)
     }
     
-    console.log('Invitation events created successfully')
   }
 
   // Invalidate cache
@@ -358,8 +413,8 @@ export async function sendInviteEmail(guestId: string, eventId: string) {
 export async function exportGuestsToCsv(guests: Guest[]) {
   const csvData: CsvRow[] = guests.map(guest => ({
     first_name: guest.first_name,
-    last_name: guest.last_name,
-    email: guest.email,
+    last_name: guest.last_name || '',
+    email: guest.email || '',
     phone: guest.phone || '',
     is_vip: guest.is_vip ? 'Yes' : 'No',
     gender: guest.gender || '',
@@ -375,8 +430,7 @@ export async function sendInvitesToAllGuests(eventIds: string[]): Promise<{
   sent: number; 
   skipped: number; 
   errors: string[] 
-}> {
-  console.log('sendInvitesToAllGuests called with eventIds:', eventIds)
+}> {      
   
   try {
     // Call the server-side bulk invite API
@@ -397,7 +451,6 @@ export async function sendInvitesToAllGuests(eventIds: string[]): Promise<{
     }
 
     const results = await response.json()
-    console.log('Bulk invite results:', results)
     return results
 
   } catch (error) {
@@ -425,10 +478,13 @@ export async function importGuestsFromCsv(csvText: string, eventIds?: string[]):
   for (let i = 0; i < rows.length; i++) {
     try {
       const row = csvGuestSchema.parse(rows[i])
-      const nameKey = `${row.first_name.toLowerCase().trim()}|${row.last_name.toLowerCase().trim()}`
+      // Ensure first_name exists and is a string before calling toLowerCase
+      const firstName = (row.first_name || '').toString().toLowerCase().trim()
+      const lastName = (row.last_name || '').toString().toLowerCase().trim()
+      const nameKey = `${firstName}|${lastName}`
       
       if (processedNames.has(nameKey)) {
-        duplicateNamesInCsv.push(`${row.first_name} ${row.last_name}`)
+        duplicateNamesInCsv.push(`${row.first_name} ${row.last_name || ''}`)
         results.skipped++
         continue
       }
@@ -445,15 +501,70 @@ export async function importGuestsFromCsv(csvText: string, eventIds?: string[]):
     results.errors.push(`Duplicate names found in CSV: ${duplicateNamesInCsv.join(', ')}`)
   }
 
+  // Get wedding_id once at the start (for household and guest creation)
+  let weddingId = getWeddingIdFromClient()
+  if (!weddingId) {
+    // Try to get from existing guest or household (don't use .single() to avoid errors)
+    const { data: existingGuests } = await supabase
+      .from('guests')
+      .select('wedding_id')
+      .limit(1)
+    
+    if (existingGuests && existingGuests.length > 0 && existingGuests[0]?.wedding_id) {
+      weddingId = existingGuests[0].wedding_id
+    } else {
+      // Try to get from households
+      const { data: existingHouseholds } = await supabase
+        .from('households')
+        .select('wedding_id')
+        .limit(1)
+      
+      if (existingHouseholds && existingHouseholds.length > 0 && existingHouseholds[0]?.wedding_id) {
+        weddingId = existingHouseholds[0].wedding_id
+      } else {
+        // Try to get from user's profile
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: ownedWeddings } = await supabase
+            .from('weddings')
+            .select('id')
+            .eq('owner_id', user.id)
+            .eq('status', 'active')
+            .limit(1)
+          
+          if (ownedWeddings && ownedWeddings.length > 0 && ownedWeddings[0]?.id) {
+            weddingId = ownedWeddings[0].id
+          } else {
+            const { data: weddingOwners } = await supabase
+              .from('wedding_owners')
+              .select('wedding_id')
+              .eq('customer_id', user.id)
+              .limit(1)
+            
+            if (weddingOwners && weddingOwners.length > 0 && weddingOwners[0]?.wedding_id) {
+              weddingId = weddingOwners[0].wedding_id
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  if (!weddingId) {
+    throw new Error('Wedding ID is required for CSV import. Please ensure you are in a valid wedding context.')
+  }
+
   // Second pass: process valid rows and check against database
   for (const row of validRows) {
     try {
       // Check if guest exists by first name + last name combination
+      const firstName = (row.first_name || '').toString().trim()
+      const lastName = (row.last_name || '').toString().trim()
       const { data: existingGuest } = await supabase
         .from('guests')
         .select('id, first_name, last_name, email')
-        .ilike('first_name', row.first_name.trim())
-        .ilike('last_name', row.last_name.trim())
+        .ilike('first_name', firstName)
+        .ilike('last_name', lastName)
         .single()
 
       if (existingGuest) {
@@ -461,8 +572,8 @@ export async function importGuestsFromCsv(csvText: string, eventIds?: string[]):
         await updateGuest(existingGuest.id, row as Partial<Guest>)
         results.updated++
       } else {
-        // Create new guest
-        const newGuest = await createGuest(row as Partial<Guest>)
+        // Create new guest (pass wedding_id if we have it)
+        const newGuest = await createGuest(row as Partial<Guest>, undefined, weddingId || undefined)
         results.created++
         
         // Create invitations if eventIds provided
@@ -476,7 +587,7 @@ export async function importGuestsFromCsv(csvText: string, eventIds?: string[]):
       if (error instanceof Error && error.message.includes('PGRST116')) {
         // No existing guest found (this is expected for new guests)
         try {
-          const newGuest = await createGuest(row as Partial<Guest>)
+          const newGuest = await createGuest(row as Partial<Guest>, undefined, weddingId || undefined)
           results.created++
           
           // Create invitations if eventIds provided

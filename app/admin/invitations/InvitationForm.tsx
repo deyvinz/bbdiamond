@@ -60,6 +60,7 @@ interface GuestOption {
   last_name: string
   email: string
   is_vip: boolean
+  total_guests?: number
 }
 
 export default function InvitationForm({
@@ -130,7 +131,8 @@ export default function InvitationForm({
         first_name: guest.first_name,
         last_name: guest.last_name,
         email: guest.email,
-        is_vip: guest.is_vip || false
+        is_vip: guest.is_vip || false,
+        total_guests: guest.total_guests || 1
       }))
       setAvailableGuests(guests)
     } catch (error) {
@@ -198,8 +200,9 @@ export default function InvitationForm({
   }
 
   const handleAddEvent = (event: EventOption) => {
-    // Set headcount based on plus-ones configuration
-    const defaultHeadcount = config?.plus_ones_enabled ? (config.max_party_size || 1) : 1
+    // Calculate max headcount based on selected guests' total_guests or config
+    const maxHeadcount = getMaxHeadcountForSelectedGuests()
+    const defaultHeadcount = config?.plus_ones_enabled ? Math.min(maxHeadcount, config.max_party_size || 1) : 1
     
     setSelectedEvents(prev => [...prev, {
       event_id: event.id,
@@ -207,6 +210,16 @@ export default function InvitationForm({
       status: 'pending',
     }])
     setSearchEvent('')
+  }
+
+  // Helper function to get max headcount based on selected guests' total_guests
+  const getMaxHeadcountForSelectedGuests = (): number => {
+    if (selectedGuests.length === 0) {
+      return config?.max_party_size || 1
+    }
+    // Use minimum total_guests among selected guests to ensure all can accommodate
+    const minTotalGuests = Math.min(...selectedGuests.map(g => g.total_guests || 1))
+    return minTotalGuests
   }
 
   const handleRemoveEvent = (eventId: string) => {
@@ -223,8 +236,10 @@ export default function InvitationForm({
     } else if (field === 'headcount') {
       // Only allow headcount changes if plus-ones are enabled
       if (config?.plus_ones_enabled) {
-        // Enforce max party size limit
-        const maxHeadcount = config.max_party_size || 1
+        // Enforce limit based on guest's total_guests or config max_party_size
+        const guestMaxHeadcount = getMaxHeadcountForSelectedGuests()
+        const configMaxHeadcount = config.max_party_size || 1
+        const maxHeadcount = Math.min(guestMaxHeadcount, configMaxHeadcount)
         const clampedValue = Math.min(Math.max(value, 1), maxHeadcount)
         
         setSelectedEvents(prev => prev.map(event => 
@@ -253,6 +268,22 @@ export default function InvitationForm({
         variant: "destructive",
       })
       return
+    }
+
+    // Validate headcount against guest's total_guests
+    const maxHeadcount = getMaxHeadcountForSelectedGuests()
+    const configMaxHeadcount = config?.max_party_size || 1
+    const effectiveMaxHeadcount = Math.min(maxHeadcount, configMaxHeadcount)
+    
+    for (const eventData of selectedEvents) {
+      if (eventData.headcount > effectiveMaxHeadcount) {
+        toast({
+          title: "Error",
+          description: `Headcount (${eventData.headcount}) exceeds the maximum allowed (${effectiveMaxHeadcount}) based on selected guest's total_guests limit`,
+          variant: "destructive",
+        })
+        return
+      }
     }
 
     onSave({
@@ -411,14 +442,14 @@ export default function InvitationForm({
                                 id={`headcount-${index}`}
                                 type="number"
                                 min="1"
-                                max={config?.max_party_size || 1}
+                                max={Math.min(getMaxHeadcountForSelectedGuests(), config?.max_party_size || 1)}
                                 value={eventData.headcount}
                                 onChange={(e) => handleEventChange(eventData.event_id, 'headcount', parseInt(e.target.value, 10))}
                                 disabled={!config?.plus_ones_enabled}
                               />
                               <p className="text-xs text-gray-500">
                                 {config?.plus_ones_enabled 
-                                  ? `Number of people (including main guest) - Max: ${config.max_party_size}`
+                                  ? `Number of people (including main guest) - Max: ${Math.min(getMaxHeadcountForSelectedGuests(), config.max_party_size || 1)}${selectedGuests.length > 0 && selectedGuests.some(g => g.total_guests && g.total_guests < (config.max_party_size || 1)) ? ` (based on guest's total_guests)` : ''}`
                                   : 'Plus-ones are disabled - headcount fixed at 1'
                                 }
                               </p>

@@ -108,7 +108,6 @@ export default function ProtectedEventDetails({ onAccessGranted, forcePublic = f
 
   const fetchGuestEvents = async () => {
     if (!guest?.invite_code) {
-      console.log('No guest or invite code available, skipping event fetch')
       return
     }
 

@@ -22,6 +22,7 @@ import Link from 'next/link'
 import type { ConfigValue } from '@/lib/types/config'
 import { COMMON_TIMEZONES } from '@/lib/types/config'
 import type { UpdateConfigInput } from '@/lib/validators'
+import RSVPFooterEditor from '@/components/RSVPFooterEditor'
 
 interface WeddingSettingsState {
   enable_seating: boolean
@@ -37,8 +38,6 @@ interface ConfigClientProps {
 }
 
 export default function ConfigClient({ initialConfig }: ConfigClientProps) {
-  console.log('🔄 [ConfigClient] Rendered with initialConfig:', initialConfig)
-  
   const [config, setConfig] = useState<ConfigValue>(initialConfig)
   const [weddingSettings, setWeddingSettings] = useState<WeddingSettingsState>({
     enable_seating: false,
@@ -78,9 +77,6 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
 
   // Sync state when initialConfig prop changes (after router.refresh())
   useEffect(() => {
-    console.log('📥 [ConfigClient] useEffect - syncing initialConfig to state')
-    console.log('  initialConfig:', initialConfig)
-    console.log('  current state:', config)
     setConfig(initialConfig)
   }, [initialConfig])
 
@@ -99,6 +95,9 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
       }
       if (config.age_restriction_message !== undefined) {
         configToSave.age_restriction_message = config.age_restriction_message
+      }
+      if (config.rsvp_footer !== undefined) {
+        configToSave.rsvp_footer = config.rsvp_footer
       }
       if (config.plus_ones_enabled !== undefined) {
         configToSave.plus_ones_enabled = config.plus_ones_enabled
@@ -660,6 +659,47 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-800">
                 ℹ️ <strong>Preview:</strong> These messages will appear in a gold notice box at the bottom of the Event Details page. If both messages are set, they will be displayed together.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-3 pt-4 border-t">
+            <Button onClick={handleSave} disabled={loading} className="flex-1 sm:flex-none">
+              <Save className="h-4 w-4 mr-2" />
+              {loading ? 'Saving...' : 'Save Configuration'}
+            </Button>
+            <Button variant="outline" onClick={handleReset} disabled={loading} className="flex-1 sm:flex-none">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reset to Defaults
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            RSVP Form Footer
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="rsvp_footer">RSVP Form Footer Message</Label>
+              <RSVPFooterEditor
+                content={config.rsvp_footer || ''}
+                onChange={(content) => handleConfigChange('rsvp_footer', content)}
+                placeholder="Enter a message or PSA that will appear at the bottom of the RSVP form..."
+              />
+              <p className="text-sm text-muted-foreground">
+                This message will appear at the bottom of the RSVP form, before the submit button. Use it to provide important information, instructions, or announcements to all guests submitting their RSVP.
+              </p>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-800">
+                ℹ️ <strong>Preview:</strong> This footer will be displayed at the bottom of the RSVP form for all guests. Leave empty to hide the footer.
               </p>
             </div>
           </div>

@@ -19,6 +19,7 @@ import {
 } from '@/lib/invitations-service'
 import { submitRsvp } from '@/lib/rsvp-service'
 import { logInvitationAction } from '@/lib/audit'
+import { logger } from '../logger'
 
 export async function createInvitationsAction(data: CreateInvitationInput) {
   const supabase = await supabaseServer()
@@ -185,18 +186,34 @@ export async function sendInviteEmailAction(data: SendEmailInput) {
     .single()
 
   if (profile?.role !== 'admin' && profile?.role !== 'staff') {
-    throw new Error('Unauthorized: Only admin or staff can send emails.')
+    throw new Error('Unauthorized: Only admin or staff can send notifications.')
   }
 
   try {
-    const result = await sendInviteEmail(data)
+    // Use notification service with priority-based routing
+    const { sendInvitationNotification } = await import('@/lib/notification-service')
+    const result = await sendInvitationNotification({
+      invitationId: data.invitationId,
+      eventIds: data.eventIds,
+      ignoreRateLimit: data.ignoreRateLimit,
+    })
     
     revalidatePath('/admin/invitations')
     
-    return result
+    // Return in the format expected by the UI
+    const successfulResult = result.results.find(r => r.success)
+    if (successfulResult) {
+      return { success: true, message: `Notification sent via ${successfulResult.channel}` }
+    } else {
+      const failedResult = result.results[0]
+      return { 
+        success: false, 
+        message: failedResult?.error || failedResult?.skipReason || 'Failed to send notification' 
+      }
+    }
   } catch (error) {
-    console.error('Send invite email action failed:', error)
-    throw new Error(`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    console.error('Send invite notification action failed:', error)
+    throw new Error(`Failed to send notification: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
@@ -283,13 +300,8 @@ export async function resendRsvpConfirmationAction(invitationId: string) {
       email: invitation.guest.email,
     }
 
-    // Resend the RSVP confirmation
-    console.log('Resending RSVP confirmation for invitation:', invitationId)
-    console.log('RSVP data:', rsvpData)
     
     const result = await submitRsvp(rsvpData, user.id)
-    
-    console.log('Submit RSVP result:', result)
     
     if (!result.success) {
       throw new Error(result.message)
@@ -308,7 +320,7 @@ export async function resendRsvpConfirmationAction(invitationId: string) {
     
     return { success: true }
   } catch (error) {
-    console.error('Resend RSVP confirmation action failed:', error)
+    logger.error('Resend RSVP confirmation action failed:', error)
     throw new Error(`Failed to resend RSVP confirmation: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }

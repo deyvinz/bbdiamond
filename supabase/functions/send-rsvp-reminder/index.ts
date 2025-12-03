@@ -328,13 +328,7 @@ function generateRsvpReminderText({
 
 serve(async (req: Request) => {
   try {
-    console.log('Edge function called with method:', req.method);
     const payload: RsvpReminderPayload = await req.json();
-    console.log('Payload received:', {
-      to: payload.to,
-      guestName: payload.guestName,
-      invitationId: payload.invitationId,
-    });
 
     // Validate payload
     if (!payload.to || !payload.guestName || !payload.invitationId || !payload.rsvpUrl) {
@@ -403,7 +397,6 @@ serve(async (req: Request) => {
     });
 
     // Send email
-    console.log('Sending email to:', payload.to, 'with subject:', subject);
     const { data, error } = await resend.emails.send({
       from: fromAddress,
       to: payload.to,
@@ -425,8 +418,6 @@ serve(async (req: Request) => {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-
-    console.log('Email sent successfully:', data);
 
     // Log successful email send
     try {

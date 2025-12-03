@@ -12,7 +12,6 @@ export const revalidate = 0
 export default async function ConfigPage() {
   try {
     const config = await getAppConfig()
-    console.log('🔍 [ConfigPage] Fetched config:', config)
 
     return (
       <div className="space-y-6">

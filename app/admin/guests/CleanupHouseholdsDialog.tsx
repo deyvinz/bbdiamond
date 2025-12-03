@@ -10,83 +10,107 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { AlertCircle, Trash2, CheckCircle, XCircle } from 'lucide-react'
+import { AlertCircle, Trash2, CheckCircle, XCircle, Home } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 
-interface CleanupDuplicatesDialogProps {
+interface CleanupHouseholdsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onComplete: () => void
 }
 
 interface DuplicateGroup {
-  email: string
+  name: string
   count: number
-  guests: Array<{
+  households: Array<{
     id: string
-    email: string
-    first_name: string
-    last_name: string
+    name: string
+    wedding_id: string
     created_at: string
+    guest_count: number
   }>
+}
+
+interface OrphanedHousehold {
+  id: string
+  name: string
+  wedding_id: string
+  created_at: string
 }
 
 interface CleanupResult {
   duplicatesFound: number
-  guestsRemoved: number
-  guestsKept: number
-  errors: Array<{ guestId: string; error: string }>
+  orphanedFound: number
+  householdsRemoved: number
+  householdsMerged: number
+  guestsReassigned: number
+  errors: Array<{ householdId: string; error: string }>
   details: Array<{
-    email: string
-    removed: Array<{ id: string; email: string; name: string }>
-    kept: { id: string; email: string; name: string }
+    type: 'duplicate' | 'orphaned'
+    name: string
+    removed: Array<{ id: string; name: string; guest_count: number }>
+    kept?: { id: string; name: string; guest_count: number }
   }>
   dryRun?: boolean
 }
 
-export default function CleanupDuplicatesDialog({
+export default function CleanupHouseholdsDialog({
   open,
   onOpenChange,
   onComplete,
-}: CleanupDuplicatesDialogProps) {
+}: CleanupHouseholdsDialogProps) {
   const [loading, setLoading] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([])
+  const [orphaned, setOrphaned] = useState<OrphanedHousehold[]>([])
   const [result, setResult] = useState<CleanupResult | null>(null)
   const { toast } = useToast()
 
-  // Scan for duplicates when dialog opens
+  const handleClose = () => {
+    if (!loading && !scanning) {
+      setDuplicates([])
+      setOrphaned([])
+      setResult(null)
+      onOpenChange(false)
+    }
+  }
+
+  // Scan for duplicates and orphaned households when dialog opens
   const handleScan = async () => {
     setScanning(true)
     setDuplicates([])
+    setOrphaned([])
     setResult(null)
 
     try {
-      const response = await fetch('/api/admin/guests/duplicates')
+      const response = await fetch('/api/admin/guests/households')
       const data = await response.json()
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to scan for duplicates')
+        throw new Error(data.error || 'Failed to scan for households')
       }
 
       setDuplicates(data.duplicates || [])
+      setOrphaned(data.orphaned || [])
 
-      if (data.duplicates.length === 0) {
+      const totalIssues = (data.totalDuplicates || 0) + (data.totalOrphaned || 0)
+
+      if (totalIssues === 0) {
         toast({
-          title: '✅ No Duplicates Found',
-          description: 'All guest emails are unique!',
+          title: '✅ No Issues Found',
+          description: 'All households are unique and have guests!',
         })
       } else {
         toast({
-          title: `⚠️ Found ${data.duplicates.length} Duplicate Email(s)`,
-          description: `${data.totalDuplicateGuests} guest(s) will be removed`,
+          title: `⚠️ Found Household Issues`,
+          description: `${data.totalDuplicates || 0} duplicate(s) and ${data.totalOrphaned || 0} orphaned household(s)`,
         })
       }
     } catch (error) {
-      console.error('Error scanning for duplicates:', error)
+      console.error('Error scanning for households:', error)
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to scan for duplicates',
+        description: error instanceof Error ? error.message : 'Failed to scan for households',
         variant: 'destructive',
       })
     } finally {
@@ -96,12 +120,16 @@ export default function CleanupDuplicatesDialog({
 
   const handleCleanup = async (dryRun: boolean) => {
     if (!dryRun) {
+      const totalToRemove = duplicates.reduce((sum, d) => sum + d.count - 1, 0) + orphaned.length
       const confirmed = confirm(
         `⚠️ WARNING: DESTRUCTIVE ACTION\n\n` +
-        `This will permanently delete ${duplicates.reduce((sum, d) => sum + d.count - 1, 0)} duplicate guest(s) from the database.\n\n` +
-        `Deletion Priority:\n` +
-        `1. Emails in ALL UPPERCASE will be removed first\n` +
-        `2. Otherwise, the OLDEST guest (by creation date) will be kept\n\n` +
+        `This will permanently remove ${totalToRemove} household(s) from the database.\n\n` +
+        `Actions:\n` +
+        `• ${duplicates.reduce((sum, d) => sum + d.count - 1, 0)} duplicate household(s) will be merged (guests reassigned)\n` +
+        `• ${orphaned.length} orphaned household(s) (with no guests) will be deleted\n\n` +
+        `Priority:\n` +
+        `• For duplicates: Keep household with most guests (or oldest if tied)\n` +
+        `• Guests from removed households will be reassigned to the kept household\n\n` +
         `Are you absolutely sure you want to proceed?`
       )
 
@@ -114,7 +142,7 @@ export default function CleanupDuplicatesDialog({
     setResult(null)
 
     try {
-      const response = await fetch('/api/admin/guests/duplicates', {
+      const response = await fetch('/api/admin/guests/households', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -125,42 +153,28 @@ export default function CleanupDuplicatesDialog({
       const data = await response.json()
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to cleanup duplicates')
+        throw new Error(data.error || 'Failed to cleanup households')
       }
 
       setResult(data)
 
       if (dryRun) {
         toast({
-          title: '📋 Dry Run Complete',
-          description: `Would remove ${data.guestsRemoved} duplicate(s) and keep ${data.guestsKept} guest(s)`,
+          title: '✅ Preview Complete',
+          description: `${data.householdsRemoved} household(s) would be removed`,
         })
       } else {
         toast({
-          title: '✅ Cleanup Complete!',
-          description: `Removed ${data.guestsRemoved} duplicate(s), kept ${data.guestsKept} guest(s)${data.errors.length > 0 ? `, ${data.errors.length} errors` : ''}`,
+          title: '✅ Cleanup Complete',
+          description: `Removed ${data.householdsRemoved} household(s), reassigned ${data.guestsReassigned} guest(s)`,
         })
-
-        if (data.errors.length > 0) {
-          console.error('Cleanup errors:', data.errors)
-          toast({
-            title: 'Some Errors Occurred',
-            description: `Check console for details. ${data.errors.length} guests failed to delete.`,
-            variant: 'destructive',
-          })
-        }
-
-        // Rescan after cleanup
-        setTimeout(() => {
-          handleScan()
-          onComplete()
-        }, 1000)
+        onComplete()
       }
     } catch (error) {
-      console.error('Error cleaning up duplicates:', error)
+      console.error('Error cleaning up households:', error)
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to cleanup duplicates',
+        description: error instanceof Error ? error.message : 'Failed to cleanup households',
         variant: 'destructive',
       })
     } finally {
@@ -168,44 +182,44 @@ export default function CleanupDuplicatesDialog({
     }
   }
 
-  const handleClose = () => {
-    setDuplicates([])
-    setResult(null)
-    onOpenChange(false)
+  // Auto-scan when dialog opens
+  if (open && duplicates.length === 0 && orphaned.length === 0 && !result && !scanning) {
+    handleScan()
   }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Trash2 className="h-5 w-5 text-orange-600" />
-            Cleanup Duplicate Emails
+            <Home className="h-5 w-5" />
+            Cleanup Duplicate & Orphaned Households
           </DialogTitle>
           <DialogDescription>
-            Remove duplicate guest email addresses from the database
+            Find and remove duplicate households (same name) and orphaned households (no guests).
+            For duplicates, guests will be reassigned to the kept household.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-4 py-4">
-          {/* Warning Banner */}
-          <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4">
-            <div className="flex gap-3">
-              <AlertCircle className="h-5 w-5 text-orange-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-semibold text-orange-900 mb-2">⚠️ Duplicate Removal Policy</h4>
-                <ul className="text-sm text-orange-800 space-y-1">
-                  <li>• <strong>UPPERCASE emails</strong> will be removed first if duplicates exist</li>
-                  <li>• Otherwise, the <strong>oldest guest</strong> (by creation date) will be kept</li>
-                  <li>• Associated invitations will also be deleted</li>
-                  <li>• This action is <strong>permanent and cannot be undone</strong></li>
+        <div className="space-y-6">
+          {/* Warning */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-yellow-900">
+                <p className="font-semibold mb-2">What will be cleaned up:</p>
+                <ul className="list-disc list-inside space-y-1 text-yellow-800">
+                  <li>Duplicate households with the same name (case-insensitive)</li>
+                  <li>Orphaned households with no associated guests</li>
+                  <li>Guests from removed duplicate households will be reassigned to the kept household</li>
+                  <li>This action is <strong>permanent and cannot be undone</strong></li>
                 </ul>
               </div>
             </div>
           </div>
 
           {/* Scan Button */}
-          {duplicates.length === 0 && !result && (
+          {(duplicates.length === 0 && orphaned.length === 0 && !result) && (
             <div className="text-center py-8">
               <Button
                 onClick={handleScan}
@@ -216,12 +230,12 @@ export default function CleanupDuplicatesDialog({
                 {scanning ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
-                    Scanning for Duplicates...
+                    Scanning for Issues...
                   </>
                 ) : (
                   <>
                     <Trash2 className="h-4 w-4 mr-2" />
-                    Scan for Duplicate Emails
+                    Scan for Duplicate & Orphaned Households
                   </>
                 )}
               </Button>
@@ -233,7 +247,7 @@ export default function CleanupDuplicatesDialog({
             <div className="space-y-4">
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <p className="text-sm text-red-900 font-semibold">
-                  Found {duplicates.length} duplicate email(s) affecting {duplicates.reduce((sum, d) => sum + d.count, 0)} guest(s)
+                  Found {duplicates.length} duplicate household name(s) affecting {duplicates.reduce((sum, d) => sum + d.count, 0)} household(s)
                 </p>
               </div>
 
@@ -241,18 +255,17 @@ export default function CleanupDuplicatesDialog({
                 {duplicates.map((dup, idx) => (
                   <div key={idx} className="bg-white border rounded-lg p-4">
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-gray-900">{dup.email}</h4>
+                      <h4 className="font-semibold text-gray-900">{dup.name}</h4>
                       <span className="text-sm text-red-600 font-medium">
                         {dup.count} duplicates
                       </span>
                     </div>
                     <div className="space-y-2">
-                      {dup.guests.map((guest, gIdx) => {
-                        const isKeep = gIdx === 0
-                        const isUppercase = guest.email === guest.email.toUpperCase()
+                      {dup.households.map((household, hIdx) => {
+                        const isKeep = hIdx === 0
                         return (
                           <div
-                            key={guest.id}
+                            key={household.id}
                             className={`flex items-center gap-3 p-2 rounded ${
                               isKeep
                                 ? 'bg-green-50 border border-green-200'
@@ -266,26 +279,51 @@ export default function CleanupDuplicatesDialog({
                             )}
                             <div className="flex-1">
                               <p className="text-sm font-medium text-gray-900">
-                                {guest.first_name} {guest.last_name || ''}
-                                {isUppercase && (
-                                  <span className="ml-2 text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded">
-                                    UPPERCASE
-                                  </span>
-                                )}
+                                {household.name}
                               </p>
                               <p className="text-xs text-gray-600">
-                                {guest.email} • Created: {new Date(guest.created_at).toLocaleDateString()}
+                                {household.guest_count} guest(s) • Created: {new Date(household.created_at).toLocaleDateString()}
                               </p>
                             </div>
                             <span className={`text-xs font-semibold ${
                               isKeep ? 'text-green-700' : 'text-red-700'
                             }`}>
-                              {isKeep ? 'KEEP' : 'REMOVE'}
+                              {isKeep ? 'KEEP' : 'MERGE'}
                             </span>
                           </div>
                         )
                       })}
                     </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Orphaned List */}
+          {orphaned.length > 0 && (
+            <div className="space-y-4">
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <p className="text-sm text-orange-900 font-semibold">
+                  Found {orphaned.length} orphaned household(s) with no guests
+                </p>
+              </div>
+
+              <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-4 bg-gray-50">
+                {orphaned.map((household) => (
+                  <div
+                    key={household.id}
+                    className="bg-white border border-orange-200 rounded-lg p-3 flex items-center justify-between"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{household.name}</p>
+                      <p className="text-xs text-gray-600">
+                        Created: {new Date(household.created_at).toLocaleDateString()} • 0 guests
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold text-orange-700">
+                      REMOVE
+                    </span>
                   </div>
                 ))}
               </div>
@@ -308,18 +346,22 @@ export default function CleanupDuplicatesDialog({
                     Cleanup {result.dryRun ? 'Preview' : 'Complete'}
                   </h4>
                 </div>
-                <div className="grid grid-cols-3 gap-4 text-sm">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
                     <p className="text-gray-600">Duplicates Found</p>
                     <p className="font-semibold text-lg">{result.duplicatesFound}</p>
                   </div>
                   <div>
-                    <p className="text-gray-600">Guests Removed</p>
-                    <p className="font-semibold text-lg text-red-600">{result.guestsRemoved}</p>
+                    <p className="text-gray-600">Orphaned Found</p>
+                    <p className="font-semibold text-lg">{result.orphanedFound}</p>
                   </div>
                   <div>
-                    <p className="text-gray-600">Guests Kept</p>
-                    <p className="font-semibold text-lg text-green-600">{result.guestsKept}</p>
+                    <p className="text-gray-600">Households Removed</p>
+                    <p className="font-semibold text-lg text-red-600">{result.householdsRemoved}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Guests Reassigned</p>
+                    <p className="font-semibold text-lg text-green-600">{result.guestsReassigned}</p>
                   </div>
                 </div>
                 {result.errors.length > 0 && (
@@ -347,7 +389,7 @@ export default function CleanupDuplicatesDialog({
           >
             Close
           </Button>
-          {duplicates.length > 0 && !result && (
+          {(duplicates.length > 0 || orphaned.length > 0) && !result && (
             <>
               <Button
                 type="button"
@@ -371,7 +413,7 @@ export default function CleanupDuplicatesDialog({
                 ) : (
                   <>
                     <Trash2 className="h-4 w-4 mr-2" />
-                    Cleanup Duplicates
+                    Cleanup Households
                   </>
                 )}
               </Button>

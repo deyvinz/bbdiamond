@@ -75,7 +75,6 @@ export async function POST(request: NextRequest) {
       error.code === 'PGRST204' // Column not found (can be misleading RLS error)
     )) {
       console.error('Error adding gallery image (RLS issue):', error)
-      console.log('Attempting insert with service role client as fallback...')
       
       const { supabaseService } = await import('@/lib/supabase-service')
       const serviceClient = supabaseService()
@@ -101,7 +100,6 @@ export async function POST(request: NextRequest) {
       
       data = serviceResult.data
       error = null
-      console.log('Gallery image added successfully using service role client')
     } else if (error) {
       console.error('Error adding gallery image:', error)
       return NextResponse.json(

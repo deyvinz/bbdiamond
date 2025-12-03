@@ -1,9 +1,9 @@
 import { supabaseServer } from './supabase-server'
 import { bumpNamespaceVersion, cacheJson } from './cache'
 import { invitationsListKey, invitationDetailKey, invitationsByGuestKey } from './cache-keys'
-import { 
-  createInvitationSchema, 
-  updateInvitationSchema, 
+import {
+  createInvitationSchema,
+  updateInvitationSchema,
   invitationFiltersSchema,
   csvInvitationSchema,
   sendEmailSchema,
@@ -16,6 +16,7 @@ import {
 import { logAdminAction } from './audit'
 import { getAppConfig } from './config-service'
 import { getWeddingId } from './wedding-context-server'
+import { logger } from './logger'
 
 export interface InvitationEvent {
   id: string
@@ -56,6 +57,7 @@ export interface Invitation {
     preferred_contact_method?: string | null
     is_vip: boolean
     invite_code: string
+    total_guests?: number
   }
   invitation_events: InvitationEvent[]
 }
@@ -69,7 +71,10 @@ export interface InvitationsListResponse {
 }
 
 // Helper function to validate and enforce headcount rules
-async function validateAndEnforceHeadcount(events: Array<{ event_id: string; headcount: number; status: string }>) {
+async function validateAndEnforceHeadcount(
+  events: Array<{ event_id: string; headcount: number; status: string }>,
+  guestTotalGuests?: number
+) {
   const config = await getAppConfig()
   
   return events.map(event => {
@@ -79,8 +84,10 @@ async function validateAndEnforceHeadcount(events: Array<{ event_id: string; hea
     if (!config.plus_ones_enabled) {
       headcount = 1
     } else {
-      // If plus-ones are enabled, enforce max party size
-      const maxHeadcount = config.max_party_size || 1
+      // If plus-ones are enabled, enforce limit based on guest's total_guests or config max_party_size
+      const configMaxHeadcount = config.max_party_size || 1
+      const guestMaxHeadcount = guestTotalGuests || configMaxHeadcount
+      const maxHeadcount = Math.min(guestMaxHeadcount, configMaxHeadcount)
       headcount = Math.min(Math.max(headcount, 1), maxHeadcount)
     }
     
@@ -127,7 +134,8 @@ export async function getInvitationsPage(
         last_name,
         email,
         is_vip,
-        invite_code
+        invite_code,
+        total_guests
       ),
       invitation_events(
         id,
@@ -192,7 +200,8 @@ export async function getInvitationsPage(
         first_name,
         last_name,
         email,
-        invite_code
+        invite_code,
+        total_guests
       ),
       invitation_events(
         id,
@@ -234,8 +243,8 @@ export async function getInvitationsPage(
   const { count, error: countError } = await countQuery
   
   if (countError) {
-    console.error('Count query error:', countError)
-    console.error('Count error details:', JSON.stringify(countError, null, 2))
+    logger.error('Count query error:', countError)
+    logger.error('Count error details:', JSON.stringify(countError, null, 2))
   }
 
   // For status filtering, we need to fetch all data first, then filter, then paginate
@@ -243,13 +252,13 @@ export async function getInvitationsPage(
   const { data: invitations, error } = await query
 
   if (error) {
-    console.error('Invitations query error:', error)
-    console.error('Error details:', JSON.stringify(error, null, 2))
+    logger.error('Invitations query error:', error)
+    logger.error('Error details:', JSON.stringify(error, null, 2))
     throw new Error(`Failed to fetch invitations: ${error.message || JSON.stringify(error)}`)
   }
 
   if (!invitations) {
-    console.error('No invitations data returned, but no error either')
+    logger.error('No invitations data returned, but no error either')
     throw new Error('Failed to fetch invitations: No data returned')
   }
 
@@ -326,17 +335,21 @@ export async function createInvitationsForGuests(
   
   const invitations: Invitation[] = []
 
-  // Validate and enforce headcount rules based on configuration
-  const validatedEventDefs = await validateAndEnforceHeadcount(eventDefs)
-
   for (const guestId of guestIds) {
-    // Ensure guest has an invite code
+    // Fetch guest info including total_guests
     const { data: guest, error: guestError } = await supabase
       .from('guests')
-      .select('invite_code')
+      .select('invite_code, total_guests')
       .eq('id', guestId)
       .eq('wedding_id', resolvedWeddingId)
       .single()
+
+    if (guestError) {
+      throw new Error(`Failed to fetch guest: ${guestError.message}`)
+    }
+
+    // Validate and enforce headcount rules based on guest's total_guests and configuration
+    const validatedEventDefs = await validateAndEnforceHeadcount(eventDefs, guest.total_guests || undefined)
 
     if (guestError) {
       throw new Error(`Failed to fetch guest: ${guestError.message}`)
@@ -421,7 +434,8 @@ export async function createInvitationsForGuests(
           phone_number,
           preferred_contact_method,
           is_vip,
-          invite_code
+          invite_code,
+          total_guests
         ),
         invitation_events(
           id,
@@ -537,7 +551,8 @@ export async function updateInvitation(
         phone_number,
         preferred_contact_method,
         is_vip,
-        invite_code
+        invite_code,
+        total_guests
       ),
       invitation_events(
         id,
@@ -604,7 +619,7 @@ export async function deleteInvitations(invitationIds: string[], weddingId?: str
       .eq('wedding_id', resolvedWeddingId)
 
     if (rsvpsError) {
-      console.warn('Failed to delete RSVPs (may not exist):', rsvpsError.message)
+      logger.warn('Failed to delete RSVPs (may not exist):', rsvpsError.message)
       // Don't throw error for RSVPs as they might not exist
     }
   }
@@ -723,7 +738,7 @@ export async function sendInviteWhatsApp(params: SendWhatsAppInput): Promise<{ s
     .from('invitations')
     .select(`
       *,
-      guest:guests(phone_number, first_name, last_name, invite_code),
+      guest:guests(phone_number, first_name, last_name, invite_code, total_guests),
       invitation_events(
         *,
         event:events(name, starts_at, venue, address)
@@ -795,7 +810,7 @@ export async function sendInviteWhatsApp(params: SendWhatsAppInput): Promise<{ s
   })
 
   if (error) {
-    console.error('WhatsApp send error:', error)
+    logger.error('WhatsApp send error:', error)
     throw new Error(`Failed to send WhatsApp: ${error.message}`)
   }
 
@@ -823,7 +838,7 @@ export async function sendInviteEmail(params: SendEmailInput): Promise<{ success
     .from('invitations')
     .select(`
       *,
-      guest:guests(email, first_name, last_name, invite_code),
+      guest:guests(email, first_name, last_name, invite_code, total_guests),
       invitation_events(
         *,
         event:events(name, starts_at, venue, address)
@@ -857,7 +872,7 @@ export async function sendInviteEmail(params: SendEmailInput): Promise<{ success
       .gte('sent_at', `${today}T00:00:00.000Z`)
 
     if (mailLogs && mailLogs.length >= 3) {
-      console.log('Daily email limit exceeded for this invitation')
+      logger.log('Daily email limit exceeded for this invitation')
       throw new Error('Daily email limit exceeded for this invitation')
     }
   }
@@ -1050,7 +1065,7 @@ export async function importInvitationsFromCsv(csvData: CsvInvitationInput[]): P
       // Find or create guest
       let { data: guest } = await supabase
         .from('guests')
-        .select('id')
+        .select('id, total_guests')
         .eq('email', row.guest_email)
         .single()
 
@@ -1096,12 +1111,12 @@ export async function importInvitationsFromCsv(csvData: CsvInvitationInput[]): P
         invitation = newInvitation
       }
 
-      // Validate and enforce headcount rules
+      // Validate and enforce headcount rules based on guest's total_guests
       const validatedEvents = await validateAndEnforceHeadcount([{
         event_id: row.event_id,
         headcount: row.headcount,
         status: row.status
-      }])
+      }], guest?.total_guests || undefined)
       const validatedEvent = validatedEvents[0]
 
       // Create or update invitation event
@@ -1166,7 +1181,7 @@ async function generateInviteCode(): Promise<string> {
     }
     
     // If code exists, try again
-    console.log(`Invite code ${result} already exists, generating new one...`)
+    logger.log(`Invite code ${result} already exists, generating new one...`)
   }
 }
 

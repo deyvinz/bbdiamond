@@ -132,11 +132,11 @@ function GuestTable({
       case 'accepted':
         return <Badge className="bg-gold-600 text-white">Accepted</Badge>
       case 'declined':
-        return <Badge variant="secondary">Declined</Badge>
+        return <Badge className="bg-red-100 text-red-800 border-red-300">Declined</Badge>
       case 'waitlist':
-        return <Badge className="bg-yellow-100 text-yellow-800">Waitlist</Badge>
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">Waitlist</Badge>
       default:
-        return <Badge variant="outline" className="border-gold-200 text-gold-700">Pending</Badge>
+        return <Badge className="border-gold-200 text-white">Pending</Badge>
     }
   }
 
@@ -146,7 +146,7 @@ function GuestTable({
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="flex items-center space-x-2">
           <h1 className="text-xl lg:text-2xl font-serif">Guests</h1>
-          <Badge variant="outline">{filteredGuests.length} of {totalCount}</Badge>
+          <Badge>{filteredGuests.length} of {totalCount}</Badge>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button onClick={onExport} variant="outline" size="sm" className="flex-1 sm:flex-none">
@@ -303,9 +303,9 @@ function GuestTable({
                   />
                 </TableCell>
                 <TableCell className="font-medium">
-                  {guest.first_name} {guest.last_name}
+                  {guest.first_name} {guest.last_name || ''}
                 </TableCell>
-                <TableCell>{guest.email}</TableCell>
+                <TableCell>{guest.email || '-'}</TableCell>
                 <TableCell>{guest.phone || '-'}</TableCell>
                 <TableCell>{guest.household?.name || '-'}</TableCell>
                 <TableCell>

@@ -29,8 +29,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request: eventIds is required' }, { status: 400 })
     }
 
-    console.log('Bulk invite processing started for eventIds:', eventIds)
-
     const results = {
       processed: 0,
       sent: 0,
@@ -64,8 +62,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Failed to fetch guests: ${guestsError.message}` }, { status: 500 })
     }
 
-    console.log(`Found ${guests?.length || 0} guests to process`)
-
     for (const guest of guests || []) {
       results.processed++
       
@@ -80,7 +76,6 @@ export async function POST(request: NextRequest) {
         )
 
         if (hasResponded) {
-          console.log(`Skipping ${guest.first_name} ${guest.last_name} - already responded`)
           results.skipped++
           continue
         }
@@ -103,7 +98,6 @@ export async function POST(request: NextRequest) {
         const eventsToCreateInvitationsFor = eventIds.filter(eventId => !existingEventIds.includes(eventId))
         
         if (eventsToCreateInvitationsFor.length > 0) {
-          console.log(`Creating invitations for ${guest.first_name} ${guest.last_name} for events:`, eventsToCreateInvitationsFor)
           
           for (const eventId of eventsToCreateInvitationsFor) {
             await createInvitationForGuest(guest.id, eventId)
@@ -116,7 +110,6 @@ export async function POST(request: NextRequest) {
           eventIds
 
         if (eventsToSendFor.length > 0) {
-          console.log(`Sending invite email to ${guest.first_name} ${guest.last_name} for events:`, eventsToSendFor)
           
           // Get the invitation ID (either existing or newly created)
           if (!invitationId) {
@@ -145,7 +138,6 @@ export async function POST(request: NextRequest) {
             throw new Error('Could not find or create invitation')
           }
         } else {
-          console.log(`Skipping ${guest.first_name} ${guest.last_name} - no events to send for`)
           results.skipped++
         }
 
@@ -155,7 +147,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('Bulk invite results:', results)
     return NextResponse.json(results)
 
   } catch (error) {

@@ -42,7 +42,6 @@ export default async function GuestsPage({ searchParams }: GuestsPageProps) {
   // Add timeout to prevent indefinite hanging
   const fetchWithTimeout = async <T,>(promise: Promise<T>, timeoutMs: number = 10000, fallback: T, name: string): Promise<T> => {
     const fetchStartTime = Date.now()
-    console.log(`[${name}] Starting fetch...`)
     
     try {
       const timeoutPromise = new Promise<T>((_, reject) => 
@@ -50,7 +49,6 @@ export default async function GuestsPage({ searchParams }: GuestsPageProps) {
       )
       
       const result = await Promise.race([promise, timeoutPromise])
-      console.log(`[${name}] Completed in ${Date.now() - fetchStartTime}ms`)
       return result
     } catch (error) {
       console.error(`[${name}] Error or timeout after ${Date.now() - fetchStartTime}ms:`, error)
@@ -59,7 +57,6 @@ export default async function GuestsPage({ searchParams }: GuestsPageProps) {
   }
 
   try {
-    console.log('[GuestsPage] Fetching data with filters:', filters, 'pagination:', pagination)
     const pageStartTime = Date.now()
     
     const results = await Promise.allSettled([
@@ -90,8 +87,6 @@ export default async function GuestsPage({ searchParams }: GuestsPageProps) {
     config = results[1].status === 'fulfilled' ? results[1].value : null
     eventsResponse = results[2].status === 'fulfilled' ? results[2].value : { events: [], total_count: 0 }
     
-    console.log(`[GuestsPage] All fetches completed in ${Date.now() - pageStartTime}ms`)
-    console.log(`[GuestsPage] Guests data:`, { count: guestsData.guests?.length || 0, total: guestsData.total_count })
   } catch (error) {
     console.error('[GuestsPage] Error fetching data:', error)
     guestsData = {
