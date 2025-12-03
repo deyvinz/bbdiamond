@@ -58,6 +58,10 @@ export async function getAppConfig(weddingId?: string): Promise<ConfigValue> {
     food_choices_required: configMap.food_choices_required === 'true',
     dress_code_message: configMap.dress_code_message && configMap.dress_code_message !== 'undefined' ? configMap.dress_code_message : undefined,
     age_restriction_message: configMap.age_restriction_message && configMap.age_restriction_message !== 'undefined' ? configMap.age_restriction_message : undefined,
+    // Notification channel settings - email enabled by default
+    notification_email_enabled: configMap.notification_email_enabled === undefined ? true : configMap.notification_email_enabled === 'true',
+    notification_whatsapp_enabled: configMap.notification_whatsapp_enabled === 'true',
+    notification_sms_enabled: configMap.notification_sms_enabled === 'true',
   }
 
   console.log('🔍 [getAppConfig] Parsed config:', parsed)
@@ -184,6 +188,10 @@ async function getFreshAppConfig(weddingId: string): Promise<ConfigValue> {
     food_choices_required: configMap.food_choices_required === 'true',
     dress_code_message: configMap.dress_code_message && configMap.dress_code_message !== 'undefined' ? configMap.dress_code_message : undefined,
     age_restriction_message: configMap.age_restriction_message && configMap.age_restriction_message !== 'undefined' ? configMap.age_restriction_message : undefined,
+    // Notification channel settings - email enabled by default
+    notification_email_enabled: configMap.notification_email_enabled === undefined ? true : configMap.notification_email_enabled === 'true',
+    notification_whatsapp_enabled: configMap.notification_whatsapp_enabled === 'true',
+    notification_sms_enabled: configMap.notification_sms_enabled === 'true',
   }
 }
 
@@ -256,6 +264,9 @@ function getConfigDescription(key: string): string {
     food_choices_required: 'Require food choice when accepting invitation',
     dress_code_message: 'Custom dress code message displayed on the Event Details page',
     age_restriction_message: 'Custom age restriction message displayed on the Event Details page',
+    notification_email_enabled: 'Enable email notifications for invitations',
+    notification_whatsapp_enabled: 'Enable WhatsApp notifications for invitations',
+    notification_sms_enabled: 'Enable SMS notifications for invitations',
   }
   return descriptions[key] || 'Application configuration setting'
 }

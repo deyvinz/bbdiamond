@@ -137,6 +137,10 @@ export const updateConfigSchema = z.object({
   food_choices_required: z.boolean().optional(),
   dress_code_message: z.string().optional(),
   age_restriction_message: z.string().optional(),
+  // Notification channel settings
+  notification_email_enabled: z.boolean().optional(),
+  notification_whatsapp_enabled: z.boolean().optional(),
+  notification_sms_enabled: z.boolean().optional(),
 })
 
 // RSVP schemas
