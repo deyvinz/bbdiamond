@@ -11,7 +11,9 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
 
 interface WhatsAppMessageParams {
   to: string // Phone number in E.164 format (e.g., +1234567890)
-  body: string // Message body text
+  body?: string // Message body text (for freeform messages within 24-hour window)
+  contentSid?: string // Content SID for WhatsApp template (required outside 24-hour window)
+  contentVariables?: string // JSON string of content variables for template
 }
 
 interface WhatsAppResponse {
@@ -23,6 +25,7 @@ interface WhatsAppResponse {
 /**
  * Send a WhatsApp message using Twilio WhatsApp API
  * Uses Twilio's Messaging API with WhatsApp support
+ * For messages outside the 24-hour window, must use ContentSid (template)
  */
 export async function sendWhatsAppMessage(params: WhatsAppMessageParams): Promise<WhatsAppResponse> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID
@@ -45,6 +48,14 @@ export async function sendWhatsAppMessage(params: WhatsAppMessageParams): Promis
     }
   }
 
+  // For invitations (always outside 24-hour window), we must use templates
+  if (!params.contentSid && !params.body) {
+    return {
+      success: false,
+      error: 'Either contentSid (template) or body (freeform) must be provided',
+    }
+  }
+
   try {
     // Format phone numbers with whatsapp: prefix for Twilio
     const toNumber = params.to.startsWith('whatsapp:') ? params.to : `whatsapp:${params.to}`
@@ -54,7 +65,17 @@ export async function sendWhatsAppMessage(params: WhatsAppMessageParams): Promis
     const formData = new URLSearchParams()
     formData.append('To', toNumber)
     formData.append('From', fromNumber)
-    formData.append('Body', params.body)
+    
+    // Use ContentSid for templates (required outside 24-hour window)
+    if (params.contentSid) {
+      formData.append('ContentSid', params.contentSid)
+      if (params.contentVariables) {
+        formData.append('ContentVariables', params.contentVariables)
+      }
+    } else if (params.body) {
+      // Freeform message (only works within 24-hour window)
+      formData.append('Body', params.body)
+    }
 
     const response = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
@@ -92,8 +113,10 @@ export async function sendWhatsAppMessage(params: WhatsAppMessageParams): Promis
 }
 
 /**
- * Format invitation content for WhatsApp
- * Keeps message shorter than email version to stay within WhatsApp limits
+ * Format invitation content for WhatsApp template
+ * Returns Content Variables JSON string for Twilio WhatsApp template
+ * Template must be pre-approved in Twilio Content API
+ * Uses 4 variables (reduced from 7) to meet WhatsApp's variable-to-length ratio requirement
  */
 export function formatInvitationMessage(params: {
   guestName: string
@@ -104,21 +127,38 @@ export function formatInvitationMessage(params: {
   venue: string
   rsvpUrl: string
   inviteCode: string
-}): string {
-  // Format as a plain text message for Twilio WhatsApp
-  const message = [
+}): { contentVariables: string; fallbackBody: string } {
+  // Format content variables for Twilio WhatsApp template
+  // Reduced to 4 variables to meet WhatsApp's variable-to-length ratio requirement
+  const contentVariables = JSON.stringify({
+    '1': params.guestName, // Variable 1: Guest name
+    '2': `${params.coupleName}'s ${params.eventName}`, // Variable 2: Couple name + Event name (combined)
+    '3': `${params.eventDate} at ${params.eventTime} · ${params.venue}`, // Variable 3: Date, time, and venue (combined)
+    '4': `${params.rsvpUrl}\nCode: ${params.inviteCode}`, // Variable 4: RSVP URL and invite code (combined)
+  })
+
+  // Fallback body for reference (not used when ContentSid is provided)
+  // This matches the extended template format for better variable-to-length ratio
+  const fallbackBody = [
+    `🎉 Wedding Invitation 🎉`,
+    ``,
     `Hi ${params.guestName}! 👋`,
     ``,
-    `You're invited to ${params.coupleName}'s ${params.eventName}!`,
+    `We're thrilled to invite you to celebrate ${params.coupleName}'s ${params.eventName} with us!`,
     ``,
-    `📅 ${params.eventDate} at ${params.eventTime}`,
-    `📍 ${params.venue}`,
+    `📅 Event Details:`,
+    `${params.eventDate} at ${params.eventTime} · ${params.venue}`,
     ``,
-    `RSVP: ${params.rsvpUrl}`,
+    `Please confirm your attendance by clicking the link below:`,
+    `${params.rsvpUrl}`,
     `Code: ${params.inviteCode}`,
+    ``,
+    `We can't wait to celebrate this special day with you! 💕`,
+    ``,
+    `Looking forward to seeing you there!`,
   ].join('\n')
 
-  return message
+  return { contentVariables, fallbackBody }
 }
 
 /**

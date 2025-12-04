@@ -23,6 +23,7 @@ serve(async (req) => {
     const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID')
     const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN')
     const twilioWhatsappFromNumber = Deno.env.get('TWILIO_WHATSAPP_FROM_NUMBER')
+    const twilioWhatsappContentSid = Deno.env.get('TWILIO_WHATSAPP_CONTENT_SID') // Content SID for WhatsApp template
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
@@ -40,20 +41,24 @@ serve(async (req) => {
       )
     }
 
+    if (!twilioWhatsappContentSid) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Twilio WhatsApp Content SID not configured. Set TWILIO_WHATSAPP_CONTENT_SID. You need to create a WhatsApp template in Twilio Content API.' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
     const payload: WhatsAppInvitePayload = await req.json()
 
-    // Format WhatsApp message
-    const message = [
-      `Hi ${payload.guestName}! 👋`,
-      ``,
-      `You're invited to ${payload.coupleName}'s ${payload.eventName}!`,
-      ``,
-      `📅 ${payload.eventDate} at ${payload.eventTime}`,
-      `📍 ${payload.venue}`,
-      ``,
-      `RSVP: ${payload.rsvpUrl}`,
-      `Code: ${payload.inviteCode}`,
-    ].join('\n')
+    // Format content variables for Twilio WhatsApp template
+    // Reduced to 4 variables to meet WhatsApp's variable-to-length ratio requirement
+    // These variables will be substituted in your Twilio Content template
+    const contentVariables = JSON.stringify({
+      '1': payload.guestName, // Variable 1: Guest name
+      '2': `${payload.coupleName}'s ${payload.eventName}`, // Variable 2: Couple name + Event name (combined)
+      '3': `${payload.eventDate} at ${payload.eventTime} · ${payload.venue}`, // Variable 3: Date, time, and venue (combined)
+      '4': `${payload.rsvpUrl}\nCode: ${payload.inviteCode}`, // Variable 4: RSVP URL and invite code (combined)
+    })
 
     // Format phone numbers with whatsapp: prefix for Twilio
     const toNumber = payload.phoneNumber.startsWith('whatsapp:') 
@@ -63,11 +68,12 @@ serve(async (req) => {
       ? twilioWhatsappFromNumber 
       : `whatsapp:${twilioWhatsappFromNumber}`
 
-    // Build Twilio request
+    // Build Twilio request - use ContentSid for templates (required outside 24-hour window)
     const formData = new URLSearchParams()
     formData.append('To', toNumber)
     formData.append('From', fromNumber)
-    formData.append('Body', message)
+    formData.append('ContentSid', twilioWhatsappContentSid)
+    formData.append('ContentVariables', contentVariables)
 
     // Send WhatsApp message via Twilio API
     const response = await fetch(
