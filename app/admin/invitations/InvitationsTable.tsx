@@ -33,7 +33,6 @@ import {
   Search,
   Filter,
   Download,
-  Mail,
   RefreshCw,
   Copy,
   Trash2,
@@ -72,7 +71,6 @@ interface InvitationsTableProps {
   onDelete: (invitationId: string) => void
   onRegenerateInviteToken: (invitationId: string) => void
   onRegenerateEventToken: (invitationEventId: string) => void
-  onSendEmail: (invitationId: string) => void
   onResendRsvpConfirmation: (invitationId: string) => void
   onView: (invitation: Invitation) => void
   onExport: () => void
@@ -109,7 +107,6 @@ export default function InvitationsTable({
   onDelete,
   onRegenerateInviteToken,
   onRegenerateEventToken,
-  onSendEmail,
   onResendRsvpConfirmation,
   onView,
   onExport,
@@ -268,14 +265,6 @@ export default function InvitationsTable({
             <span className="text-sm text-gold-700">
               {selectedInvitations.length} selected
             </span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleBulkAction('send_email')}
-            >
-              <Mail className="h-4 w-4 mr-2" />
-              Send Emails
-            </Button>
             <Button
               size="sm"
               variant="outline"
@@ -440,10 +429,6 @@ export default function InvitationsTable({
                           <DropdownMenuItem onClick={() => onRegenerateInviteToken(invitation.id)}>
                             <RefreshCw className="h-4 w-4 mr-2" />
                             Regenerate Invite Token
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onSendEmail(invitation.id)}>
-                            <Mail className="h-4 w-4 mr-2" />
-                            Send Email
                           </DropdownMenuItem>
                           {invitation.invitation_events.some(event => event.status === 'accepted') && (
                             <DropdownMenuItem onClick={() => onResendRsvpConfirmation(invitation.id)}>

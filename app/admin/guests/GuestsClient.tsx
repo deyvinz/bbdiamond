@@ -570,14 +570,16 @@ export default function GuestsClient({
   return (
     <>
       <div className="space-y-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-serif">Guests Management</h1>
-            <p className="text-gray-600 mt-1">
-              Manage your wedding guest list, invitations, and RSVPs
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+        {/* Title and subtitle row */}
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-serif">Guests Management</h1>
+          <p className="text-gray-600 mt-1">
+            Manage your wedding guest list, invitations, and RSVPs
+          </p>
+        </div>
+
+        {/* Buttons row */}
+        <div className="flex flex-wrap items-center gap-2">
             <Button
               onClick={refreshData}
               variant="outline"
@@ -635,7 +637,6 @@ export default function GuestsClient({
               <Plus className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Add Guest</span>
             </Button>
-          </div>
         </div>
 
         <GuestTable

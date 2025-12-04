@@ -149,10 +149,10 @@ export default function SendEmailDialog({
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-5 w-5" />
-            Send Invitation Email
+            Send Invitation Notification
           </DialogTitle>
           <DialogDescription>
-            Send an invitation email to {invitation.guest.first_name} {invitation.guest.last_name}
+            Send an invitation notification to {invitation.guest.first_name} {invitation.guest.last_name}. The notification will be sent via the best available channel (Email, WhatsApp, or SMS) based on your settings and guest contact information.
           </DialogDescription>
         </DialogHeader>
 
@@ -343,7 +343,7 @@ export default function SendEmailDialog({
             disabled={loading || rateLimitLoading || selectedEventIds.length === 0 || (rateLimitInfo ? !rateLimitInfo.canSend : false)}
             className="bg-gold-600 text-white hover:bg-gold-700"
           >
-            {loading ? 'Sending...' : rateLimitLoading ? 'Loading...' : 'Send Email'}
+            {loading ? 'Sending...' : rateLimitLoading ? 'Loading...' : 'Send Notification'}
           </Button>
         </DialogFooter>
       </DialogContent>

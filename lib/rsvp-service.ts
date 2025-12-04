@@ -58,17 +58,22 @@ export async function resolveInvitationByCode(
   try {
     const supabase = await supabaseServer()
     
-    const { data, error } = await supabase
+    // Get wedding ID for multi-tenant support
+    const weddingId = await getWeddingId()
+    
+    let query = supabase
       .from('invitations')
       .select(`
         id,
         token,
+        wedding_id,
         guest:guests!inner(
           id,
           first_name,
           last_name,
           email,
-          invite_code
+          invite_code,
+          wedding_id
         ),
         invitation_events(
           id,
@@ -85,10 +90,29 @@ export async function resolveInvitationByCode(
         )
       `)
       .eq('guest.invite_code', inviteCode)
-      .single()
+    
+    // Filter by wedding_id if available (multi-tenant support)
+    if (weddingId) {
+      query = query.eq('wedding_id', weddingId)
+    }
+    
+    const { data, error } = await query.single()
 
     if (error) {
       console.error('Error resolving invitation:', error)
+      return null
+    }
+
+    // Additional security check: verify wedding_id matches if both are present
+    if (weddingId && data?.wedding_id && data.wedding_id !== weddingId) {
+      console.error('Wedding ID mismatch in resolveInvitationByCode')
+      return null
+    }
+
+    // Verify guest belongs to the same wedding
+    const guest = data?.guest as any
+    if (weddingId && guest?.wedding_id && guest.wedding_id !== weddingId) {
+      console.error('Guest wedding ID mismatch in resolveInvitationByCode')
       return null
     }
 
@@ -108,18 +132,23 @@ export async function validateInviteCodeAndGetToken(
   try {
     const supabase = await supabaseServer()
     
-    // Look up invitation by guest's invite_code
-    const { data, error } = await supabase
+    // Get wedding ID for multi-tenant support
+    const weddingId = await getWeddingId()
+    
+    // Look up invitation by guest's invite_code with wedding_id filter
+    let query = supabase
       .from('invitations')
       .select(`
         id,
         token,
+        wedding_id,
         guest:guests!inner(
           id,
           first_name,
           last_name,
           email,
-          invite_code
+          invite_code,
+          wedding_id
         ),
         invitation_events(
           id,
@@ -136,9 +165,32 @@ export async function validateInviteCodeAndGetToken(
         )
       `)
       .eq('guest.invite_code', inviteCode)
-      .single()
+    
+    // Filter by wedding_id if available (multi-tenant support)
+    if (weddingId) {
+      query = query.eq('wedding_id', weddingId)
+    }
+    
+    const { data, error } = await query.single()
 
     if (error || !data) {
+      return {
+        success: false,
+        error: 'Invalid invite code. Please check your invitation and try again.'
+      }
+    }
+
+    // Additional security check: verify wedding_id matches if both are present
+    if (weddingId && data.wedding_id && data.wedding_id !== weddingId) {
+      return {
+        success: false,
+        error: 'Invalid invite code. Please check your invitation and try again.'
+      }
+    }
+
+    // Verify guest belongs to the same wedding
+    const guest = data.guest as any
+    if (weddingId && guest.wedding_id && guest.wedding_id !== weddingId) {
       return {
         success: false,
         error: 'Invalid invite code. Please check your invitation and try again.'
@@ -174,6 +226,18 @@ export async function submitRsvpToDatabase(
   try {
     const supabase = await supabaseServer()
     
+    // Get wedding ID for multi-tenant verification
+    const weddingId = await getWeddingId()
+    
+    // Verify invitation belongs to the correct wedding (multi-tenant security)
+    if (weddingId && invitation.wedding_id && invitation.wedding_id !== weddingId) {
+      console.error('Wedding ID mismatch: invitation belongs to different wedding')
+      return false
+    }
+    
+    // Use the invitation's wedding_id or the resolved one
+    const finalWeddingId = invitation.wedding_id || weddingId
+    
     // Update each invitation event directly to support dietary fields
     for (const invitationEvent of invitation.invitation_events) {
       const updateData: any = {
@@ -201,11 +265,19 @@ export async function submitRsvpToDatabase(
         updateData.food_choice = null
       }
 
-      const { error } = await supabase
+      // Build update query with wedding_id filter for multi-tenant security
+      let updateQuery = supabase
         .from('invitation_events')
         .update(updateData)
         .eq('invitation_id', invitation.id)
         .eq('event_id', invitationEvent.event_id)
+      
+      // Add wedding_id filter if available (multi-tenant security)
+      if (finalWeddingId) {
+        updateQuery = updateQuery.eq('wedding_id', finalWeddingId)
+      }
+
+      const { error } = await updateQuery
 
       if (error) {
         console.error('Error submitting RSVP for event:', invitationEvent.event.name, error)
@@ -366,6 +438,15 @@ export async function submitRsvp(
     }
     
     const invitation = validationResult.invitation
+    
+    // Additional multi-tenant security check: verify wedding_id matches
+    const weddingId = await getWeddingId()
+    if (weddingId && invitation.wedding_id && invitation.wedding_id !== weddingId) {
+      return {
+        success: false,
+        message: 'Invalid invite code. Please check your invitation and try again.'
+      }
+    }
 
     // Submit to database
     const dbSuccess = await submitRsvpToDatabase(

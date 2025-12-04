@@ -12,8 +12,10 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { AlertCircle, Bell } from 'lucide-react'
+import { AlertCircle, Bell, Check, X } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
+import { Badge } from '@/components/ui/badge'
+import type { NotificationConfig } from '@/lib/types/notifications'
 
 interface Event {
   id: string
@@ -36,14 +38,17 @@ export default function SendRsvpRemindersDialog({
   const [selectedEventIds, setSelectedEventIds] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [loadingEvents, setLoadingEvents] = useState(true)
+  const [loadingConfig, setLoadingConfig] = useState(true)
   const [pendingCount, setPendingCount] = useState<number | null>(null)
+  const [notificationConfig, setNotificationConfig] = useState<NotificationConfig | null>(null)
   const { toast } = useToast()
 
-  // Load events when dialog opens
+  // Load events and notification config when dialog opens
   useEffect(() => {
     if (open) {
       loadEvents()
       loadPendingCount()
+      loadNotificationConfig()
     }
   }, [open])
 
@@ -84,6 +89,52 @@ export default function SendRsvpRemindersDialog({
     }
   }
 
+  const loadNotificationConfig = async () => {
+    try {
+      setLoadingConfig(true)
+      const response = await fetch('/api/admin/notifications/config')
+      const data = await response.json()
+
+      if (data.success && data.config) {
+        setNotificationConfig(data.config)
+      } else {
+        // Default to email enabled if config fetch fails
+        setNotificationConfig({
+          notification_email_enabled: true,
+          notification_whatsapp_enabled: false,
+          notification_sms_enabled: false,
+        })
+      }
+    } catch (error) {
+      console.error('Error loading notification config:', error)
+      // Default to email enabled on error
+      setNotificationConfig({
+        notification_email_enabled: true,
+        notification_whatsapp_enabled: false,
+        notification_sms_enabled: false,
+      })
+    } finally {
+      setLoadingConfig(false)
+    }
+  }
+
+  const getEnabledChannels = (): string[] => {
+    if (!notificationConfig) return []
+    const channels: string[] = []
+    if (notificationConfig.notification_email_enabled) channels.push('Email')
+    if (notificationConfig.notification_whatsapp_enabled) channels.push('WhatsApp')
+    if (notificationConfig.notification_sms_enabled) channels.push('SMS')
+    return channels
+  }
+
+  const getChannelText = (): string => {
+    const enabledChannels = getEnabledChannels()
+    if (enabledChannels.length === 0) return 'notifications'
+    if (enabledChannels.length === 1) return enabledChannels[0].toLowerCase()
+    if (enabledChannels.length === 2) return enabledChannels.join(' and ').toLowerCase()
+    return enabledChannels.slice(0, -1).join(', ') + ', and ' + enabledChannels[enabledChannels.length - 1].toLowerCase()
+  }
+
   const handleToggleEvent = (eventId: string) => {
     setSelectedEventIds(prev =>
       prev.includes(eventId)
@@ -110,14 +161,17 @@ export default function SendRsvpRemindersDialog({
       return
     }
 
+    const enabledChannels = getEnabledChannels()
+    const channelText = enabledChannels.length > 0 ? enabledChannels.join(', ') : 'notifications'
+    
     const confirmed = confirm(
       `⚠️ URGENT REMINDER ACTION\n\n` +
-      `This will send HIGH PRIORITY RSVP reminder emails to ALL guests who haven't responded for the selected ${selectedEventIds.length} event(s).\n\n` +
-      `The emails will:\n` +
+      `This will send HIGH PRIORITY RSVP reminders via ${channelText} to ALL guests who haven't responded for the selected ${selectedEventIds.length} event(s).\n\n` +
+      `The reminders will:\n` +
       `• Be marked as HIGH IMPORTANCE\n` +
       `• Use urgent language and red warning styling\n` +
       `• Request response within 48 hours\n` +
-      `• Be sent from rsvp@brendabagsherdiamond.com\n\n` +
+      `${notificationConfig?.notification_email_enabled ? '• Be sent from rsvp@brendabagsherdiamond.com\n' : ''}` +
       `Guests who have already RSVP'd (accepted/declined) will be automatically skipped.\n\n` +
       `Are you sure you want to send these urgent reminders?`
     )
@@ -182,11 +236,52 @@ export default function SendRsvpRemindersDialog({
             Send Urgent RSVP Reminders
           </DialogTitle>
           <DialogDescription>
-            Send high-priority reminder emails to all guests who haven't RSVP'd yet
+            Send high-priority reminders to all guests who haven't RSVP'd yet
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-6 py-4">
+          {/* Notification Channels Display */}
+          {!loadingConfig && notificationConfig && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-semibold text-blue-900">Enabled Notification Channels:</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge 
+                  variant={notificationConfig.notification_email_enabled ? "default" : "outline"}
+                  className={notificationConfig.notification_email_enabled ? "bg-green-100 text-green-800 border-green-300" : "bg-gray-100 text-gray-500"}
+                >
+                  {notificationConfig.notification_email_enabled ? (
+                    <><Check className="h-3 w-3 mr-1" /> Email</>
+                  ) : (
+                    <><X className="h-3 w-3 mr-1" /> Email</>
+                  )}
+                </Badge>
+                <Badge 
+                  variant={notificationConfig.notification_whatsapp_enabled ? "default" : "outline"}
+                  className={notificationConfig.notification_whatsapp_enabled ? "bg-green-100 text-green-800 border-green-300" : "bg-gray-100 text-gray-500"}
+                >
+                  {notificationConfig.notification_whatsapp_enabled ? (
+                    <><Check className="h-3 w-3 mr-1" /> WhatsApp</>
+                  ) : (
+                    <><X className="h-3 w-3 mr-1" /> WhatsApp</>
+                  )}
+                </Badge>
+                <Badge 
+                  variant={notificationConfig.notification_sms_enabled ? "default" : "outline"}
+                  className={notificationConfig.notification_sms_enabled ? "bg-green-100 text-green-800 border-green-300" : "bg-gray-100 text-gray-500"}
+                >
+                  {notificationConfig.notification_sms_enabled ? (
+                    <><Check className="h-3 w-3 mr-1" /> SMS</>
+                  ) : (
+                    <><X className="h-3 w-3 mr-1" /> SMS</>
+                  )}
+                </Badge>
+              </div>
+            </div>
+          )}
+
           {/* Warning Banner */}
           <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
             <div className="flex gap-3">
@@ -194,11 +289,16 @@ export default function SendRsvpRemindersDialog({
               <div>
                 <h4 className="font-semibold text-red-900 mb-2">⚠️ Urgent Reminder Notice</h4>
                 <ul className="text-sm text-red-800 space-y-1">
-                  <li>• Emails will be marked as <strong>HIGH PRIORITY/IMPORTANCE</strong></li>
+                  <li>• Reminders will be marked as <strong>HIGH PRIORITY/IMPORTANCE</strong></li>
                   <li>• Uses urgent language requesting response within 48 hours</li>
                   <li>• Red warning banners and urgent styling throughout</li>
-                  <li>• Sent from <strong>rsvp@brendabagsherdiamond.com</strong></li>
+                  {notificationConfig?.notification_email_enabled && (
+                    <li>• Email reminders sent from <strong>rsvp@brendabagsherdiamond.com</strong></li>
+                  )}
                   <li>• Only sent to guests with <strong>pending RSVPs</strong></li>
+                  {notificationConfig && getEnabledChannels().length > 1 && (
+                    <li>• Will be sent via the best available channel for each guest (priority: {getEnabledChannels().join(' → ')})</li>
+                  )}
                 </ul>
               </div>
             </div>
@@ -261,7 +361,7 @@ export default function SendRsvpRemindersDialog({
           {selectedEventIds.length > 0 && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
               <p className="text-sm text-amber-900">
-                <strong>Ready to send:</strong> Urgent RSVP reminders will be sent to all guests with pending RSVPs for {selectedEventIds.length} event(s)
+                <strong>Ready to send:</strong> Urgent RSVP reminders via {getChannelText()} will be sent to all guests with pending RSVPs for {selectedEventIds.length} event(s)
               </p>
             </div>
           )}

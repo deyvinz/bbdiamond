@@ -1,9 +1,11 @@
 import { NextRequest } from 'next/server'
 import { getWeddingId } from './wedding-context-server'
+import { getUserWeddings } from './auth/wedding-access'
+import { supabaseServer } from './supabase-server'
 
 /**
  * Get wedding ID from API request
- * Tries multiple sources: header, cookie, query param, then context
+ * Tries multiple sources: header, cookie, query param, context, then user's weddings
  * Does NOT consume the request body to avoid conflicts
  */
 export async function getWeddingIdFromRequest(request: NextRequest): Promise<string | null> {
@@ -28,10 +30,37 @@ export async function getWeddingIdFromRequest(request: NextRequest): Promise<str
 
   // 4. Fall back to context resolution (domain-based)
   try {
-    return await getWeddingId()
+    const domainWeddingId = await getWeddingId()
+    if (domainWeddingId) {
+      return domainWeddingId
+    }
   } catch {
-    return null
+    // Continue to next fallback
   }
+
+  // 5. For admin routes, try to get wedding ID from authenticated user's wedding ownership
+  // This handles cases where admin routes are accessed from main domain (luwani.com)
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/admin')) {
+    try {
+      const supabase = await supabaseServer()
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (user) {
+        const userWeddings = await getUserWeddings(user.id)
+        // Return the first wedding if user owns any weddings
+        // In most cases, users will have one wedding, but if they have multiple,
+        // we'll use the first one (could be enhanced to use a selected/default wedding)
+        if (userWeddings.length > 0) {
+          return userWeddings[0]
+        }
+      }
+    } catch (error) {
+      console.error('Error getting wedding ID from user ownership:', error)
+      // Continue and return null
+    }
+  }
+
+  return null
 }
 
 /**

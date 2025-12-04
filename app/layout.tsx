@@ -8,7 +8,7 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { LoadingProvider } from '@/components/providers/loading-provider'
 import { Toaster } from '@/components/ui/toaster'
 import { ThemeProviderServer } from '@/components/ThemeProviderServer'
-import { HeroUIProvider } from '@heroui/react'
+import { HeroUIProviderWrapper } from '@/components/providers/hero-ui-provider'
 import { getWeddingContext } from '@/lib/wedding-context-server'
 import { getWeddingTheme, getDefaultTheme } from '@/lib/theme-service'
 import { getGoogleFontsURL } from '@/lib/theme-service'
@@ -128,7 +128,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         </noscript>
 
         <div className="fixed inset-0 -z-10 bg-subtleGrid bg-[length:16px_16px]" />
-        <HeroUIProvider>
+        <HeroUIProviderWrapper>
           <Analytics />
           {showWeddingNavigation ? (
             <ThemeProviderServer weddingId={weddingId!}>
@@ -159,7 +159,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               </div>
             </LoadingProvider>
           )}
-        </HeroUIProvider>
+        </HeroUIProviderWrapper>
       </body>
     </html>
   )

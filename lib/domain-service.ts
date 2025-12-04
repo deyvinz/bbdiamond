@@ -1,4 +1,5 @@
 import { supabaseService } from './supabase-service'
+import { normalizeDomain } from './utils'
 
 export interface DomainInfo {
   domain: string
@@ -17,14 +18,23 @@ export async function resolveWeddingFromDomain(hostname: string): Promise<string
 
     // Remove port if present
     const domain = hostname.split(':')[0]
+    const normalizedDomain = normalizeDomain(domain)
 
-    // First, check for custom domain match
-    const { data: customDomain, error: customError } = await supabase
+    // First, check for custom domain match (both exact match and normalized version)
+    // This handles both 'boandjane.com' and 'www.boandjane.com' matching the same wedding
+    let query = supabase
       .from('wedding_domains')
       .select('wedding_id')
-      .eq('domain', domain)
       .eq('is_verified', true)
-      .single()
+    
+    // Use OR condition if domain differs from normalized (i.e., has www prefix)
+    if (domain !== normalizedDomain) {
+      query = query.or(`domain.eq.${domain},domain.eq.${normalizedDomain}`)
+    } else {
+      query = query.eq('domain', domain)
+    }
+    
+    const { data: customDomain, error: customError } = await query.maybeSingle()
 
     if (!customError && customDomain?.wedding_id) {
       return customDomain.wedding_id

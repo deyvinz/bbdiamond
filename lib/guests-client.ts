@@ -156,6 +156,7 @@ export async function createGuest(
       .from('invitations')
       .insert({
         guest_id: guest.id,
+        wedding_id: weddingId,
         headcount: invitationData.headcount || 1,
         token: crypto.randomUUID()
       })
@@ -172,6 +173,7 @@ export async function createGuest(
     const invitationEventInserts = invitationData.event_ids.map((eventId: string) => ({
       invitation_id: invitation.id,
       event_id: eventId,
+      wedding_id: weddingId,
       headcount: invitationData.headcount || 1,
       event_token: crypto.randomUUID()
     }))
@@ -255,7 +257,31 @@ export async function deleteGuest(guestId: string) {
   return true
 }
 
-export async function createInvitationForGuest(guestId: string, eventId: string) {
+export async function createInvitationForGuest(guestId: string, eventId: string, weddingIdParam?: string) {
+  // Get wedding ID - use parameter first, then try to get from guest, then client context
+  let weddingId: string | undefined = weddingIdParam
+  
+  if (!weddingId) {
+    // Try to get wedding_id from the guest record
+    const { data: guest } = await supabase
+      .from('guests')
+      .select('wedding_id')
+      .eq('id', guestId)
+      .single()
+    
+    if (guest?.wedding_id) {
+      weddingId = guest.wedding_id
+    } else {
+      // Fall back to client context
+      const clientWeddingId = getWeddingIdFromClient()
+      weddingId = clientWeddingId || undefined
+    }
+  }
+  
+  if (!weddingId) {
+    throw new Error('Wedding ID is required to create invitations. Please ensure you are in a valid wedding context.')
+  }
+
   // Check if invitation already exists
   const { data: existingInvitation } = await supabase
     .from('invitations')
@@ -279,6 +305,7 @@ export async function createInvitationForGuest(guestId: string, eventId: string)
         .insert({
           invitation_id: existingInvitation.id,
           event_id: eventId,
+          wedding_id: weddingId,
           headcount: 1,
           status: 'pending',
           event_token: crypto.randomUUID()
@@ -301,6 +328,7 @@ export async function createInvitationForGuest(guestId: string, eventId: string)
     .from('invitations')
     .insert({
       guest_id: guestId,
+      wedding_id: weddingId,
       token: crypto.randomUUID()
     })
     .select('id, token, created_at')
@@ -316,6 +344,7 @@ export async function createInvitationForGuest(guestId: string, eventId: string)
     .insert({
       invitation_id: invitation.id,
       event_id: eventId,
+      wedding_id: weddingId,
       headcount: 1,
       status: 'pending',
       event_token: crypto.randomUUID()

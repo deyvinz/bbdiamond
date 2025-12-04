@@ -53,7 +53,7 @@ export async function getNotificationConfig(weddingId?: string): Promise<Notific
  * 3. For WhatsApp, also verify phone is registered
  * 4. Return first available channel in priority order
  */
-async function determineBestChannel(
+export async function determineBestChannel(
   notificationConfig: NotificationConfig,
   guest: { email?: string; phone?: string },
   weddingId: string

@@ -1055,6 +1055,13 @@ export async function importInvitationsFromCsv(csvData: CsvInvitationInput[]): P
   errors: Array<{ row: number; error: string }>
 }> {
   const supabase = await supabaseServer()
+  
+  // Get wedding_id for multi-tenant support
+  const resolvedWeddingId = await getWeddingId()
+  if (!resolvedWeddingId) {
+    throw new Error('Wedding ID is required to import invitations')
+  }
+  
   let success = 0
   const errors: Array<{ row: number; error: string }> = []
 
@@ -1062,11 +1069,12 @@ export async function importInvitationsFromCsv(csvData: CsvInvitationInput[]): P
     try {
       const row = csvData[i]
       
-      // Find or create guest
+      // Find or create guest (filtered by wedding_id to prevent cross-tenant conflicts)
       let { data: guest } = await supabase
         .from('guests')
-        .select('id, total_guests')
+        .select('id, total_guests, wedding_id')
         .eq('email', row.guest_email)
+        .eq('wedding_id', resolvedWeddingId)
         .single()
 
       if (!guest) {
@@ -1077,9 +1085,10 @@ export async function importInvitationsFromCsv(csvData: CsvInvitationInput[]): P
             email: row.guest_email,
             first_name: row.guest_first_name || '',
             last_name: row.guest_last_name || '',
-            invite_code: crypto.randomUUID().substring(0, 8).toUpperCase()
+            invite_code: crypto.randomUUID().substring(0, 8).toUpperCase(),
+            wedding_id: resolvedWeddingId
           })
-          .select('id')
+          .select('id, total_guests')
           .single()
 
         if (guestError) {
@@ -1088,11 +1097,12 @@ export async function importInvitationsFromCsv(csvData: CsvInvitationInput[]): P
         guest = newGuest
       }
 
-      // Find or create invitation
+      // Find or create invitation (filtered by wedding_id)
       let { data: invitation } = await supabase
         .from('invitations')
         .select('id')
         .eq('guest_id', guest.id)
+        .eq('wedding_id', resolvedWeddingId)
         .single()
 
       if (!invitation) {
@@ -1100,6 +1110,7 @@ export async function importInvitationsFromCsv(csvData: CsvInvitationInput[]): P
           .from('invitations')
           .insert({
             guest_id: guest.id,
+            wedding_id: resolvedWeddingId,
             token: crypto.randomUUID()
           })
           .select('id')
@@ -1119,7 +1130,7 @@ export async function importInvitationsFromCsv(csvData: CsvInvitationInput[]): P
       }], guest?.total_guests || undefined)
       const validatedEvent = validatedEvents[0]
 
-      // Create or update invitation event
+      // Create or update invitation event (include wedding_id)
       const { error: eventError } = await supabase
         .from('invitation_events')
         .upsert({
@@ -1127,7 +1138,8 @@ export async function importInvitationsFromCsv(csvData: CsvInvitationInput[]): P
           event_id: validatedEvent.event_id,
           headcount: validatedEvent.headcount,
           status: validatedEvent.status,
-          event_token: crypto.randomUUID()
+          event_token: crypto.randomUUID(),
+          wedding_id: resolvedWeddingId
         }, {
           onConflict: 'invitation_id,event_id'
         })

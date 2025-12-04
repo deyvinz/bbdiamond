@@ -325,7 +325,7 @@ function GuestTable({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => onEdit(guest)}>
+                      <DropdownMenuItem onClick={() => onEdit(guest)} className="bg-white">
                         <Edit className="h-4 w-4 mr-2" />
                         Edit
                       </DropdownMenuItem>

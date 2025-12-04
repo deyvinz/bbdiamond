@@ -80,7 +80,7 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
         setFormData({
           first_name: guest.first_name,
           last_name: guest.last_name,
-          email: guest.email,
+          email: guest.email || '',
           phone: guest.phone || '',
           household_id: guest.household_id || 'none',
           household_name: '',
