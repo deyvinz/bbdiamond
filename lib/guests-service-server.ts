@@ -499,7 +499,7 @@ export async function backfillInviteCodes(params: {
 /**
  * Find duplicate email addresses in the guests table (case-insensitive)
  */
-export async function findDuplicateEmails(): Promise<Array<{
+export async function findDuplicateEmails(weddingId?: string): Promise<Array<{
   email: string
   count: number
   guests: Array<{
@@ -512,12 +512,17 @@ export async function findDuplicateEmails(): Promise<Array<{
 }>> {
   const supabase = await supabaseServer()
 
-  // Get all guests with emails
-  const { data: allGuests, error } = await supabase
+  // Get all guests with emails (scoped to wedding if provided)
+  let query = supabase
     .from('guests')
     .select('id, email, first_name, last_name, created_at')
     .not('email', 'is', null)
-    .order('created_at', { ascending: true })
+  
+  if (weddingId) {
+    query = query.eq('wedding_id', weddingId)
+  }
+  
+  const { data: allGuests, error } = await query.order('created_at', { ascending: true })
 
   if (error) {
     throw new Error(`Failed to fetch guests: ${error.message}`)
@@ -582,9 +587,9 @@ export interface CleanupDuplicatesResult {
  * Remove duplicate email addresses from the guests table
  * Priority: Remove uppercase emails first, then keep the oldest guest (by created_at)
  */
-export async function cleanupDuplicateEmails(dryRun: boolean = false): Promise<CleanupDuplicatesResult> {
+export async function cleanupDuplicateEmails(dryRun: boolean = false, weddingId?: string): Promise<CleanupDuplicatesResult> {
   const supabase = await supabaseServer()
-  const duplicates = await findDuplicateEmails()
+  const duplicates = await findDuplicateEmails(weddingId)
 
   const result: CleanupDuplicatesResult = {
     duplicatesFound: duplicates.length,

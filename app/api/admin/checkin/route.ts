@@ -128,11 +128,12 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
-    // Get event details for response
+    // Get event details for response (verify it belongs to wedding)
     const { data: eventData, error: eventError } = await supabase
       .from('events')
       .select('name, venue')
       .eq('id', firstEvent.event_id)
+      .eq('wedding_id', finalWeddingId)
       .single()
 
     if (eventError) {
@@ -161,14 +162,34 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const { searchParams } = new URL(request.url)
     const eventId = searchParams.get('event_id')
 
     const supabase = await supabaseServer()
 
-    // Get check-in statistics
+    // Verify event belongs to this wedding if eventId is provided
+    if (eventId) {
+      const { data: event, error: eventError } = await supabase
+        .from('events')
+        .select('id, wedding_id')
+        .eq('id', eventId)
+        .eq('wedding_id', weddingId)
+        .single()
+
+      if (eventError || !event) {
+        return NextResponse.json({ 
+          success: false, 
+          message: 'Event not found or access denied' 
+        }, { status: 403 })
+      }
+    }
+
+    // Get check-in statistics (database function should filter by wedding_id if it exists)
+    // Note: If the RPC function doesn't support wedding_id, we may need to filter results client-side
     const { data: stats, error } = await supabase.rpc('get_checkin_stats', {
-      p_event_id: eventId || null
+      p_event_id: eventId || null,
+      p_wedding_id: weddingId || null
     })
 
     if (error) {

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { format } from 'date-fns'
+import { requireWeddingId } from '@/lib/api-wedding-context'
 
 export async function GET(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const searchParams = request.nextUrl.searchParams
     const eventId = searchParams.get('eventId')
     const status = searchParams.get('status')
@@ -19,7 +21,7 @@ export async function GET(request: NextRequest) {
     const selectedColumns = columnsParam.split(',')
     const supabase = await supabaseServer()
 
-    // Build the query
+    // Build the query (scoped to wedding)
     let query = supabase
       .from('invitations')
       .select(`
@@ -44,6 +46,7 @@ export async function GET(request: NextRequest) {
           )
         )
       `)
+      .eq('wedding_id', weddingId)
 
     // Apply filters
     if (eventId && eventId !== 'all') {

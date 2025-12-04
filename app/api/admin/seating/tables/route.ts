@@ -144,11 +144,12 @@ export async function POST(request: NextRequest) {
       }, { status: 403 })
     }
 
-    // Create the table
+    // Create the table (include wedding_id for multi-tenant support)
     const { data: table, error } = await supabase
       .from('seating_tables')
       .insert({
         event_id,
+        wedding_id: weddingId,
         name,
         capacity: parseInt(capacity),
         pos_x: 0,

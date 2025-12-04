@@ -215,6 +215,15 @@ function GuestTable({
             <Button
               size="sm"
               variant="outline"
+              onClick={() => onBulkAction?.('create_invitations', selectedGuests)}
+              className="flex-1 sm:flex-none"
+            >
+              <Mail className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Create Invitations</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
               onClick={() => onBulkAction?.('send_invite', selectedGuests)}
               className="flex-1 sm:flex-none"
             >

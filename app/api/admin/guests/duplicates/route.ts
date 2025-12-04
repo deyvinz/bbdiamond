@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { findDuplicateEmails, cleanupDuplicateEmails } from '@/lib/guests-service-server'
+import { requireWeddingId } from '@/lib/api-wedding-context'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -11,6 +12,7 @@ export const runtime = 'nodejs'
  */
 export async function GET(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const supabase = await supabaseServer()
 
     // Verify authentication
@@ -26,7 +28,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const duplicates = await findDuplicateEmails()
+    const duplicates = await findDuplicateEmails(weddingId)
 
     return NextResponse.json({
       success: true,
@@ -52,6 +54,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const supabase = await supabaseServer()
 
     // Verify authentication
@@ -71,7 +74,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}))
     const dryRun = body.dryRun ?? false
 
-    const result = await cleanupDuplicateEmails(dryRun)
+    const result = await cleanupDuplicateEmails(dryRun, weddingId)
 
     return NextResponse.json({
       success: true,

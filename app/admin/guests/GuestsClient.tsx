@@ -27,6 +27,7 @@ import {
   sendInvitesToAllGuests
 } from '@/lib/guests-client'
 import { sendInviteEmailAction } from '@/lib/actions/invitations'
+import { CreateInvitationsDialog } from './CreateInvitationsDialog'
 
 interface GuestsClientProps {
   initialGuests: Guest[]
@@ -57,6 +58,8 @@ export default function GuestsClient({
   const [showCleanupDialog, setShowCleanupDialog] = useState(false)
   const [showCleanupHouseholdsDialog, setShowCleanupHouseholdsDialog] = useState(false)
   const [showExportDialog, setShowExportDialog] = useState(false)
+  const [showCreateInvitationsDialog, setShowCreateInvitationsDialog] = useState(false)
+  const [selectedGuestsForInvitations, setSelectedGuestsForInvitations] = useState<Guest[]>([])
   const [editingGuest, setEditingGuest] = useState<Guest | undefined>()
   const [viewGuest, setViewGuest] = useState<Guest | undefined>()
   const [loading, setLoading] = useState(false)
@@ -358,9 +361,11 @@ export default function GuestsClient({
     try {
       switch (action) {
         case 'send_invite':
-          // Send invites for all selected guests
+          // Send invites for all selected guests using notification service
+          // The notification service will determine the best channel (email, WhatsApp, SMS)
           let successCount = 0
           let errorCount = 0
+          let skippedCount = 0
           
           for (const guestId of guestIds) {
             try {
@@ -387,29 +392,42 @@ export default function GuestsClient({
                 continue
               }
               
-              if (!guest.email) {
-                errorCount++
-                continue
-              }
-              
-              await sendInviteEmailAction({
+              // Use notification service which determines best channel (email, WhatsApp, SMS)
+              // based on guest contact info and enabled channels
+              const result = await sendInviteEmailAction({
                 invitationId: invitation.id,
                 eventIds,
                 includeQr: true,
                 ignoreRateLimit: true,
-                to: guest.email
               })
-              successCount++
+              
+              if (result.success) {
+                successCount++
+              } else {
+                // Check if it was skipped (no channel available) vs failed
+                if (result.message?.includes('No notification channel') || result.message?.includes('no available contact')) {
+                  skippedCount++
+                } else {
+                  errorCount++
+                }
+              }
             } catch (error) {
               console.error(`Failed to send invite for guest ${guestId}:`, error)
               errorCount++
             }
           }
           
-          if (successCount > 0) {
+          if (successCount > 0 || skippedCount > 0) {
+            let description = `Notifications sent to ${successCount} guest${successCount !== 1 ? 's' : ''}`
+            if (skippedCount > 0) {
+              description += `, ${skippedCount} skipped (no contact method)`
+            }
+            if (errorCount > 0) {
+              description += `, ${errorCount} failed`
+            }
             toast({
-              title: "Success",
-              description: `Invitations sent to ${successCount} guests${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
+              title: "Complete",
+              description,
             })
           } else {
             toast({
@@ -421,6 +439,12 @@ export default function GuestsClient({
           
           // Refresh data after bulk action
           await refreshData()
+          break
+        case 'create_invitations':
+          // Open create invitations dialog with selected guests
+          const guestsToInvite = guests.filter(g => guestIds.includes(g.id))
+          setSelectedGuestsForInvitations(guestsToInvite)
+          setShowCreateInvitationsDialog(true)
           break
         case 'regenerate_tokens':
           // Regenerate tokens for all selected guests
@@ -702,6 +726,19 @@ export default function GuestsClient({
         config={config || undefined}
         onOpenChange={(open) => !open && setViewGuest(undefined)}
         onInvitationCreated={() => refreshData()}
+      />
+
+      <CreateInvitationsDialog
+        open={showCreateInvitationsDialog}
+        onOpenChange={(open) => {
+          setShowCreateInvitationsDialog(open)
+          if (!open) {
+            // Refresh data when dialog closes
+            refreshData()
+          }
+        }}
+        selectedGuests={selectedGuestsForInvitations}
+        events={events}
       />
     </>
   )

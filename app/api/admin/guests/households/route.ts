@@ -5,6 +5,7 @@ import {
   findOrphanedHouseholds,
   cleanupHouseholds
 } from '@/lib/guests-service-server'
+import { requireWeddingId } from '@/lib/api-wedding-context'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -15,6 +16,7 @@ export const runtime = 'nodejs'
  */
 export async function GET(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const supabase = await supabaseServer()
 
     // Verify authentication
@@ -30,8 +32,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const duplicates = await findDuplicateHouseholds()
-    const orphaned = await findOrphanedHouseholds()
+    const duplicates = await findDuplicateHouseholds(weddingId)
+    const orphaned = await findOrphanedHouseholds(weddingId)
 
     return NextResponse.json({
       success: true,
@@ -58,6 +60,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const supabase = await supabaseServer()
 
     // Verify authentication
@@ -77,7 +80,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}))
     const dryRun = body.dryRun ?? false
 
-    const result = await cleanupHouseholds(dryRun)
+    const result = await cleanupHouseholds(dryRun, weddingId)
 
     return NextResponse.json({
       success: true,

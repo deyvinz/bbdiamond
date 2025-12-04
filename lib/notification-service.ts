@@ -93,7 +93,12 @@ export async function determineBestChannel(
         const formattedPhone = formatPhoneNumber(guest.phone)
         const waStatus = await checkWhatsAppRegistration(formattedPhone)
         
-        if (waStatus.isRegistered) {
+        // If there's a configuration error, skip WhatsApp and continue to SMS if enabled
+        if (waStatus.error && waStatus.error.includes('configuration error')) {
+          // Log the error but continue to next channel
+          console.warn(`WhatsApp registration check failed due to configuration: ${waStatus.error}. Falling back to SMS if enabled.`)
+          // Continue to SMS if enabled
+        } else if (waStatus.isRegistered) {
           return { channel: 'whatsapp', phoneNumber: formattedPhone }
         }
         // WhatsApp enabled, phone available, but not registered - continue to SMS if enabled

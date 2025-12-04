@@ -333,19 +333,52 @@ export async function createInvitationsForGuests(
     throw new Error('Wedding ID is required to create invitations')
   }
   
+  // Validate that all events belong to this wedding (multi-tenant security)
+  const eventIds = eventDefs.map(e => e.event_id)
+  if (eventIds.length > 0) {
+    const { data: events, error: eventsError } = await supabase
+      .from('events')
+      .select('id, wedding_id')
+      .in('id', eventIds)
+
+    if (eventsError) {
+      throw new Error(`Failed to verify events: ${eventsError.message}`)
+    }
+
+    // Check all events belong to this wedding
+    const invalidEvents = events?.filter((e: { id: string; wedding_id: string }) => e.wedding_id !== resolvedWeddingId) || []
+    if (invalidEvents.length > 0) {
+      throw new Error(`Some events do not belong to this wedding. Access denied.`)
+    }
+
+    // Check if all requested events were found
+    const foundEventIds = events?.map((e: { id: string; wedding_id: string }) => e.id) || []
+    const missingEvents = eventIds.filter(id => !foundEventIds.includes(id))
+    if (missingEvents.length > 0) {
+      throw new Error(`Some events were not found: ${missingEvents.join(', ')}`)
+    }
+  }
+  
   const invitations: Invitation[] = []
 
   for (const guestId of guestIds) {
-    // Fetch guest info including total_guests
-    const { data: guest, error: guestError } = await supabase
+    // Fetch guest info including total_guests (scoped to wedding)
+    const { data: guestData, error: guestError } = await supabase
       .from('guests')
-      .select('invite_code, total_guests')
+      .select('invite_code, total_guests, wedding_id')
       .eq('id', guestId)
       .eq('wedding_id', resolvedWeddingId)
       .single()
 
-    if (guestError) {
-      throw new Error(`Failed to fetch guest: ${guestError.message}`)
+    if (guestError || !guestData) {
+      throw new Error(`Failed to fetch guest: ${guestError?.message || 'Guest not found'}`)
+    }
+
+    const guest = guestData as { invite_code: string | null; total_guests: number | null; wedding_id: string }
+
+    // Additional security check: verify guest belongs to this wedding
+    if (guest.wedding_id !== resolvedWeddingId) {
+      throw new Error(`Guest does not belong to this wedding. Access denied.`)
     }
 
     // Validate and enforce headcount rules based on guest's total_guests and configuration
@@ -738,7 +771,7 @@ export async function sendInviteWhatsApp(params: SendWhatsAppInput): Promise<{ s
     .from('invitations')
     .select(`
       *,
-      guest:guests(phone_number, first_name, last_name, invite_code, total_guests),
+      guest:guests(phone, first_name, last_name, invite_code, total_guests),
       invitation_events(
         *,
         event:events(name, starts_at, venue, address)

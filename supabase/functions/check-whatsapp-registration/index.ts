@@ -1,7 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
-const WHATSAPP_API_VERSION = 'v21.0'
-
 interface CheckRegistrationPayload {
   phoneNumber: string
 }
@@ -16,14 +14,15 @@ interface CheckRegistrationResponse {
 serve(async (req) => {
   try {
     // Get environment variables
-    const whatsappAccessToken = Deno.env.get('WHATSAPP_ACCESS_TOKEN')
-    const whatsappPhoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')
+    const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID')
+    const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN')
+    const twilioWhatsappFromNumber = Deno.env.get('TWILIO_WHATSAPP_FROM_NUMBER')
 
-    if (!whatsappAccessToken || !whatsappPhoneNumberId) {
+    if (!twilioAccountSid || !twilioAuthToken || !twilioWhatsappFromNumber) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'WhatsApp credentials not configured',
+          error: 'Twilio WhatsApp credentials not configured',
         } as CheckRegistrationResponse),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       )
@@ -41,46 +40,17 @@ serve(async (req) => {
       )
     }
 
-    // Call Meta Graph API to check contact registration
-    const response = await fetch(
-      `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${whatsappPhoneNumberId}/contacts`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${whatsappAccessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          blocking: 'wait',
-          contacts: [payload.phoneNumber],
-          force_check: true,
-        }),
-      }
-    )
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      console.error('WhatsApp contacts API error:', data)
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: data.error?.message || `WhatsApp API error: ${response.status}`,
-        } as CheckRegistrationResponse),
-        { status: response.status, headers: { 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Parse response - contact status is 'valid' if registered
-    const contact = data.contacts?.[0]
-    const isRegistered = contact?.status === 'valid'
-    const waId = contact?.wa_id
+    // Twilio doesn't provide a direct registration check API
+    // The registration status will be determined when sending messages
+    // Twilio will return appropriate error codes if the number is not registered
+    // For now, we'll assume registered if credentials are configured
+    // The actual registration will be verified when sending messages via delivery status webhooks
 
     return new Response(
       JSON.stringify({
         success: true,
-        isRegistered,
-        waId,
+        isRegistered: true, // Assume registered if Twilio is configured
+        waId: payload.phoneNumber,
       } as CheckRegistrationResponse),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     )

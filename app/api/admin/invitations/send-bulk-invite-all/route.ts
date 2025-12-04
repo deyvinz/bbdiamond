@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { createInvitationForGuest } from '@/lib/guests-service-server'
 import { sendInviteEmail } from '@/lib/invitations-service'
+import { requireWeddingId } from '@/lib/api-wedding-context'
 
 export async function POST(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const supabase = await supabaseServer()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -29,6 +31,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request: eventIds is required' }, { status: 400 })
     }
 
+    // Verify all events belong to this wedding
+    const { data: events, error: eventsError } = await supabase
+      .from('events')
+      .select('id, wedding_id')
+      .in('id', eventIds)
+      .eq('wedding_id', weddingId)
+
+    if (eventsError) {
+      return NextResponse.json({ error: 'Failed to verify events' }, { status: 500 })
+    }
+
+    const validEventIds = events?.map((e: { id: string; wedding_id: string }) => e.id) || []
+    if (validEventIds.length !== eventIds.length) {
+      return NextResponse.json({ error: 'Some events not found or access denied' }, { status: 403 })
+    }
+
     const results = {
       processed: 0,
       sent: 0,
@@ -36,7 +54,7 @@ export async function POST(request: NextRequest) {
       errors: [] as string[]
     }
 
-    // Fetch all guests with their invitations and RSVP status
+    // Fetch all guests with their invitations and RSVP status (scoped to wedding)
     const { data: guests, error: guestsError } = await supabase
       .from('guests')
       .select(`
@@ -56,6 +74,7 @@ export async function POST(request: NextRequest) {
           )
         )
       `)
+      .eq('wedding_id', weddingId)
 
     if (guestsError) {
       console.error('Error fetching guests:', guestsError)
@@ -111,12 +130,13 @@ export async function POST(request: NextRequest) {
 
         if (eventsToSendFor.length > 0) {
           
-          // Get the invitation ID (either existing or newly created)
+          // Get the invitation ID (either existing or newly created) - scoped to wedding
           if (!invitationId) {
             const { data: invitation } = await supabase
               .from('invitations')
               .select('id')
               .eq('guest_id', guest.id)
+              .eq('wedding_id', weddingId)
               .single()
             invitationId = invitation?.id
           }

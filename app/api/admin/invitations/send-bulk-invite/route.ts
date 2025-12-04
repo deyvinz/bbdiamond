@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { sendInviteEmail } from '@/lib/invitations-service'
+import { requireWeddingId } from '@/lib/api-wedding-context'
 
 export async function POST(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const supabase = await supabaseServer()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -28,7 +30,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request: invitationId and eventIds are required' }, { status: 400 })
     }
 
-    // Get invitation details
+    // Get invitation details (scoped to wedding)
     const { data: invitation, error: invitationError } = await supabase
       .from('invitations')
       .select(`
@@ -40,6 +42,7 @@ export async function POST(request: NextRequest) {
         )
       `)
       .eq('id', invitationId)
+      .eq('wedding_id', weddingId)
       .single()
 
     if (invitationError || !invitation) {

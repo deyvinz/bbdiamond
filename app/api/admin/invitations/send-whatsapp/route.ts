@@ -4,7 +4,7 @@ import { sendInviteWhatsApp } from '@/lib/invitations-service'
 
 export async function POST(request: NextRequest) {
   try {
-    await requireWeddingId(request)
+    const weddingId = await requireWeddingId(request)
     const body = await request.json()
     const { invitationId, eventIds, phoneNumber, ignoreRateLimit } = body
 

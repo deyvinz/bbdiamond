@@ -1,8 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const WHATSAPP_API_VERSION = 'v21.0'
-
 interface WhatsAppInvitePayload {
   invitationId: string
   weddingId: string
@@ -22,72 +20,76 @@ interface WhatsAppInvitePayload {
 serve(async (req) => {
   try {
     // Get environment variables
-    const whatsappAccessToken = Deno.env.get('WHATSAPP_ACCESS_TOKEN')
-    const whatsappPhoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')
+    const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID')
+    const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN')
+    const twilioWhatsappFromNumber = Deno.env.get('TWILIO_WHATSAPP_FROM_NUMBER')
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-    if (!whatsappAccessToken || !whatsappPhoneNumberId) {
+    if (!twilioAccountSid || !twilioAuthToken) {
       return new Response(
-        JSON.stringify({ success: false, error: 'WhatsApp credentials not configured' }),
+        JSON.stringify({ success: false, error: 'Twilio credentials not configured' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (!twilioWhatsappFromNumber) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Twilio WhatsApp sender number not configured. Set TWILIO_WHATSAPP_FROM_NUMBER' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       )
     }
 
     const payload: WhatsAppInvitePayload = await req.json()
 
-    // Format template parameters
-    const templateParams: Record<string, string> = {
-      guest_name: payload.guestName,
-      couple_name: payload.coupleName,
-      event_name: payload.eventName,
-      event_date: payload.eventDate,
-      event_time: payload.eventTime,
-      venue: payload.venue,
-      rsvp_url: payload.rsvpUrl,
-      invite_code: payload.inviteCode,
-    }
+    // Format WhatsApp message
+    const message = [
+      `Hi ${payload.guestName}! 👋`,
+      ``,
+      `You're invited to ${payload.coupleName}'s ${payload.eventName}!`,
+      ``,
+      `📅 ${payload.eventDate} at ${payload.eventTime}`,
+      `📍 ${payload.venue}`,
+      ``,
+      `RSVP: ${payload.rsvpUrl}`,
+      `Code: ${payload.inviteCode}`,
+    ].join('\n')
 
-    // Send WhatsApp message
+    // Format phone numbers with whatsapp: prefix for Twilio
+    const toNumber = payload.phoneNumber.startsWith('whatsapp:') 
+      ? payload.phoneNumber 
+      : `whatsapp:${payload.phoneNumber}`
+    const fromNumber = twilioWhatsappFromNumber.startsWith('whatsapp:') 
+      ? twilioWhatsappFromNumber 
+      : `whatsapp:${twilioWhatsappFromNumber}`
+
+    // Build Twilio request
+    const formData = new URLSearchParams()
+    formData.append('To', toNumber)
+    formData.append('From', fromNumber)
+    formData.append('Body', message)
+
+    // Send WhatsApp message via Twilio API
     const response = await fetch(
-      `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${whatsappPhoneNumberId}/messages`,
+      `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
       {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${whatsappAccessToken}`,
-          'Content-Type': 'application/json',
+          'Authorization': `Basic ${btoa(`${twilioAccountSid}:${twilioAuthToken}`)}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: payload.phoneNumber,
-          type: 'template',
-          template: {
-            name: 'wedding_invitation',
-            language: {
-              code: 'en',
-            },
-            components: [
-              {
-                type: 'body',
-                parameters: Object.entries(templateParams).map(([_, value]) => ({
-                  type: 'text',
-                  text: value,
-                })),
-              },
-            ],
-          },
-        }),
+        body: formData.toString(),
       }
     )
 
     const data = await response.json()
 
     if (!response.ok) {
-      console.error('WhatsApp API error:', data)
+      console.error('Twilio WhatsApp API error:', data)
       return new Response(
         JSON.stringify({
           success: false,
-          error: data.error?.message || `WhatsApp API error: ${response.status}`,
+          error: data.message || `Twilio WhatsApp API error: ${response.status}`,
         }),
         { status: response.status, headers: { 'Content-Type': 'application/json' } }
       )
@@ -97,13 +99,16 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     await supabase
       .from('invitations')
-      .update({ whatsapp_sent_at: new Date().toISOString() })
+      .update({ 
+        whatsapp_sent_at: new Date().toISOString(),
+        whatsapp_message_id: data.sid,
+      })
       .eq('id', payload.invitationId)
 
     return new Response(
       JSON.stringify({
         success: true,
-        messageId: data.messages?.[0]?.id,
+        messageId: data.sid,
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     )

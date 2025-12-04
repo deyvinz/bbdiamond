@@ -38,6 +38,7 @@ export interface WhatsAppRegistrationStatus {
   waId?: string
   checkedAt: Date
   cached: boolean
+  error?: string
 }
 
 export interface SmsResult {
