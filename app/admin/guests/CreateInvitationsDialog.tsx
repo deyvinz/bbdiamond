@@ -105,8 +105,12 @@ export function CreateInvitationsDialog({
 
       setProgress(50)
 
-      // Step 2: Send notifications if requested
-      if (sendNotifications && createResult.invitations) {
+      // Get the counts from the result
+      const createdCount = createResult.created ?? 0
+      const skippedCount = createResult.skipped ?? 0
+
+      // Step 2: Send notifications if requested (only for newly created invitations)
+      if (sendNotifications && createResult.invitations && createResult.invitations.length > 0) {
         let successCount = 0
         let errorCount = 0
         const total = createResult.invitations.length
@@ -117,6 +121,11 @@ export function CreateInvitationsDialog({
 
           if (!guest) {
             errorCount++
+            continue
+          }
+
+          // Skip sending notifications for guests that were skipped (already had invitations)
+          if (createResult.skippedGuestIds?.includes(invitation.guest_id)) {
             continue
           }
 
@@ -138,22 +147,26 @@ export function CreateInvitationsDialog({
           setProgress(50 + (i + 1) / total * 50)
         }
 
+        // Build the toast message based on created and skipped counts
+        const skippedMessage = skippedCount > 0 ? ` (${skippedCount} guest${skippedCount !== 1 ? 's' : ''} already had invitations)` : ''
+
         if (errorCount > 0) {
           toast({
             title: 'Partially Complete',
-            description: `Invitations created. ${successCount} notifications sent, ${errorCount} failed.`,
+            description: `Created ${createdCount} invitation${createdCount !== 1 ? 's' : ''}. ${successCount} notification${successCount !== 1 ? 's' : ''} sent, ${errorCount} failed.${skippedMessage}`,
             variant: 'default',
           })
         } else {
           toast({
             title: 'Success',
-            description: `Invitations created and notifications sent to ${successCount} guests`,
+            description: `Created ${createdCount} invitation${createdCount !== 1 ? 's' : ''} and sent ${successCount} notification${successCount !== 1 ? 's' : ''}.${skippedMessage}`,
           })
         }
       } else {
+        const skippedMessage = skippedCount > 0 ? ` (${skippedCount} already had invitations)` : ''
         toast({
           title: 'Success',
-          description: `Invitations created for ${createResult.invitations?.length || 0} guests`,
+          description: `Created ${createdCount} invitation${createdCount !== 1 ? 's' : ''}.${skippedMessage}`,
         })
       }
 
@@ -283,7 +296,11 @@ export function CreateInvitationsDialog({
                     >
                       <Checkbox
                         checked={selectedEventIds.includes(event.id)}
-                        onCheckedChange={() => handleEventToggle(event.id)}
+                        onCheckedChange={(checked) => {
+                          // Prevent parent click from also firing
+                          handleEventToggle(event.id)
+                        }}
+                        onClick={(e) => e.stopPropagation()}
                         id={`event-${event.id}`}
                       />
                       <Label

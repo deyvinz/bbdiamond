@@ -148,6 +148,67 @@ export async function getGuestsServer(
   } as GuestListResponse
 }
 
+/**
+ * Get guests who don't have any invitations
+ */
+export async function getGuestsWithoutInvitations(
+  pagination: PaginationParams = { page: 1, page_size: 1000 },
+  weddingId?: string
+): Promise<GuestListResponse> {
+  const supabase = await supabaseServer()
+  
+  // Get wedding ID
+  const resolvedWeddingId = weddingId || await getWeddingId()
+  if (!resolvedWeddingId) {
+    console.warn('No wedding ID found, returning empty guests list')
+    return {
+      guests: [],
+      total_count: 0,
+      page: pagination.page,
+      page_size: pagination.page_size,
+      total_pages: 0
+    }
+  }
+
+  // Query guests with a left join to invitations and filter where no invitation exists
+  const { data: guests, error, count } = await supabase
+    .from('guests')
+    .select(`
+      *,
+      household:households(name),
+      invitations(id)
+    `, { count: 'exact' })
+    .eq('wedding_id', resolvedWeddingId)
+    .order('last_name', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching guests:', error)
+    throw new Error(`Failed to fetch guests: ${error.message}`)
+  }
+
+  // Filter to only include guests without invitations
+  const guestsWithoutInvitations = (guests || []).filter(
+    (guest: Guest & { invitations?: { id: string }[] }) => 
+      !guest.invitations || guest.invitations.length === 0
+  )
+
+  // Apply pagination
+  const from = (pagination.page - 1) * pagination.page_size
+  const to = from + pagination.page_size
+  const paginatedGuests = guestsWithoutInvitations.slice(from, to)
+
+  const totalCount = guestsWithoutInvitations.length
+  const totalPages = Math.ceil(totalCount / pagination.page_size)
+
+  return {
+    guests: paginatedGuests,
+    total_count: totalCount,
+    page: pagination.page,
+    page_size: pagination.page_size,
+    total_pages: totalPages
+  }
+}
+
 export async function createGuestServer(guestData: any, invitationData?: any, weddingId?: string) {
   const supabase = await supabaseServer()
   

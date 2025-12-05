@@ -591,6 +591,47 @@ export default function GuestsClient({
     }
   }
 
+  const handleCreateMissingInvitations = async () => {
+    setLoading(true)
+    try {
+      // Fetch all guests without invitations
+      const response = await fetch('/api/guests?without_invitations=true&pageSize=1000')
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch guests')
+      }
+
+      const guestsWithoutInvitations = data.guests || []
+      
+      if (guestsWithoutInvitations.length === 0) {
+        toast({
+          title: "All Done! 🎉",
+          description: "All guests already have invitations.",
+        })
+        return
+      }
+
+      // Open the CreateInvitationsDialog with these guests pre-selected
+      setSelectedGuestsForInvitations(guestsWithoutInvitations)
+      setShowCreateInvitationsDialog(true)
+      
+      toast({
+        title: "Guests Found",
+        description: `Found ${guestsWithoutInvitations.length} guest${guestsWithoutInvitations.length !== 1 ? 's' : ''} without invitations.`,
+      })
+    } catch (error) {
+      console.error('Error fetching guests without invitations:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to fetch guests without invitations",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <>
       <div className="space-y-6">
@@ -679,6 +720,7 @@ export default function GuestsClient({
           onExport={handleExport}
           onBulkAction={handleBulkAction}
           onSendInvitesToAll={handleSendInvitesToAll}
+          onCreateMissingInvitations={handleCreateMissingInvitations}
           onView={handleView}
           loading={loading && initialGuests.length === 0}
         />

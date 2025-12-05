@@ -53,6 +53,7 @@ interface GuestTableProps {
   onExport: () => void
   onBulkAction?: (action: string, guestIds: string[]) => void
   onSendInvitesToAll?: () => void
+  onCreateMissingInvitations?: () => void
   onView: (guest: Guest) => void
   loading?: boolean
 }
@@ -73,6 +74,7 @@ function GuestTable({
   onExport,
   onBulkAction,
   onSendInvitesToAll,
+  onCreateMissingInvitations,
   onView,
   loading = false,
 }: GuestTableProps) {
@@ -153,6 +155,18 @@ function GuestTable({
             <Download className="h-4 w-4 sm:mr-2" />
             <span className="hidden sm:inline">Export CSV</span>
           </Button>
+          {onCreateMissingInvitations && (
+            <Button 
+              onClick={onCreateMissingInvitations} 
+              variant="outline" 
+              size="sm" 
+              className="border-blue-200 text-blue-700 hover:bg-blue-50 flex-1 sm:flex-none"
+              disabled={loading}
+            >
+              <Mail className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Create Missing Invitations</span>
+            </Button>
+          )}
           {onSendInvitesToAll && (
             <Button 
               onClick={onSendInvitesToAll} 

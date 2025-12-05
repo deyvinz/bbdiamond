@@ -40,11 +40,17 @@ export async function createInvitationsAction(data: CreateInvitationInput) {
   }
 
   try {
-    const invitations = await createInvitationsForGuests(data.guest_ids, data.events)
+    const result = await createInvitationsForGuests(data.guest_ids, data.events)
     
     revalidatePath('/admin/invitations')
     
-    return { success: true, invitations }
+    return { 
+      success: true, 
+      invitations: result.invitations,
+      created: result.created,
+      skipped: result.skipped,
+      skippedGuestIds: result.skippedGuestIds
+    }
   } catch (error) {
     console.error('Create invitations action failed:', error)
     throw new Error(`Failed to create invitations: ${error instanceof Error ? error.message : 'Unknown error'}`)
