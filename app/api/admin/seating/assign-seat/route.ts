@@ -133,27 +133,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch guest data separately if guest_id exists (scoped to wedding)
-    let guest = null
+    let guestData = null
     if (seat.guest_id) {
-      const { data: guestData, error: guestError } = await supabase
+      const { data: guestDetails, error: guestDetailsError } = await supabase
         .from('guests')
         .select('id, first_name, last_name, email, invite_code')
         .eq('id', seat.guest_id)
         .eq('wedding_id', weddingId)
         .single()
 
-      if (guestError) {
-        console.error('Error fetching guest:', guestError)
+      if (guestDetailsError) {
+        console.error('Error fetching guest:', guestDetailsError)
         // Don't fail the whole operation if guest fetch fails
       } else {
-        guest = guestData
+        guestData = guestDetails
       }
     }
 
     // Attach guest data to seat
     const seatWithGuest = {
       ...seat,
-      guest
+      guest: guestData
     }
 
     // Invalidate cache to refresh seating data

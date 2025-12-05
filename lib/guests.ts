@@ -498,7 +498,7 @@ export async function exportGuestsToCsv(guests: Guest[]) {
   const csvData: CsvRow[] = guests.map(guest => ({
     first_name: guest.first_name,
     last_name: guest.last_name,
-    email: guest.email,
+    email: guest.email || '',
     phone: guest.phone || '',
     is_vip: guest.is_vip ? 'Yes' : 'No',
     gender: guest.gender || '',

@@ -784,6 +784,11 @@ export async function sendInviteWhatsApp(params: SendWhatsAppInput): Promise<{ s
     throw new Error('Invitation not found')
   }
 
+  // Validate guest data
+  if (!invitation.guest || !invitation.guest.first_name || !invitation.guest.last_name) {
+    throw new Error('Guest information is incomplete')
+  }
+
   // Get selected events
   const selectedEvents = invitation.invitation_events?.filter((ie: any) => 
     params.eventIds.includes(ie.event_id)
@@ -808,6 +813,11 @@ export async function sendInviteWhatsApp(params: SendWhatsAppInput): Promise<{ s
   const guestName = `${invitation.guest.first_name} ${invitation.guest.last_name}`
   const primaryEvent = selectedEvents[0]
   
+  // Validate event data
+  if (!primaryEvent.event || !primaryEvent.event.starts_at) {
+    throw new Error('Event information is incomplete')
+  }
+  
   // Format event date and time
   const [datePart, timePart] = primaryEvent.event.starts_at.split(' ')
   const [year, month, day] = datePart.split('-')
@@ -818,10 +828,14 @@ export async function sendInviteWhatsApp(params: SendWhatsAppInput): Promise<{ s
     day: 'numeric',
   })
   const eventTime = timePart ? timePart.substring(0, 5) : '00:00'
-  const formattedEventDate = `${eventDate} · ${eventTime}`
   
   const rsvpUrl = `${websiteUrl}/rsvp?token=${invitation.token}`
   const coupleName = emailConfigData?.branding.coupleDisplayName || 'The Couple'
+
+  // Validate required fields before calling edge function
+  if (!primaryEvent.event.name || !primaryEvent.event.venue || !invitation.guest.invite_code) {
+    throw new Error('Missing required event or guest information')
+  }
 
   // Call edge function to send WhatsApp message
   const { data, error } = await supabase.functions.invoke('send-whatsapp-invite', {
@@ -833,10 +847,10 @@ export async function sendInviteWhatsApp(params: SendWhatsAppInput): Promise<{ s
       guestName,
       coupleName,
       eventName: primaryEvent.event.name,
-      eventDate: formattedEventDate,
+      eventDate,
       eventTime,
       venue: primaryEvent.event.venue,
-      address: primaryEvent.event.address,
+      address: primaryEvent.event.address || undefined,
       rsvpUrl,
       inviteCode: invitation.guest.invite_code,
     },

@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const validGuestIds = guests?.map(g => g.id) || []
+      const validGuestIds = guests?.map((g: { id: string }) => g.id) || []
       if (validGuestIds.length !== guest_ids.length) {
         return NextResponse.json(
           { success: false, error: 'Some guests not found or access denied' },

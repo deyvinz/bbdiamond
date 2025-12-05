@@ -48,16 +48,72 @@ serve(async (req) => {
       )
     }
 
-    const payload: WhatsAppInvitePayload = await req.json()
+    // Parse and validate payload
+    let payload: WhatsAppInvitePayload
+    try {
+      payload = await req.json()
+    } catch (parseError) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Invalid JSON payload', 
+          details: parseError instanceof Error ? parseError.message : 'Unknown parsing error'
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Validate required fields
+    if (!payload.invitationId || !payload.weddingId || !payload.eventIds || !payload.phoneNumber || 
+        !payload.guestName || !payload.coupleName || !payload.eventName || !payload.eventDate || 
+        !payload.eventTime || !payload.venue || !payload.rsvpUrl || !payload.inviteCode) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Missing required fields. Required: invitationId, weddingId, eventIds, phoneNumber, guestName, coupleName, eventName, eventDate, eventTime, venue, rsvpUrl, inviteCode' 
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Helper function to sanitize variables for Twilio (remove newlines, tabs, excessive spaces)
+    const sanitizeVariable = (value: string): string => {
+      if (!value) return ''
+      // Replace newlines and tabs with spaces
+      let sanitized = value.replace(/[\n\r\t]/g, ' ')
+      // Replace multiple consecutive spaces (more than 4) with single space
+      sanitized = sanitized.replace(/ {5,}/g, ' ')
+      // Trim and ensure not empty
+      return sanitized.trim() || ''
+    }
 
     // Format content variables for Twilio WhatsApp template
     // Reduced to 4 variables to meet WhatsApp's variable-to-length ratio requirement
     // These variables will be substituted in your Twilio Content template
+    // IMPORTANT: Variables cannot contain newlines, tabs, or more than 4 consecutive spaces
+    const var1 = sanitizeVariable(payload.guestName)
+    const var2 = sanitizeVariable(`${payload.coupleName}'s ${payload.eventName}`)
+    const var3 = sanitizeVariable(`${payload.eventDate} at ${payload.eventTime} · ${payload.venue}`)
+    // For variable 4, use space instead of newline to separate URL and code
+    const var4 = sanitizeVariable(`${payload.rsvpUrl} Code: ${payload.inviteCode}`)
+
+    // Validate that no variables are empty after sanitization
+    if (!var1 || !var2 || !var3 || !var4) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'One or more required variables are empty after sanitization',
+          details: { var1: !!var1, var2: !!var2, var3: !!var3, var4: !!var4 }
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
     const contentVariables = JSON.stringify({
-      '1': payload.guestName, // Variable 1: Guest name
-      '2': `${payload.coupleName}'s ${payload.eventName}`, // Variable 2: Couple name + Event name (combined)
-      '3': `${payload.eventDate} at ${payload.eventTime} · ${payload.venue}`, // Variable 3: Date, time, and venue (combined)
-      '4': `${payload.rsvpUrl}\nCode: ${payload.inviteCode}`, // Variable 4: RSVP URL and invite code (combined)
+      '1': var1,
+      '2': var2,
+      '3': var3,
+      '4': var4,
     })
 
     // Format phone numbers with whatsapp: prefix for Twilio

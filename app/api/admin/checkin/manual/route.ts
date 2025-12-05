@@ -136,15 +136,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Get event details for response (already verified to belong to wedding)
-    const { data: eventData, error: eventError } = await supabase
+    const { data: eventData, error: eventDetailsError } = await supabase
       .from('events')
       .select('name, venue')
       .eq('id', event_id)
       .eq('wedding_id', weddingId)
       .single()
 
-    if (eventError) {
-      console.error('Error fetching event details:', eventError)
+    if (eventDetailsError) {
+      console.error('Error fetching event details:', eventDetailsError)
     }
 
     return NextResponse.json({

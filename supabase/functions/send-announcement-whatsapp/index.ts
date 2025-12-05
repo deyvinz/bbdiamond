@@ -181,17 +181,36 @@ serve(async (req) => {
           ? whatsappFromNumber 
           : `whatsapp:${whatsappFromNumber}`;
 
+        // Helper function to sanitize variables for Twilio (remove newlines, tabs, excessive spaces)
+        const sanitizeVariable = (value: string): string => {
+          if (!value) return ''
+          // Replace newlines and tabs with spaces
+          let sanitized = value.replace(/[\n\r\t]/g, ' ')
+          // Replace multiple consecutive spaces (more than 4) with single space
+          sanitized = sanitized.replace(/ {5,}/g, ' ')
+          // Trim and ensure not empty
+          return sanitized.trim() || ''
+        }
+
         // Build request body for Twilio API
         // Use WhatsApp template (required for announcements sent outside 24-hour window)
         // Format content variables for template
         // Template uses only 2 variables to meet WhatsApp's variable-to-length ratio requirement
         // Variable 1: Guest name
         // Variable 2: Subject + Content + Website URL (combined)
-        const combinedContent = `${announcement.subject || announcement.title}\n\n${truncatedContent}\n\nVisit our website: ${websiteUrl}`;
+        // IMPORTANT: Variables cannot contain newlines, tabs, or more than 4 consecutive spaces
+        const var1 = sanitizeVariable(recipient.guest_name || 'Guest')
+        const combinedContent = `${announcement.subject || announcement.title} ${truncatedContent} Visit our website: ${websiteUrl}`
+        const var2 = sanitizeVariable(combinedContent)
+        
+        // Validate that no variables are empty after sanitization
+        if (!var1 || !var2) {
+          throw new Error('One or more required variables are empty after sanitization')
+        }
         
         const contentVariables = JSON.stringify({
-          '1': recipient.guest_name || 'Guest',
-          '2': combinedContent,
+          '1': var1,
+          '2': var2,
         });
         
         const formData = new URLSearchParams();
