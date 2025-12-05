@@ -142,7 +142,6 @@ export default function RSVPForm(){
       resolveInvitationByToken(token)
         .then(async invitationData => {
           if (invitationData) {
-            console.log('Invitation data found by token:', invitationData)
             // Set form values
             setValue('invite_code', invitationData.guest.invite_code)
             setValue('email', invitationData.guest.email)
@@ -154,7 +153,6 @@ export default function RSVPForm(){
             setCurrentRsvpStatus(rsvpStatus)
           } else {
             // If not found by token, try using token as invite code
-            console.log('Token not found, trying as invite code:', token)
             const inviteCodeData = await resolveInvitationByInviteCode(token)
             if (inviteCodeData) {
               setValue('invite_code', inviteCodeData.guest.invite_code)
@@ -298,7 +296,6 @@ export default function RSVPForm(){
                       document.body.appendChild(link)
                       link.click()
                       document.body.removeChild(link)
-                      console.log('Calling toast for QR code save')
                       toast({
                         title: "QR Code Saved!",
                         description: "Your QR code has been downloaded to your device.",
@@ -336,7 +333,6 @@ export default function RSVPForm(){
                         document.body.appendChild(link)
                         link.click()
                         document.body.removeChild(link)
-                        console.log('Calling toast for digital pass save')
                         toast({
                           title: "Digital Pass Saved!",
                           description: "Your wedding pass has been downloaded to your device.",
@@ -982,6 +978,14 @@ export default function RSVPForm(){
                   </ul>
                 )}
               </div>
+            )}
+
+            {/* RSVP Footer */}
+            {config?.rsvp_footer && (
+              <div 
+                className="mt-6 pt-6 border-t border-gray-200 prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: config.rsvp_footer }}
+              />
             )}
 
             {/* Submit Button */}

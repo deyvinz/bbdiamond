@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { cookies } from 'next/headers'
 import { supabaseService } from './supabase-service'
 import type { WeddingContext } from './wedding-context'
+import { normalizeDomain } from './utils'
 
 const DEPLOYMENT_MODE = process.env.DEPLOYMENT_MODE || 'saas'
 const DEFAULT_WEDDING_ID = process.env.DEFAULT_WEDDING_ID // For self-hosted mode
@@ -56,14 +57,23 @@ async function resolveWeddingFromDomain(host: string): Promise<string | null> {
 
     // Remove port from host (e.g., "localhost:3000" -> "localhost")
     const hostname = host.split(':')[0]
+    const normalizedDomain = normalizeDomain(hostname)
 
-    // Check for custom domain match
-    const { data: customDomainMatch, error: customError } = await supabase
+    // Check for custom domain match (both exact match and normalized version)
+    // This handles both 'boandjane.com' and 'www.boandjane.com' matching the same wedding
+    let query = supabase
       .from('wedding_domains')
       .select('wedding_id')
-      .eq('domain', hostname)
       .eq('is_verified', true)
-      .single()
+    
+    // Use OR condition if domain differs from normalized (i.e., has www prefix)
+    if (hostname !== normalizedDomain) {
+      query = query.or(`domain.eq.${hostname},domain.eq.${normalizedDomain}`)
+    } else {
+      query = query.eq('domain', hostname)
+    }
+    
+    const { data: customDomainMatch, error: customError } = await query.maybeSingle()
 
     if (!customError && customDomainMatch?.wedding_id) {
       return customDomainMatch.wedding_id

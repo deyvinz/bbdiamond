@@ -47,7 +47,6 @@ export default function WeddingPartyAdminPage() {
       const data = await response.json()
       
       if (data.success) {
-        console.log('Wedding party members loaded:', data.members)
         setMembers(data.members)
       } else {
         toast({
@@ -289,11 +288,6 @@ export default function WeddingPartyAdminPage() {
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {members.map((member) => {
-            // Debug logging
-            if (member.image_url) {
-              console.log(`Member ${member.name} has image_url:`, member.image_url)
-            }
-            
             return (
               <Card key={member.id} className="p-6">
                 <div className="flex flex-col items-center text-center">

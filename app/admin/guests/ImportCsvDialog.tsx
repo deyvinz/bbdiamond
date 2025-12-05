@@ -110,11 +110,24 @@ function ImportCsvDialog({ open, onOpenChange, onImportComplete }: ImportCsvDial
             errors: []
           })
         } catch (err: any) {
+          // Handle Zod validation errors
+          let errorMessages: string[] = []
+          if (err.errors && Array.isArray(err.errors)) {
+            errorMessages = err.errors.map((error: any) => {
+              const field = error.path?.join('.') || 'unknown field'
+              return `${field}: ${error.message}`
+            })
+          } else if (err.message) {
+            errorMessages = [err.message]
+          } else {
+            errorMessages = ['Validation failed']
+          }
+          
           results.push({
             row: index + 2,
             data: row,
             valid: false,
-            errors: err.errors?.map((error: any) => error.message) || [err.message]
+            errors: errorMessages
           })
         }
       })
@@ -212,8 +225,14 @@ function ImportCsvDialog({ open, onOpenChange, onImportComplete }: ImportCsvDial
               <p className="text-sm text-gray-600 mb-2">
                 First row should contain headers: {expectedCsvColumns.join(', ')}
               </p>
+              <p className="text-sm text-gray-600 mb-2">
+                <strong>Required columns:</strong> First Name
+              </p>
+              <p className="text-sm text-gray-600 mb-2">
+                <strong>Optional columns:</strong> Last Name, Email, Phone Number, Gender (male/female), Total Guests (1-20, defaults to 1), Household Name
+              </p>
               <p className="text-sm text-gray-600">
-                Example: John,Doe,john@example.com,+1234567890,true,2,Vegetarian,Smith Family
+                Example: John,Doe,john@example.com,+1234567890,male,4,Smith Family
               </p>
             </div>
           </div>
@@ -223,13 +242,13 @@ function ImportCsvDialog({ open, onOpenChange, onImportComplete }: ImportCsvDial
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                <Badge variant="outline" className="text-green-600">
-                  <CheckCircle className="h-3 w-3 mr-1" />
+                <Badge className="bg-green-100 text-green-800 border-green-300">
+                  <CheckCircle className="h-3 w-3 mr-1 text-green-800" />
                   {validCount} valid
                 </Badge>
                 {invalidCount > 0 && (
-                  <Badge variant="outline" className="text-red-600">
-                    <XCircle className="h-3 w-3 mr-1" />
+                  <Badge className="bg-red-100 text-red-800 border-red-300">
+                    <XCircle className="h-3 w-3 mr-1 text-red-800" />
                     {invalidCount} invalid
                   </Badge>
                 )}
@@ -266,35 +285,35 @@ function ImportCsvDialog({ open, onOpenChange, onImportComplete }: ImportCsvDial
             <div className="border rounded-lg overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Row</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>VIP</TableHead>
-                    <TableHead>Plus Ones</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Errors</TableHead>
-                  </TableRow>
+                    <TableRow>
+                      <TableHead>Row</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Gender</TableHead>
+                      <TableHead>Total Guests</TableHead>
+                      <TableHead>Household Name</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Errors</TableHead>
+                    </TableRow>
                 </TableHeader>
                 <TableBody>
                   {validationResults.slice(0, 10).map((result) => (
                     <TableRow key={result.row}>
                       <TableCell>{result.row}</TableCell>
                       <TableCell>
-                        {result.data.first_name} {result.data.last_name}
+                        {result.data.first_name} {result.data.last_name || ''}
                       </TableCell>
-                      <TableCell>{result.data.email}</TableCell>
+                      <TableCell>{result.data.email || '-'}</TableCell>
                       <TableCell>{result.data.phone || '-'}</TableCell>
-                      <TableCell>
-                        {result.data.is_vip ? 'Yes' : 'No'}
-                      </TableCell>
-                      <TableCell>{result.data.plus_ones_allowed}</TableCell>
+                      <TableCell>{result.data.gender || '-'}</TableCell>
+                      <TableCell>{result.data.total_guests || 1}</TableCell>
+                      <TableCell>{result.data.household_name || '-'}</TableCell>
                       <TableCell>
                         {result.valid ? (
-                          <Badge className="bg-green-100 text-green-800">Valid</Badge>
+                          <Badge className="bg-green-100">Valid</Badge>
                         ) : (
-                          <Badge className="bg-red-100 text-red-800">Invalid</Badge>
+                          <Badge className="bg-red-100">Invalid</Badge>
                         )}
                       </TableCell>
                       <TableCell>

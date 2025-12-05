@@ -2,11 +2,12 @@ export interface Guest {
   id: string
   first_name: string
   last_name: string
-  email: string
+  email?: string
   phone?: string
   household_id?: string
   is_vip: boolean
   gender?: 'male' | 'female'
+  total_guests?: number
   created_at: string
   updated_at: string
   household?: {

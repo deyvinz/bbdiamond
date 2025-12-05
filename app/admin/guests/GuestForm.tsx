@@ -46,6 +46,7 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
     household_name: string
     is_vip: boolean
     gender: 'male' | 'female' | ''
+    total_guests: number
   }>({
     first_name: '',
     last_name: '',
@@ -55,6 +56,7 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
     household_name: '',
     is_vip: false,
     gender: '',
+    total_guests: 1,
   })
   const [invitationData, setInvitationData] = useState<{
     event_ids: string[]
@@ -78,12 +80,13 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
         setFormData({
           first_name: guest.first_name,
           last_name: guest.last_name,
-          email: guest.email,
+          email: guest.email || '',
           phone: guest.phone || '',
           household_id: guest.household_id || 'none',
           household_name: '',
           is_vip: guest.is_vip,
           gender: guest.gender || '',
+          total_guests: guest.total_guests || 1,
         })
       } else {
         setFormData({
@@ -95,6 +98,7 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
           household_name: '',
           is_vip: false,
           gender: '',
+          total_guests: 1,
         })
       }
       setInvitationData({ event_ids: [] })
@@ -174,17 +178,25 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
     
-    // Manual validation for required fields
+    // Required fields validation
     if (!formData.first_name.trim()) {
       newErrors.first_name = 'First name is required'
     }
-    if (!formData.last_name.trim()) {
-      newErrors.last_name = 'Last name is required'
+    
+    // Optional fields validation - only validate format if provided
+    // Last name is optional - no validation needed
+    
+    // Email is optional, but if provided, must be valid format
+    if (formData.email && formData.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(formData.email.trim())) {
+        newErrors.email = 'Invalid email address'
+      }
     }
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required'
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Invalid email address'
+    
+    // Total guests validation
+    if (formData.total_guests < 1 || formData.total_guests > 20) {
+      newErrors.total_guests = 'Total guests must be between 1 and 20'
     }
     
     // Validate invitation data if creating invitation
@@ -209,11 +221,15 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
     setLoading(true)
     try {
       const guestPayload = {
-        ...formData,
+        first_name: formData.first_name.trim(),
+        last_name: formData.last_name?.trim() || undefined,
+        email: formData.email?.trim() || undefined,
+        phone: formData.phone?.trim() || undefined,
         household_id: formData.household_id === 'none' ? undefined : formData.household_id || undefined,
-        household_name: formData.household_name || undefined,
-        phone: formData.phone || undefined,
+        household_name: formData.household_name?.trim() || undefined,
+        is_vip: formData.is_vip,
         gender: formData.gender || undefined,
+        total_guests: formData.total_guests || 1,
       }
 
       const invitationPayload = createInvitation && invitationData.event_ids.length > 0 ? {
@@ -250,6 +266,9 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
           <DialogDescription>
             {guest ? 'Update guest information and invitation details.' : 'Add a new guest to the wedding list.'}
           </DialogDescription>
+          <div className="text-xs text-gray-500 mt-2">
+            <span className="text-red-500">*</span> Required fields
+          </div>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6 px-1">
@@ -270,7 +289,7 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
                 )}
               </div>
               <div>
-                <Label htmlFor="last_name">Last Name *</Label>
+                <Label htmlFor="last_name">Last Name</Label>
                 <Input
                   id="last_name"
                   value={formData.last_name}
@@ -285,13 +304,14 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="email">Email *</Label>
+                <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
                   className={errors.email ? 'border-red-500' : ''}
+                  placeholder="Optional"
                 />
                 {errors.email && (
                   <p className="text-sm text-red-500 mt-1">{errors.email}</p>
@@ -331,6 +351,32 @@ function GuestForm({ open, onOpenChange, guest, onSave }: GuestFormProps) {
                 />
                 <Label htmlFor="is_vip">VIP Guest</Label>
               </div>
+            </div>
+
+            <div>
+              <Label htmlFor="total_guests">Total Guests (Household Size)</Label>
+              <Input
+                id="total_guests"
+                type="number"
+                min="1"
+                max="20"
+                value={formData.total_guests}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value, 10)
+                  if (!isNaN(value) && value >= 1 && value <= 20) {
+                    handleInputChange('total_guests', value)
+                  } else if (e.target.value === '') {
+                    handleInputChange('total_guests', 1)
+                  }
+                }}
+                className={errors.total_guests ? 'border-red-500' : ''}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Total number of guests allowed for this household head. Max plus-ones = total_guests - 1.
+              </p>
+              {errors.total_guests && (
+                <p className="text-sm text-red-500 mt-1">{errors.total_guests}</p>
+              )}
             </div>
           </div>
 

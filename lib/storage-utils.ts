@@ -45,15 +45,12 @@ export async function bucketExists(bucketName: string): Promise<boolean> {
       },
     })
     
-    console.log(`[bucketExists] Check for ${bucketName}: status ${response.status}`)
-    
     if (response.status === 404 || response.status === 400) {
       return false
     }
     
     if (response.ok) {
       const data = await response.json()
-      console.log(`[bucketExists] Bucket ${bucketName} exists:`, !!data)
       return !!data
     }
     
@@ -76,16 +73,12 @@ export async function bucketExists(bucketName: string): Promise<boolean> {
 export async function ensureWeddingBucket(weddingId: string): Promise<string> {
   const bucketName = getWeddingBucketName(weddingId)
   
-  console.log(`[ensureWeddingBucket] Starting for bucket: ${bucketName}`)
   
   try {
     // Check if bucket exists
-    console.log(`[ensureWeddingBucket] Checking if bucket exists: ${bucketName}`)
     const exists = await bucketExists(bucketName)
-    console.log(`[ensureWeddingBucket] Bucket exists: ${exists}`)
     
     if (exists) {
-      console.log(`[ensureWeddingBucket] Bucket ${bucketName} already exists, returning`)
       return bucketName
     }
     
@@ -99,8 +92,6 @@ export async function ensureWeddingBucket(weddingId: string): Promise<string> {
     }
     
     // Create bucket via REST API using Supabase Storage Management API
-    console.log(`[ensureWeddingBucket] Attempting to create bucket: ${bucketName}`)
-    console.log(`[ensureWeddingBucket] Using URL: ${supabaseUrl}/storage/v1/bucket`)
     const response = await fetch(`${supabaseUrl}/storage/v1/bucket`, {
       method: 'POST',
       headers: {
@@ -126,15 +117,12 @@ export async function ensureWeddingBucket(weddingId: string): Promise<string> {
     })
     
     const responseText = await response.text()
-    console.log(`[ensureWeddingBucket] Response status: ${response.status} ${response.statusText}`)
-    console.log(`[ensureWeddingBucket] Response body: ${responseText}`)
     
     if (!response.ok) {
       let errorMessage = `Failed to create bucket: ${response.status} ${response.statusText}`
       
       try {
         const errorJson = JSON.parse(responseText)
-        console.log(`[ensureWeddingBucket] Parsed error JSON:`, errorJson)
         if (errorJson.message) {
           errorMessage = errorJson.message
         }
@@ -146,7 +134,6 @@ export async function ensureWeddingBucket(weddingId: string): Promise<string> {
             errorJson.message?.includes('duplicate') ||
             errorJson.error?.includes('already exists') ||
             errorJson.error?.includes('duplicate')) {
-          console.log(`[ensureWeddingBucket] Bucket ${bucketName} already exists (created by another request)`)
           return bucketName
         }
       } catch (parseError) {
@@ -158,7 +145,6 @@ export async function ensureWeddingBucket(weddingId: string): Promise<string> {
       throw new Error(errorMessage)
     }
     
-    console.log(`[ensureWeddingBucket] Successfully created bucket: ${bucketName}`)
     return bucketName
   } catch (error) {
     console.error(`Error ensuring bucket ${bucketName}:`, error)

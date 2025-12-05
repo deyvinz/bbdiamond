@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { bumpNamespaceVersion } from '@/lib/cache'
+import { requireWeddingId } from '@/lib/api-wedding-context'
 import type { CreateAnnouncementRequest, AnnouncementListResponse, AnnouncementFilters, PaginationParams } from '@/lib/types/announcements'
 
 export async function GET(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '20')
@@ -15,10 +17,11 @@ export async function GET(request: NextRequest) {
 
     const supabase = await supabaseServer()
 
-    // Build query
+    // Build query (scoped to wedding)
     let query = supabase
       .from('announcements')
       .select('*', { count: 'exact' })
+      .eq('wedding_id', weddingId)
 
     // Apply filters
     if (status) {
@@ -74,6 +77,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const body: CreateAnnouncementRequest = await request.json()
     const { title, content, subject, guest_ids, send_to_all, scheduled_at, batch_size } = body
 
@@ -101,9 +105,35 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Verify guest_ids belong to this wedding if provided
+    if (guest_ids && guest_ids.length > 0) {
+      const supabase = await supabaseServer()
+      const { data: guests, error: guestsError } = await supabase
+        .from('guests')
+        .select('id')
+        .in('id', guest_ids)
+        .eq('wedding_id', weddingId)
+
+      if (guestsError) {
+        return NextResponse.json(
+          { success: false, error: 'Failed to verify guests' },
+          { status: 500 }
+        )
+      }
+
+      const validGuestIds = guests?.map((g: { id: string }) => g.id) || []
+      if (validGuestIds.length !== guest_ids.length) {
+        return NextResponse.json(
+          { success: false, error: 'Some guests not found or access denied' },
+          { status: 403 }
+        )
+      }
+    }
+
     const supabase = await supabaseServer()
 
     // Call the database function to create announcement with recipients
+    // Note: The RPC function should handle wedding_id, but we verify it here
     const { data, error } = await supabase.rpc('create_announcement_with_recipients', {
       p_title: title,
       p_content: content,
@@ -111,7 +141,8 @@ export async function POST(request: NextRequest) {
       p_guest_ids: guest_ids || null,
       p_send_to_all: send_to_all || false,
       p_scheduled_at: scheduled_at || null,
-      p_batch_size: batch_size || 50
+      p_batch_size: batch_size || 50,
+      p_wedding_id: weddingId
     })
 
     if (error) {

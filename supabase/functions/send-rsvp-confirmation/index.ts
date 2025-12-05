@@ -479,13 +479,7 @@ function generateRsvpConfirmationText({
 
 serve(async (req: Request) => {
   try {
-    console.log('Edge function called with method:', req.method);
     const payload: RsvpConfirmationPayload = await req.json();
-    console.log('Payload received:', {
-      to: payload.to,
-      subject: payload.subject,
-      hasMeta: !!payload.meta,
-    });
 
     // Validate payload
     if (!payload.to || !payload.subject || !payload.meta) {
@@ -592,7 +586,6 @@ serve(async (req: Request) => {
     });
 
     // Send email with high priority headers
-    console.log('Sending email to:', payload.to, 'with subject:', subject, 'from:', fromAddress);
     const { data, error } = await resend.emails.send({
       from: fromAddress,
       to: payload.to,
@@ -619,8 +612,6 @@ serve(async (req: Request) => {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-
-    console.log('Email sent successfully:', data);
 
     // Log successful email send (if mail_logs table exists and has the right structure)
     try {

@@ -251,12 +251,15 @@ serve(async (req) => {
         });
 
         if (emailResult.ok) {
+          const emailData = await emailResult.json();
           // Update recipient status to sent
           await supabase
             .from('announcement_recipients')
             .update({
               status: 'sent',
               sent_at: new Date().toISOString(),
+              channel: 'email',
+              message_id: emailData?.id,
             })
             .eq('id', recipient.id);
 
@@ -268,17 +271,20 @@ serve(async (req) => {
       } catch (error) {
         console.error(`Error sending email to ${recipient.email}:`, error);
 
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
         // Update recipient status to failed
         await supabase
           .from('announcement_recipients')
           .update({
             status: 'failed',
-            error_message: error.message,
+            error_message: errorMessage,
+            channel: 'email',
           })
           .eq('id', recipient.id);
 
         results.failed++;
-        results.errors.push(`${recipient.email}: ${error.message}`);
+        results.errors.push(`${recipient.email}: ${errorMessage}`);
       }
     }
 
@@ -295,17 +301,17 @@ serve(async (req) => {
       .eq('id', batch_id);
 
     // Update announcement statistics
+    const { data: currentAnnouncement } = await supabase
+      .from('announcements')
+      .select('sent_count, failed_count')
+      .eq('id', announcement_id)
+      .single();
+
     await supabase
       .from('announcements')
       .update({
-        sent_count: supabase.rpc('increment', {
-          column: 'sent_count',
-          amount: results.sent,
-        }),
-        failed_count: supabase.rpc('increment', {
-          column: 'failed_count',
-          amount: results.failed,
-        }),
+        sent_count: (currentAnnouncement?.sent_count || 0) + results.sent,
+        failed_count: (currentAnnouncement?.failed_count || 0) + results.failed,
       })
       .eq('id', announcement_id);
 

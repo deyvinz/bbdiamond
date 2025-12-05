@@ -150,7 +150,7 @@ export default function GuestDetailsDialog({ open, guest, config, onOpenChange, 
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span className="font-serif text-xl">{guest.first_name} {guest.last_name}</span>
+            <span className="font-serif text-xl">{guest.first_name} {guest.last_name || ''}</span>
             {guest.is_vip && <Badge className="bg-gold-600 text-white">VIP</Badge>}
           </DialogTitle>
         </DialogHeader>
@@ -161,7 +161,7 @@ export default function GuestDetailsDialog({ open, guest, config, onOpenChange, 
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <div className="text-black/60">Email</div>
-                <div>{guest.email}</div>
+                <div>{guest.email || 'No email provided'}</div>
               </div>
               <div>
                 <div className="text-black/60">Phone</div>
@@ -241,7 +241,7 @@ export default function GuestDetailsDialog({ open, guest, config, onOpenChange, 
           
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
-              Choose which events to invite {guest?.first_name} {guest?.last_name} to:
+              Choose which events to invite {guest?.first_name} {guest?.last_name || ''} to:
             </p>
             
             {loadingEvents ? (
@@ -251,7 +251,7 @@ export default function GuestDetailsDialog({ open, guest, config, onOpenChange, 
             ) : availableEvents.length === 0 ? (
               <div className="text-center py-4">
                 <div className="text-sm text-gray-500">
-                  {guest?.first_name} {guest?.last_name} already has invitations to all available events.
+                  {guest?.first_name} {guest?.last_name || ''} already has invitations to all available events.
                 </div>
               </div>
             ) : (

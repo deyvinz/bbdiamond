@@ -14,7 +14,7 @@ export default async function Footer(){
           <p className="mb-2">{coupleName}</p>
         )}
         Made with love by <a 
-          href="https://www.glumia.com" 
+          href="https://glumia.com" 
           className="text-gold-500 hover:text-gold-600 transition-all duration-200 hover:scale-105 active:scale-95"
           target="_blank"
           rel="noopener noreferrer"

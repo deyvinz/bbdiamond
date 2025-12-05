@@ -196,6 +196,17 @@ export default function ViewInvitationDialog({
                      </Button>
                    </div>
                  </div>
+                 {invitation.guest.total_guests && (
+                   <div>
+                     <label className="text-sm font-medium text-gray-500">Total Guests (Household Size)</label>
+                     <p className="text-lg font-semibold">
+                       {invitation.guest.total_guests}
+                       <span className="text-sm font-normal text-gray-500 ml-2">
+                         (Max plus-ones: {invitation.guest.total_guests - 1})
+                       </span>
+                     </p>
+                   </div>
+                 )}
                 <div className="xl:col-span-3">
                   <label className="text-sm font-medium text-gray-500">Invitation Token</label>
                   <div className="flex items-center gap-2">
@@ -279,6 +290,11 @@ export default function ViewInvitationDialog({
                                       <span className="text-xs text-gray-500 ml-1">(Fixed - Plus-ones disabled)</span>
                                     )}
                                   </span>
+                                  {invitation.guest.total_guests && config?.plus_ones_enabled && (
+                                    <div className="text-xs text-gray-500 mt-1">
+                                      Max allowed: {invitation.guest.total_guests} (based on guest's total_guests)
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               <div className="space-y-2 min-w-0">

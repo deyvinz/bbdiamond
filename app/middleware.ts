@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { normalizeDomain, isMainDomain } from '@/lib/utils'
 
 const DEPLOYMENT_MODE = process.env.DEPLOYMENT_MODE || 'saas'
 const DEFAULT_WEDDING_ID = process.env.DEFAULT_WEDDING_ID
@@ -18,6 +19,28 @@ export async function middleware(req: Request) {
 
   // Always set pathname header for layout to use
   res.headers.set('x-pathname', url.pathname)
+
+  // Store route protection: Only allow access from main domain (luwani.com) or localhost in dev
+  const hostname = url.hostname
+  const isStoreRoute = url.pathname.startsWith('/store') || 
+                       url.pathname.startsWith('/dashboard') || 
+                       url.pathname.startsWith('/onboarding')
+  
+  if (isStoreRoute) {
+    // In development, allow localhost
+    const isLocalhost = hostname === 'localhost' || 
+                       hostname.startsWith('127.0.0.1') || 
+                       hostname.startsWith('192.168.') ||
+                       hostname.startsWith('10.0.')
+    
+    // Check if domain is main domain (luwani.com with or without www)
+    if (!isLocalhost && !isMainDomain(hostname)) {
+      // Redirect to main domain with same path
+      const mainDomain = process.env.NEXT_PUBLIC_APP_URL || 'https://luwani.com'
+      const redirectUrl = new URL(url.pathname + url.search, mainDomain)
+      return NextResponse.redirect(redirectUrl)
+    }
+  }
 
   // Skip middleware for static files, Next.js internals, storefront, and admin routes
   // Also skip RSC (React Server Component) prefetch requests to prevent blocking
@@ -169,14 +192,23 @@ async function resolveWeddingFromDomain(
 
     // Remove port if present
     const domain = hostname.split(':')[0]
+    const normalizedDomain = normalizeDomain(domain)
 
-    // Check for custom domain match
-    const { data: customDomain } = await supabase
+    // Check for custom domain match (both exact match and normalized version)
+    // This handles both 'boandjane.com' and 'www.boandjane.com' matching the same wedding
+    let query = supabase
       .from('wedding_domains')
       .select('wedding_id')
-      .eq('domain', domain)
       .eq('is_verified', true)
-      .single()
+    
+    // Use OR condition if domain differs from normalized (i.e., has www prefix)
+    if (domain !== normalizedDomain) {
+      query = query.or(`domain.eq.${domain},domain.eq.${normalizedDomain}`)
+    } else {
+      query = query.eq('domain', domain)
+    }
+    
+    const { data: customDomain } = await query.maybeSingle()
 
     if (customDomain?.wedding_id) {
       return customDomain.wedding_id

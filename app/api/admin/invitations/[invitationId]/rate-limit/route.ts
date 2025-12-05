@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
+import { requireWeddingId } from '@/lib/api-wedding-context'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ invitationId: string }> }
 ) {
   try {
+    const weddingId = await requireWeddingId(request)
     const resolvedParams = await params
     const supabase = await supabaseServer()
     const { data: { user } } = await supabase.auth.getUser()
@@ -37,11 +39,12 @@ export async function GET(
     const startOfDay = `${today}T00:00:00.000Z`
     const endOfDay = `${today}T23:59:59.999Z`
 
-    // Get invitation token first
+    // Get invitation token first (scoped to wedding)
     const { data: invitation } = await supabase
       .from('invitations')
       .select('token')
       .eq('id', resolvedParams.invitationId)
+      .eq('wedding_id', weddingId)
       .single()
 
     if (!invitation) {

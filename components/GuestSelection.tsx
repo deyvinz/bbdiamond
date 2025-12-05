@@ -36,14 +36,12 @@ export default function GuestSelection({
     if (!searchTerm.trim()) {
       setFilteredGuests(guests)
     } else {
-      console.log('Searching for:', searchTerm, 'in', guests.length, 'guests')
       const filtered = guests.filter(guest => 
         guest.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         guest.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         guest.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         guest.household?.name?.toLowerCase().includes(searchTerm.toLowerCase())
       )
-      console.log('Filtered results:', filtered.length)
       setFilteredGuests(filtered)
     }
   }, [searchTerm, guests])
@@ -60,7 +58,6 @@ export default function GuestSelection({
       
       // The guests API returns { guests: [...], total_count: ... }
       if (data.guests && Array.isArray(data.guests)) {
-        console.log('Loaded guests:', data.guests.length)
         const guestsWithSelection = data.guests.map((guest: any) => ({
           ...guest,
           selected: selectedGuests.includes(guest.id)

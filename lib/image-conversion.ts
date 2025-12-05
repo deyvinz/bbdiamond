@@ -35,8 +35,6 @@ export async function convertImageIfNeeded(
     const baseFilename = originalFilename.replace(/\.[^.]+$/, '')
     const newFilename = `${baseFilename}.jpg`
 
-    console.log(`[convertImageIfNeeded] Converted ${originalFilename} (${mimeType}) to ${newFilename}`)
-
     return {
       buffer: convertedBuffer,
       filename: newFilename,

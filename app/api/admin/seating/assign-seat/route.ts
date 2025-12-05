@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { bumpNamespaceVersion } from '@/lib/cache'
+import { requireWeddingId } from '@/lib/api-wedding-context'
 
 export async function POST(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const { table_id, guest_id, seat_number } = await request.json()
 
     if (!table_id || !guest_id || !seat_number) {
@@ -15,7 +17,51 @@ export async function POST(request: NextRequest) {
 
     const supabase = await supabaseServer()
 
-    // Check if the seat is already taken
+    // Verify table belongs to this wedding (via event)
+    const { data: table, error: tableError } = await supabase
+      .from('seating_tables')
+      .select(`
+        id,
+        event_id,
+        event:events!inner(
+          id,
+          wedding_id
+        )
+      `)
+      .eq('id', table_id)
+      .single()
+
+    if (tableError || !table) {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Table not found' 
+      }, { status: 404 })
+    }
+
+    const event = table.event as any
+    if (!event || event.wedding_id !== weddingId) {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Table not found or access denied' 
+      }, { status: 403 })
+    }
+
+    // Verify guest belongs to this wedding
+    const { data: guest, error: guestError } = await supabase
+      .from('guests')
+      .select('id, wedding_id')
+      .eq('id', guest_id)
+      .eq('wedding_id', weddingId)
+      .single()
+
+    if (guestError || !guest) {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Guest not found or access denied' 
+      }, { status: 403 })
+    }
+
+    // Check if the seat is already taken (filtered by table which is already verified)
     const { data: existingSeat, error: checkError } = await supabase
       .from('seats')
       .select('id, guest_id')
@@ -39,6 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if the guest is already assigned to a seat at this table
+    // Note: We don't need wedding_id filter here since table_id is already verified
     const { data: existingGuestSeat, error: guestCheckError } = await supabase
       .from('seats')
       .select('id')
@@ -85,27 +132,28 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
-    // Fetch guest data separately if guest_id exists
-    let guest = null
+    // Fetch guest data separately if guest_id exists (scoped to wedding)
+    let guestData = null
     if (seat.guest_id) {
-      const { data: guestData, error: guestError } = await supabase
+      const { data: guestDetails, error: guestDetailsError } = await supabase
         .from('guests')
         .select('id, first_name, last_name, email, invite_code')
         .eq('id', seat.guest_id)
+        .eq('wedding_id', weddingId)
         .single()
 
-      if (guestError) {
-        console.error('Error fetching guest:', guestError)
+      if (guestDetailsError) {
+        console.error('Error fetching guest:', guestDetailsError)
         // Don't fail the whole operation if guest fetch fails
       } else {
-        guest = guestData
+        guestData = guestDetails
       }
     }
 
     // Attach guest data to seat
     const seatWithGuest = {
       ...seat,
-      guest
+      guest: guestData
     }
 
     // Invalidate cache to refresh seating data

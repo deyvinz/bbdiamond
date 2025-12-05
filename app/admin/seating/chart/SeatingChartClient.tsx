@@ -225,7 +225,6 @@ export default function SeatingChartClient() {
   const handleTableDrop = async (e: React.DragEvent, tableId: string, seatNumber: number) => {
     e.preventDefault()
     
-    console.log('handleTableDrop called for table:', tableId, 'seat:', seatNumber)
     
     // Try to get guest data from JSON first, then fallback to ID lookup
     let guest = null
@@ -233,16 +232,13 @@ export default function SeatingChartClient() {
       const guestJson = e.dataTransfer.getData('application/json')
       if (guestJson) {
         guest = JSON.parse(guestJson)
-        console.log('Guest data from JSON:', guest)
       }
     } catch (error) {
-      console.log('Failed to parse guest JSON, trying ID lookup')
     }
     
     // Fallback to ID lookup
     if (!guest) {
       const guestId = e.dataTransfer.getData('text/plain')
-      console.log('Guest ID from text:', guestId)
       if (!guestId) {
         console.error('No guest data found in drag transfer')
         return
@@ -255,7 +251,6 @@ export default function SeatingChartClient() {
       return
     }
 
-    console.log('Assigning guest:', guest.first_name, guest.last_name, 'to seat:', seatNumber)
 
     try {
       const response = await fetch('/api/admin/seating/assign-seat', {
@@ -467,7 +462,6 @@ export default function SeatingChartClient() {
                       e.dataTransfer.setData('text/plain', guest.id)
                       e.dataTransfer.setData('application/json', JSON.stringify(guest))
                       handleDragStart(guest)
-                      console.log('Drag started for guest:', guest.first_name, guest.last_name)
                     }
                   }}
                   onDragEnd={handleDragEnd}
@@ -649,7 +643,6 @@ export default function SeatingChartClient() {
                             }}
                             onDrop={(e) => {
                               e.preventDefault()
-                              console.log('Drop event triggered on seat:', seatNumber)
                               if (!isOccupied) {
                                 e.currentTarget.classList.remove('bg-gold-300', 'border-gold-500')
                                 handleTableDrop(e, table.id, seatNumber)

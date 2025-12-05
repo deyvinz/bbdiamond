@@ -21,9 +21,6 @@ export async function POST(request: NextRequest) {
       actualToken = url.searchParams.get('token') || token
     }
 
-    console.log('Original token:', token)
-    console.log('Extracted token:', actualToken)
-
     const supabase = await supabaseServer()
     
     // Find invitation by token (scoped to this wedding)
@@ -50,10 +47,7 @@ export async function POST(request: NextRequest) {
       .eq('wedding_id', weddingId)
       .single()
 
-    console.log('Token lookup result:', { actualToken, invitationError, invitation })
-
     if (invitationError || !invitation) {
-      console.log('Invitation not found or error:', { invitationError, invitation })
       return NextResponse.json({ 
         success: false, 
         message: 'Invalid token or invitation not found' 
@@ -64,7 +58,6 @@ export async function POST(request: NextRequest) {
     const acceptedEvents = invitation.invitation_events.filter((ie: any) => ie.status === 'accepted')
     
     if (acceptedEvents.length === 0) {
-      console.log('No accepted events found:', invitation.invitation_events)
       return NextResponse.json({ 
         success: false, 
         message: 'No accepted invitations found for this token' 
@@ -90,7 +83,6 @@ export async function POST(request: NextRequest) {
     const { data: existingCheckin, error: checkError } = await checkinQuery
 
     if (checkError && checkError.code !== 'PGRST116') {
-      console.error('Error checking existing check-in:', checkError)
       return NextResponse.json({ 
         success: false, 
         message: 'Failed to check existing check-in status' 
@@ -130,22 +122,21 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (checkinError) {
-      console.error('Check-in error:', checkinError)
       return NextResponse.json({ 
         success: false, 
         message: 'Failed to check in guest' 
       }, { status: 500 })
     }
 
-    // Get event details for response
+    // Get event details for response (verify it belongs to wedding)
     const { data: eventData, error: eventError } = await supabase
       .from('events')
       .select('name, venue')
       .eq('id', firstEvent.event_id)
+      .eq('wedding_id', finalWeddingId)
       .single()
 
     if (eventError) {
-      console.error('Error fetching event details:', eventError)
     }
 
     return NextResponse.json({
@@ -171,14 +162,34 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const weddingId = await requireWeddingId(request)
     const { searchParams } = new URL(request.url)
     const eventId = searchParams.get('event_id')
 
     const supabase = await supabaseServer()
 
-    // Get check-in statistics
+    // Verify event belongs to this wedding if eventId is provided
+    if (eventId) {
+      const { data: event, error: eventError } = await supabase
+        .from('events')
+        .select('id, wedding_id')
+        .eq('id', eventId)
+        .eq('wedding_id', weddingId)
+        .single()
+
+      if (eventError || !event) {
+        return NextResponse.json({ 
+          success: false, 
+          message: 'Event not found or access denied' 
+        }, { status: 403 })
+      }
+    }
+
+    // Get check-in statistics (database function should filter by wedding_id if it exists)
+    // Note: If the RPC function doesn't support wedding_id, we may need to filter results client-side
     const { data: stats, error } = await supabase.rpc('get_checkin_stats', {
-      p_event_id: eventId || null
+      p_event_id: eventId || null,
+      p_wedding_id: weddingId || null
     })
 
     if (error) {

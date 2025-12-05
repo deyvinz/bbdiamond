@@ -59,9 +59,6 @@ export async function POST(request: NextRequest) {
         .single()
 
       isStaff = !!profile || false
-      console.log(`[upload] User profile check - isOwner: ${isOwner}, isStaff: ${isStaff}, userId: ${user.id}, weddingId: ${weddingId}`)
-    } else {
-      console.log(`[upload] User is owner - userId: ${user.id}, weddingId: ${weddingId}`)
     }
 
     if (!isOwner && !isStaff) {
@@ -122,19 +119,13 @@ export async function POST(request: NextRequest) {
     // Ensure bucket exists - create it if it doesn't
     let bucketCreated = false
     try {
-      console.log(`[upload] Checking bucket existence for: ${bucketName}`)
       const existedBefore = await bucketExists(bucketName)
-      console.log(`[upload] Bucket existed before: ${existedBefore}`)
-      
-      console.log(`[upload] Calling ensureWeddingBucket for weddingId: ${weddingId}`)
       await ensureWeddingBucket(weddingId)
       
       bucketCreated = !existedBefore
-      console.log(`[upload] Bucket was created: ${bucketCreated}`)
       
       // If we just created the bucket, wait a moment for it to be fully available
       if (bucketCreated) {
-        console.log(`Waiting for bucket ${bucketName} to be ready...`)
         await new Promise(resolve => setTimeout(resolve, 1000)) // Wait 1 second
       }
     } catch (bucketError) {
@@ -156,15 +147,12 @@ export async function POST(request: NextRequest) {
     // Upload to Supabase Storage with retry logic
     // Use supabaseServer() which respects storage policies
     // Make sure we're using the same supabase client that has the user context
-    console.log(`[upload] Attempting upload to bucket: ${bucketName}, file: ${fileName}`)
-    console.log(`[upload] User ID: ${user.id}, Wedding ID: ${weddingId}`)
     
     let uploadData, uploadError
     let retries = 3
     let lastError: any = null
     
     while (retries > 0) {
-      console.log(`[upload] Upload attempt ${4 - retries} of 3`)
       const result = await supabase.storage
         .from(bucketName)
         .upload(fileName, buffer, {
@@ -186,7 +174,6 @@ export async function POST(request: NextRequest) {
           uploadError.statusCode === '404' ||
           uploadError.statusCode === 404) {
         if (bucketCreated && retries > 1) {
-          console.log(`Bucket not found after creation, retrying... (${retries} retries left)`)
           await new Promise(resolve => setTimeout(resolve, 2000)) // Wait 2 seconds
           retries--
           continue
@@ -230,7 +217,6 @@ export async function POST(request: NextRequest) {
         
         // Since we've already verified the user has access, try using service role client as fallback
         // This bypasses RLS but we've already verified permissions
-        console.log(`[upload] Attempting upload with service role client as fallback...`)
         const { supabaseService } = await import('@/lib/supabase-service')
         const serviceClient = supabaseService()
         
@@ -255,7 +241,6 @@ export async function POST(request: NextRequest) {
         // Service role upload succeeded - use this result
         uploadData = serviceResult.data
         uploadError = null
-        console.log(`[upload] Upload succeeded using service role client`)
         // Continue past the error handling since we've successfully uploaded - uploadError is now null
       } else {
         // Other upload errors - return error

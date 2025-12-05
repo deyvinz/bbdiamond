@@ -100,6 +100,35 @@ export function getThemeCSSVars(theme: WeddingTheme): Record<string, string> {
 }
 
 /**
+ * Calculate relative luminance of a color (0-1)
+ * Used to determine if a color is light or dark for contrast
+ */
+function getLuminance(hex: string): number {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  if (!result) return 0.5 // Default to medium if invalid
+  
+  const r = parseInt(result[1], 16) / 255
+  const g = parseInt(result[2], 16) / 255
+  const b = parseInt(result[3], 16) / 255
+  
+  // Convert to relative luminance using WCAG formula
+  const [rLinear, gLinear, bLinear] = [r, g, b].map(val => {
+    return val <= 0.03928 ? val / 12.92 : Math.pow((val + 0.055) / 1.055, 2.4)
+  })
+  
+  return 0.2126 * rLinear + 0.7152 * gLinear + 0.0722 * bLinear
+}
+
+/**
+ * Get contrasting text color (white or black) based on background color
+ */
+function getContrastTextColor(backgroundColor: string): string {
+  const luminance = getLuminance(backgroundColor)
+  // If background is light (luminance > 0.5), use dark text, otherwise use light text
+  return luminance > 0.5 ? '#111827' : '#FFFFFF'
+}
+
+/**
  * Generate CSS string for HeroUI theme overrides
  * HeroUI generates CSS variables at build time, so we need to override them
  * using CSS with higher specificity that targets HeroUI's generated classes
@@ -111,10 +140,44 @@ export function getHeroUIThemeCSS(theme: WeddingTheme): string {
   const primary50 = theme.gold_50 || '#FFF8E6'
   const primary100 = theme.gold_100 || '#FDECC8'
   
+  // Calculate contrasting text colors for accent and secondary backgrounds
+  const accentContrastText = getContrastTextColor(theme.accent_color)
+  const secondaryContrastText = getContrastTextColor(theme.secondary_color)
+  const primaryContrastText = getContrastTextColor(primary)
+  const hoverContrastText = getContrastTextColor(hoverColor)
+  
+  // Calculate contrasting text colors for gold scale (for backgrounds)
+  const gold50ContrastText = getContrastTextColor(theme.gold_50)
+  const gold100ContrastText = getContrastTextColor(theme.gold_100)
+  const gold200ContrastText = getContrastTextColor(theme.gold_200)
+  const gold300ContrastText = getContrastTextColor(theme.gold_300)
+  const gold400ContrastText = getContrastTextColor(theme.gold_400)
+  const gold500ContrastText = getContrastTextColor(theme.gold_500)
+  const gold600ContrastText = getContrastTextColor(theme.gold_600)
+  const gold700ContrastText = getContrastTextColor(theme.gold_700)
+  const gold800ContrastText = getContrastTextColor(theme.gold_800)
+  const gold900ContrastText = getContrastTextColor(theme.gold_900)
+  
   // HeroUI uses Tailwind utility classes that reference CSS variables
   // We'll use attribute selectors to override any element with HeroUI primary color classes
   // This approach uses !important to ensure our dynamic theme takes precedence
   return `
+    /* ========================================
+       CRITICAL: Exclude checkboxes and radio buttons from theme overrides
+       ======================================== */
+    /* Radix UI Checkbox and Radio components must preserve their own styling */
+    [role="checkbox"],
+    [role="radio"],
+    [data-radix-checkbox-root],
+    [data-radix-checkbox-indicator],
+    [data-radix-radio-item],
+    [data-radix-radio-indicator],
+    button[role="checkbox"],
+    button[role="radio"] {
+      /* Preserve component's own border-radius, background, and styling */
+      /* Theme colors should not override checkbox/radio component styles */
+    }
+    
     /* ========================================
        CRITICAL: Ensure input fields always have white/clear backgrounds
        ======================================== */
@@ -134,10 +197,10 @@ export function getHeroUIThemeCSS(theme: WeddingTheme): string {
     select,
     [data-slot="input"],
     [data-slot="textarea"],
-    input:not([type="checkbox"]):not([type="radio"]),
-    input[class*="bg-"]:not([class*="bg-transparent"]):not([class*="bg-white"]),
+    input:not([type="checkbox"]):not([type="radio"]):not([role="checkbox"]):not([data-radix-checkbox-root]),
+    input[class*="bg-"]:not([class*="bg-transparent"]):not([class*="bg-white"]):not([type="checkbox"]):not([type="radio"]):not([role="checkbox"]):not([data-radix-checkbox-root]),
     textarea[class*="bg-"]:not([class*="bg-transparent"]):not([class*="bg-white"]),
-    [class*="bg-input"] {
+    [class*="bg-input"]:not([role="checkbox"]):not([data-radix-checkbox-root]) {
       background-color: #FFFFFF !important;
       background: #FFFFFF !important;
     }
@@ -187,6 +250,7 @@ export function getHeroUIThemeCSS(theme: WeddingTheme): string {
     button:not(input):not(textarea):not(select)[style*="#C8A951"],
     button:not(input):not(textarea):not(select)[style*="#CDA349"],
     button:not(input):not(textarea):not(select)[style*="#B38D39"],
+    
     button:not(input):not(textarea):not(select)[style*="#E1B858"] {
       background-color: ${primary} !important;
     }
@@ -225,16 +289,19 @@ export function getHeroUIThemeCSS(theme: WeddingTheme): string {
        HeroUI primary color overrides
        ======================================== */
     /* Override HeroUI primary color for buttons and interactive elements */
-    button[class*="bg-primary"],
-    [class*="bg-primary-"]:not([class*="bg-primary-foreground"]),
-    [class*="bg-primary"]:not(input):not(textarea):not(select) {
+    /* EXCLUDE checkboxes and radio buttons */
+    button[class*="bg-primary"]:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    [class*="bg-primary-"]:not([class*="bg-primary-foreground"]):not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    [class*="bg-primary"]:not(input):not(textarea):not(select):not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]) {
       background-color: ${primary} !important;
+      color: ${primaryContrastText} !important;
     }
     
-    button[class*="bg-primary"]:hover,
-    button[class*="bg-primary"]:focus,
-    [class*="bg-primary"]:hover:not([class*="bg-primary-foreground"]):not(input):not(textarea):not(select) {
+    button[class*="bg-primary"]:hover:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[class*="bg-primary"]:focus:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    [class*="bg-primary"]:hover:not([class*="bg-primary-foreground"]):not(input):not(textarea):not(select):not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]) {
       background-color: ${hoverColor} !important;
+      color: ${hoverContrastText} !important;
     }
     
     /* Override text colors */
@@ -263,19 +330,20 @@ export function getHeroUIThemeCSS(theme: WeddingTheme): string {
     
     /* HeroUI bordered button variant - ensure text and border use theme color with transparent background */
     /* Target all possible HeroUI button structures with bordered variant */
-    button[data-slot="base"][class*="border-primary"],
-    button[data-slot="base"].border-primary,
-    button[class*="variant-bordered"][class*="border-primary"],
-    button[data-slot="base"][class*="text-primary"][class*="variant-bordered"],
-    button[data-slot="base"][class*="bg-transparent"],
-    button[class*="variant-bordered"][data-slot="base"],
-    button[data-slot="base"][class*="variant-bordered"],
+    /* EXCLUDE checkboxes and radio buttons */
+    button[data-slot="base"][class*="border-primary"]:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[data-slot="base"].border-primary:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[class*="variant-bordered"][class*="border-primary"]:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[data-slot="base"][class*="text-primary"][class*="variant-bordered"]:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[data-slot="base"][class*="bg-transparent"]:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[class*="variant-bordered"][data-slot="base"]:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[data-slot="base"][class*="variant-bordered"]:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
     /* Direct targeting for HeroUI Button with bordered variant and primary color */
-    button[class*="bg-primary"][class*="variant-bordered"],
-    button[class*="variant-bordered"][class*="bg-primary"],
+    button[class*="bg-primary"][class*="variant-bordered"]:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[class*="variant-bordered"][class*="bg-primary"]:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
     /* Override any background on bordered buttons */
-    a > button[class*="variant-bordered"],
-    button[class*="variant-bordered"]:not([class*="variant-solid"]):not([class*="variant-flat"]) {
+    a > button[class*="variant-bordered"]:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[class*="variant-bordered"]:not([class*="variant-solid"]):not([class*="variant-flat"]):not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]) {
       border-color: ${primary} !important;
       color: ${primary} !important;
       background-color: transparent !important;
@@ -284,13 +352,13 @@ export function getHeroUIThemeCSS(theme: WeddingTheme): string {
     }
     
     /* Hover states for bordered buttons */
-    button[data-slot="base"][class*="border-primary"]:hover,
-    button[data-slot="base"].border-primary:hover,
-    button[class*="variant-bordered"][class*="border-primary"]:hover,
-    button[data-slot="base"][class*="bg-transparent"]:hover,
-    button[class*="variant-bordered"][data-slot="base"]:hover,
-    button[data-slot="base"][class*="variant-bordered"]:hover,
-    button[class*="variant-bordered"]:hover {
+    button[data-slot="base"][class*="border-primary"]:hover:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[data-slot="base"].border-primary:hover:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[class*="variant-bordered"][class*="border-primary"]:hover:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[data-slot="base"][class*="bg-transparent"]:hover:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[class*="variant-bordered"][data-slot="base"]:hover:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[data-slot="base"][class*="variant-bordered"]:hover:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[class*="variant-bordered"]:hover:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]) {
       border-color: ${hoverColor} !important;
       color: ${hoverColor} !important;
       background-color: ${primary50} !important;
@@ -298,8 +366,8 @@ export function getHeroUIThemeCSS(theme: WeddingTheme): string {
     }
     
     /* Override HeroUI's primary button background for bordered variant only */
-    button[data-slot="base"][class*="bg-primary"]:not([class*="variant-solid"]),
-    button[class*="bg-primary"][class*="variant-bordered"] {
+    button[data-slot="base"][class*="bg-primary"]:not([class*="variant-solid"]):not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[class*="bg-primary"][class*="variant-bordered"]:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]) {
       background-color: transparent !important;
       background: transparent !important;
       color: ${primary} !important;
@@ -313,8 +381,9 @@ export function getHeroUIThemeCSS(theme: WeddingTheme): string {
     }
     
     /* Target HeroUI Button component specifically with data attributes */
-    button[data-slot="base"][class*="bg-primary"],
-    button[data-slot="base"][class*="text-primary"] {
+    /* EXCLUDE checkboxes and radio buttons */
+    button[data-slot="base"][class*="bg-primary"]:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[data-slot="base"][class*="text-primary"]:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]) {
       background-color: ${primary} !important;
       color: ${theme.background_color || '#FFFFFF'} !important;
     }
@@ -355,7 +424,6 @@ export function getHeroUIThemeCSS(theme: WeddingTheme): string {
     svg[class*="text-primary"],
     path[fill*="#C8A951"],
     path[fill*="#CDA349"] {
-      fill: ${primary} !important;
       color: ${primary} !important;
     }
     
@@ -372,11 +440,19 @@ export function getHeroUIThemeCSS(theme: WeddingTheme): string {
     }
     
     /* Checkbox and switch checked states - exclude switches which have their own styling */
-    input[type="checkbox"]:checked,
-    input[type="radio"]:checked,
-    [data-state="checked"][class*="bg-"]:not([role="switch"]) {
-      background-color: ${primary} !important;
+    /* NOTE: Radix UI checkboxes use data-state="checked" and have their own styling */
+    /* Only apply theme colors to native HTML checkboxes, not Radix UI components */
+    input[type="checkbox"]:checked:not([role="checkbox"]):not([data-radix-checkbox-root]),
+    input[type="radio"]:checked:not([role="radio"]):not([data-radix-radio-item]),
+    [data-state="checked"][class*="bg-"]:not([role="switch"]):not([role="checkbox"]):not([data-radix-checkbox-root]) {
       border-color: ${primary} !important;
+    }
+    
+    /* Explicitly exclude Radix UI checkbox from theme overrides */
+    [role="checkbox"],
+    [data-radix-checkbox-root],
+    [data-radix-checkbox-indicator] {
+      /* Preserve component's own styling - don't override */
     }
     
     /* Links with primary color */
@@ -429,31 +505,175 @@ export function getHeroUIThemeCSS(theme: WeddingTheme): string {
       --color-gold-900: ${theme.gold_900} !important;
     }
     
-    /* Apply accent color to accent classes */
-    [class*="bg-accent"]:not(input):not(textarea):not(select),
-    [class*="text-accent"]:not(input):not(textarea),
-    [class*="border-accent"] {
+    /* Apply accent color to accent classes - separate rules for proper contrast */
+    [class*="bg-accent"]:not(input):not(textarea):not(select) {
       background-color: ${theme.accent_color} !important;
+      color: ${accentContrastText} !important;
+    }
+    [class*="text-accent"]:not(input):not(textarea) {
       color: ${theme.accent_color} !important;
+    }
+    [class*="border-accent"] {
       border-color: ${theme.accent_color} !important;
     }
     
-    /* Apply secondary color to secondary classes */
-    [class*="bg-secondary"]:not(input):not(textarea):not(select),
-    [class*="text-secondary"]:not(input):not(textarea),
-    [class*="border-secondary"] {
+    /* Apply secondary color to secondary classes - separate rules for proper contrast */
+    [class*="bg-secondary"]:not(input):not(textarea):not(select) {
       background-color: ${theme.secondary_color} !important;
+      color: ${secondaryContrastText} !important;
+    }
+    [class*="text-secondary"]:not(input):not(textarea) {
       color: ${theme.secondary_color} !important;
+    }
+    [class*="border-secondary"] {
       border-color: ${theme.secondary_color} !important;
     }
     
-    /* Apply border radius globally */
-    button,
+    /* ========================================
+       Dropdown Menu Styling - Ensure proper contrast and theme colors
+       ======================================== */
+    /* Dropdown menu content background */
+    [data-radix-dropdown-menu-content],
+    [data-radix-dropdown-menu-content] > *,
+    [data-radix-popper-content-wrapper] [data-radix-dropdown-menu-content] {
+      background-color: #FFFFFF !important;
+      border-color: #E5E7EB !important;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+    }
+    
+    /* Dropdown menu items - ensure proper text color */
+    [data-radix-dropdown-menu-item],
+    [role="menuitem"],
+    button[data-radix-dropdown-menu-item] {
+      color: #111827 !important; /* Dark gray text for contrast */
+      background-color: transparent !important;
+    }
+    
+    /* Dropdown menu item hover/focus states - use theme color with light background */
+    [data-radix-dropdown-menu-item]:hover,
+    [data-radix-dropdown-menu-item]:focus,
+    [data-radix-dropdown-menu-item][data-highlighted],
+    [data-radix-dropdown-menu-item][data-state="checked"],
+    [role="menuitem"]:hover,
+    [role="menuitem"]:focus,
+    button[data-radix-dropdown-menu-item]:hover,
+    button[data-radix-dropdown-menu-item]:focus {
+      background-color: ${primary50} !important; /* Light theme color background */
+      color: #111827 !important; /* Keep dark text for contrast */
+    }
+    
+    /* Dropdown menu items with accent class - use theme primary color */
+    [data-radix-dropdown-menu-item][class*="focus:bg-accent"],
+    [data-radix-dropdown-menu-item][class*="focus:text-accent-foreground"]:hover,
+    [data-radix-dropdown-menu-item][class*="focus:text-accent-foreground"]:focus {
+      background-color: ${primary50} !important;
+      color: #111827 !important;
+    }
+    
+    /* Dropdown menu label - ensure readable text */
+    [data-radix-dropdown-menu-label],
+    [role="menuitem"] > [class*="font-semibold"],
+    [data-radix-dropdown-menu-label] {
+      color: #374151 !important; /* Medium gray for labels */
+      font-weight: 600 !important;
+    }
+    
+    /* Dropdown menu separator */
+    [data-radix-dropdown-menu-separator],
+    [role="separator"],
+    [data-radix-dropdown-menu-separator] {
+      background-color: #E5E7EB !important;
+      height: 1px !important;
+    }
+    
+    /* Dropdown menu items with destructive/red styling */
+    [data-radix-dropdown-menu-item][class*="text-red"],
+    [data-radix-dropdown-menu-item].text-red-600 {
+      color: #DC2626 !important; /* Red-600 for destructive actions */
+    }
+    
+    [data-radix-dropdown-menu-item][class*="text-red"]:hover,
+    [data-radix-dropdown-menu-item][class*="text-red"]:focus,
+    [data-radix-dropdown-menu-item].text-red-600:hover,
+    [data-radix-dropdown-menu-item].text-red-600:focus {
+      background-color: #FEF2F2 !important; /* Red-50 background on hover */
+      color: #DC2626 !important;
+    }
+    
+    /* ========================================
+       Ghost Button Styling - Ensure proper contrast and theme colors
+       ======================================== */
+    /* Ghost button variant - ensure text is visible */
+    button[class*="bg-transparent"]:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button.variant-ghost,
+    button[class*="variant-ghost"],
+    button[class*="text-gray-700"]:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]) {
+      color: #374151 !important; /* Dark gray text */
+      background-color: transparent !important;
+    }
+    
+    /* Ghost button hover state - use theme color */
+    button[class*="bg-transparent"]:hover:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button.variant-ghost:hover,
+    button[class*="variant-ghost"]:hover,
+    button[class*="text-gray-700"]:hover:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button[class*="hover:bg-gray-100"]:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]) {
+      background-color: ${primary50} !important; /* Light theme color on hover */
+      color: #111827 !important; /* Darker text on hover */
+      border-color: transparent !important;
+    }
+    
+    /* Ghost button focus state */
+    button[class*="bg-transparent"]:focus:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button.variant-ghost:focus,
+    button[class*="variant-ghost"]:focus,
+    button[class*="text-gray-700"]:focus:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]) {
+      background-color: ${primary50} !important;
+      color: #111827 !important;
+      outline-color: ${primary} !important;
+      ring-color: ${primary} !important;
+    }
+    
+    /* Ghost button icons - ensure they inherit text color */
+    button[class*="bg-transparent"] svg:not([role="checkbox"]):not([role="radio"]):not([data-radix-checkbox-root]):not([data-radix-radio-item]),
+    button.variant-ghost svg,
+    button[class*="variant-ghost"] svg {
+      color: inherit !important;
+    }
+    
+    /* Apply border radius globally - EXCLUDE checkboxes, radio buttons, and Radix UI components */
+    button:not([role="checkbox"]):not([data-state]),
     input:not([type="checkbox"]):not([type="radio"]),
     textarea,
     select,
-    [class*="rounded"] {
+    [class*="rounded"]:not([role="checkbox"]):not([data-state]):not([data-radix-checkbox-root]) {
       border-radius: ${theme.border_radius || '0.625rem'} !important;
+    }
+    
+    /* Explicitly preserve checkbox and radio button styling */
+    [role="checkbox"],
+    [data-radix-checkbox-root],
+    input[type="checkbox"],
+    input[type="radio"] {
+      border-radius: 0.125rem !important; /* rounded-sm - preserve small radius */
+      background-color: transparent !important;
+      background: transparent !important;
+    }
+    
+    /* Unchecked checkbox state - ensure white/transparent background */
+    [role="checkbox"]:not([data-state="checked"]),
+    [data-radix-checkbox-root]:not([data-state="checked"]),
+    input[type="checkbox"]:not(:checked) {
+      background-color: #FFFFFF !important;
+      background: #FFFFFF !important;
+    }
+    
+    /* Checked checkbox state - use theme color but preserve checkbox component styling */
+    [role="checkbox"][data-state="checked"],
+    [data-radix-checkbox-root][data-state="checked"],
+    input[type="checkbox"]:checked {
+      /* Let the checkbox component's own classes handle the checked state */
+      /* Only override if theme color is explicitly needed */
     }
     
     /* Apply shadow-gold class with theme shadow */
@@ -462,36 +682,46 @@ export function getHeroUIThemeCSS(theme: WeddingTheme): string {
       box-shadow: ${theme.shadow_style || `0 1px 0 0 rgba(205,163,73,0.35), 0 12px 30px rgba(0,0,0,0.06)`} !important;
     }
     
-    /* Apply gold color scale to Tailwind gold classes */
+    /* Apply gold color scale to Tailwind gold classes - with proper contrast */
     [class*="bg-gold-50"]:not(input):not(textarea):not(select) {
       background-color: ${theme.gold_50} !important;
+      color: ${gold50ContrastText} !important;
     }
     [class*="bg-gold-100"]:not(input):not(textarea):not(select) {
       background-color: ${theme.gold_100} !important;
+      color: ${gold100ContrastText} !important;
     }
     [class*="bg-gold-200"]:not(input):not(textarea):not(select) {
       background-color: ${theme.gold_200} !important;
+      color: ${gold200ContrastText} !important;
     }
     [class*="bg-gold-300"]:not(input):not(textarea):not(select) {
       background-color: ${theme.gold_300} !important;
+      color: ${gold300ContrastText} !important;
     }
     [class*="bg-gold-400"]:not(input):not(textarea):not(select) {
       background-color: ${theme.gold_400} !important;
+      color: ${gold400ContrastText} !important;
     }
     [class*="bg-gold-500"]:not(input):not(textarea):not(select) {
       background-color: ${theme.gold_500} !important;
+      color: ${gold500ContrastText} !important;
     }
     [class*="bg-gold-600"]:not(input):not(textarea):not(select) {
       background-color: ${theme.gold_600} !important;
+      color: ${gold600ContrastText} !important;
     }
     [class*="bg-gold-700"]:not(input):not(textarea):not(select) {
       background-color: ${theme.gold_700} !important;
+      color: ${gold700ContrastText} !important;
     }
     [class*="bg-gold-800"]:not(input):not(textarea):not(select) {
       background-color: ${theme.gold_800} !important;
+      color: ${gold800ContrastText} !important;
     }
     [class*="bg-gold-900"]:not(input):not(textarea):not(select) {
       background-color: ${theme.gold_900} !important;
+      color: ${gold900ContrastText} !important;
     }
     
     /* Specific text color overrides */

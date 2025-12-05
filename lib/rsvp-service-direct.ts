@@ -16,6 +16,7 @@ export interface InvitationData {
     last_name: string
     email: string
     invite_code: string
+    total_guests?: number
   }
   invitation_events: Array<{
     id: string
@@ -50,7 +51,6 @@ export interface RSVPStatus {
  */
 export async function resolveInvitationByToken(token: string, weddingId?: string): Promise<InvitationData | null> {
   try {
-    console.log('Resolving invitation by token:', token)
     
     // Get wedding ID (optional for public RSVP flow, but recommended)
     // Use client-side helper since this can be called from client components
@@ -87,7 +87,6 @@ export async function resolveInvitationByToken(token: string, weddingId?: string
     const { data: invitation, error: invitationError } = await query.single()
 
     if (invitationError || !invitation) {
-      console.log('Invitation not found by token:', { token, invitationError, invitation })
       return null
     }
 
@@ -97,7 +96,7 @@ export async function resolveInvitationByToken(token: string, weddingId?: string
     // Fetch guest details
     let guestQuery = supabase
       .from('guests')
-      .select('id, first_name, last_name, email, invite_code')
+      .select('id, first_name, last_name, email, invite_code, total_guests')
       .eq('id', invitation.guest_id)
     
     if (finalWeddingId) {
@@ -107,7 +106,6 @@ export async function resolveInvitationByToken(token: string, weddingId?: string
     const { data: guest, error: guestError } = await guestQuery.single()
 
     if (guestError || !guest) {
-      console.log('Guest not found:', guestError)
       return null
     }
 
@@ -134,20 +132,18 @@ export async function resolveInvitationByToken(token: string, weddingId?: string
  */
 export async function resolveInvitationByInviteCode(inviteCode: string, weddingId?: string): Promise<InvitationData | null> {
   try {
-    console.log('Resolving invitation by invite code:', inviteCode)
     
     // Get wedding ID
     // Use client-side helper since this can be called from client components
     const resolvedWeddingId = weddingId || getWeddingIdFromClient()
     if (!resolvedWeddingId) {
-      console.log('No wedding ID available for invite code resolution')
       // Still try without wedding_id for backward compatibility
     }
     
     // First find the guest by invite code
     let guestQuery = supabase
       .from('guests')
-      .select('id, first_name, last_name, email, invite_code, wedding_id')
+      .select('id, first_name, last_name, email, invite_code, wedding_id, total_guests')
       .eq('invite_code', inviteCode)
     
     if (resolvedWeddingId) {
@@ -157,7 +153,6 @@ export async function resolveInvitationByInviteCode(inviteCode: string, weddingI
     const { data: guest, error: guestError } = await guestQuery.single()
 
     if (guestError || !guest) {
-      console.log('Guest not found by invite code:', guestError)
       return null
     }
 
@@ -194,7 +189,6 @@ export async function resolveInvitationByInviteCode(inviteCode: string, weddingI
     const { data: invitation, error: invitationError } = await invitationQuery.single()
 
     if (invitationError || !invitation) {
-      console.log('Invitation not found for guest:', invitationError)
       return null
     }
 
@@ -288,8 +282,6 @@ export async function submitRSVP(
   }>
 ): Promise<boolean> {
   try {
-    console.log('Submitting RSVP:', { invitationId, eventResponses })
-
     // Update each invitation event
     for (const response of eventResponses) {
       const updateData: any = {

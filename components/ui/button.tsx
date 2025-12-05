@@ -7,11 +7,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'border border-gold-500 hover:bg-gold-50',
+        default: 'bg-gold-500 text-white border border-gold-500 hover:bg-gold-600 shadow-gold',
         gold: 'bg-gold-500 text-white hover:bg-gold-600 shadow-gold',
-        outline: 'border border-gold-200 hover:bg-gold-50',
-        ghost: 'hover:bg-gold-50',
-        destructive: 'bg-red-500 text-white hover:bg-red-600',
+        outline: 'border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 hover:border-gray-400 hover:text-gray-950',
+        ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 hover:text-gray-900',
+        destructive: 'bg-red-600 text-white hover:bg-red-700 border border-red-600',
       },
       size: {
         default: 'h-10 px-5 py-2',

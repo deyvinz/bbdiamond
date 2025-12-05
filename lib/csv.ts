@@ -2,20 +2,64 @@ export interface CsvRow {
   [key: string]: string
 }
 
+/**
+ * Parse a CSV line handling quoted fields properly
+ */
+function parseCsvLine(line: string): string[] {
+  const values: string[] = []
+  let current = ''
+  let inQuotes = false
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]
+    const nextChar = line[i + 1]
+    
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        // Escaped quote
+        current += '"'
+        i++ // Skip next quote
+      } else {
+        // Toggle quote state
+        inQuotes = !inQuotes
+      }
+    } else if (char === ',' && !inQuotes) {
+      // End of field
+      values.push(current.trim())
+      current = ''
+    } else {
+      current += char
+    }
+  }
+  
+  // Add the last field
+  values.push(current.trim())
+  
+  return values
+}
+
 export function parseCsv(csvText: string): CsvRow[] {
-  const lines = csvText.split('\n').filter(line => line.trim())
+  // Normalize line endings and split
+  const normalized = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  const lines = normalized.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+  
   if (lines.length === 0) return []
 
-  const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
+  // Parse headers
+  const headers = parseCsvLine(lines[0]).map(h => h.trim().replace(/^"|"$/g, ''))
   const rows: CsvRow[] = []
 
+  // Parse data rows
   for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''))
-    if (values.length !== headers.length) continue
+    const values = parseCsvLine(lines[i]).map(v => v.trim().replace(/^"|"$/g, ''))
+    
+    // Skip rows that don't have enough columns (but allow extra columns)
+    if (values.length < headers.length) continue
 
     const row: CsvRow = {}
     headers.forEach((header, index) => {
-      row[header] = values[index] || ''
+      // Use empty string if value is missing
+      row[header] = (values[index] || '').trim()
     })
     rows.push(row)
   }
@@ -61,11 +105,11 @@ export function downloadCsv(data: CsvRow[], filename: string) {
 }
 
 export const expectedCsvColumns = [
-  'first_name',
-  'last_name', 
-  'email',
-  'phone',
-  'is_vip',
-  'dietary',
-  'household_name'
+  'First Name',
+  'Last Name', 
+  'Email',
+  'Phone Number',
+  'Gender',
+  'Total Guests',
+  'Household Name'
 ] as const

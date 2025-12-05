@@ -190,8 +190,6 @@ Reply to: ${email}
       }
     } else {
       // In development without Resend, just log the submission
-      console.log('Contact form submission (email not sent - RESEND_API_KEY not configured):')
-      console.log({ name, email, phone, subject, message })
     }
 
     // Optionally, you could also store the submission in a database table here

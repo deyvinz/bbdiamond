@@ -16,11 +16,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
-import { Save, RotateCcw, Settings, Clock, Calendar, Lock, Utensils, Users } from 'lucide-react'
+import { Save, RotateCcw, Settings, Clock, Calendar, Lock, Utensils, Users, Bell, Mail, MessageSquare, Phone } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import Link from 'next/link'
 import type { ConfigValue } from '@/lib/types/config'
 import { COMMON_TIMEZONES } from '@/lib/types/config'
 import type { UpdateConfigInput } from '@/lib/validators'
+import RSVPFooterEditor from '@/components/RSVPFooterEditor'
 
 interface WeddingSettingsState {
   enable_seating: boolean
@@ -36,8 +38,6 @@ interface ConfigClientProps {
 }
 
 export default function ConfigClient({ initialConfig }: ConfigClientProps) {
-  console.log('🔄 [ConfigClient] Rendered with initialConfig:', initialConfig)
-  
   const [config, setConfig] = useState<ConfigValue>(initialConfig)
   const [weddingSettings, setWeddingSettings] = useState<WeddingSettingsState>({
     enable_seating: false,
@@ -77,9 +77,6 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
 
   // Sync state when initialConfig prop changes (after router.refresh())
   useEffect(() => {
-    console.log('📥 [ConfigClient] useEffect - syncing initialConfig to state')
-    console.log('  initialConfig:', initialConfig)
-    console.log('  current state:', config)
     setConfig(initialConfig)
   }, [initialConfig])
 
@@ -98,6 +95,9 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
       }
       if (config.age_restriction_message !== undefined) {
         configToSave.age_restriction_message = config.age_restriction_message
+      }
+      if (config.rsvp_footer !== undefined) {
+        configToSave.rsvp_footer = config.rsvp_footer
       }
       if (config.plus_ones_enabled !== undefined) {
         configToSave.plus_ones_enabled = config.plus_ones_enabled
@@ -135,7 +135,17 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
       if (config.food_choices_required !== undefined) {
         configToSave.food_choices_required = config.food_choices_required
       }
-      
+      // Notification channel settings
+      if (config.notification_email_enabled !== undefined) {
+        configToSave.notification_email_enabled = config.notification_email_enabled
+      }
+      if (config.notification_whatsapp_enabled !== undefined) {
+        configToSave.notification_whatsapp_enabled = config.notification_whatsapp_enabled
+      }
+      if (config.notification_sms_enabled !== undefined) {
+        configToSave.notification_sms_enabled = config.notification_sms_enabled
+      }
+
       const response = await fetch('/api/config', {
         method: 'PUT',
         headers: {
@@ -669,6 +679,47 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            RSVP Form Footer
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="rsvp_footer">RSVP Form Footer Message</Label>
+              <RSVPFooterEditor
+                content={config.rsvp_footer || ''}
+                onChange={(content) => handleConfigChange('rsvp_footer', content)}
+                placeholder="Enter a message or PSA that will appear at the bottom of the RSVP form..."
+              />
+              <p className="text-sm text-muted-foreground">
+                This message will appear at the bottom of the RSVP form, before the submit button. Use it to provide important information, instructions, or announcements to all guests submitting their RSVP.
+              </p>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-800">
+                ℹ️ <strong>Preview:</strong> This footer will be displayed at the bottom of the RSVP form for all guests. Leave empty to hide the footer.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-3 pt-4 border-t">
+            <Button onClick={handleSave} disabled={loading} className="flex-1 sm:flex-none">
+              <Save className="h-4 w-4 mr-2" />
+              {loading ? 'Saving...' : 'Save Configuration'}
+            </Button>
+            <Button variant="outline" onClick={handleReset} disabled={loading} className="flex-1 sm:flex-none">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reset to Defaults
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
             Wedding Features
           </CardTitle>
@@ -966,6 +1017,100 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
 
       <Card>
         <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="h-5 w-5" />
+            Notification Channels
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="notification_email_enabled" className="text-base flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  Email Notifications
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Send invitations via email (requires guest email address)
+                </p>
+              </div>
+              <Switch
+                id="notification_email_enabled"
+                checked={config.notification_email_enabled}
+                onCheckedChange={(checked) => handleConfigChange('notification_email_enabled', checked)}
+                disabled={loading}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="notification_whatsapp_enabled" className="text-base flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  WhatsApp Notifications
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Send via WhatsApp if guest's phone is registered
+                </p>
+              </div>
+              <Switch
+                id="notification_whatsapp_enabled"
+                checked={config.notification_whatsapp_enabled}
+                onCheckedChange={(checked) => handleConfigChange('notification_whatsapp_enabled', checked)}
+                disabled={loading}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="notification_sms_enabled" className="text-base flex items-center gap-2">
+                  <Phone className="h-4 w-4" />
+                  SMS Notifications
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Send SMS via Twilio (fallback if WhatsApp unavailable)
+                </p>
+              </div>
+              <Switch
+                id="notification_sms_enabled"
+                checked={config.notification_sms_enabled}
+                onCheckedChange={(checked) => handleConfigChange('notification_sms_enabled', checked)}
+                disabled={loading}
+              />
+            </div>
+
+            {config.notification_whatsapp_enabled && config.notification_sms_enabled && (
+              <Alert>
+                <AlertDescription>
+                  When both WhatsApp and SMS are enabled, the system will automatically
+                  send via WhatsApp if the guest's phone is registered, otherwise SMS.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {!config.notification_email_enabled && !config.notification_whatsapp_enabled && !config.notification_sms_enabled && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <p className="text-sm text-amber-800">
+                  ⚠️ <strong>Warning:</strong> No notification channels are enabled. Guests will not receive invitation notifications.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-3 pt-4 border-t">
+            <Button onClick={handleSave} disabled={loading} className="flex-1 sm:flex-none">
+              <Save className="h-4 w-4 mr-2" />
+              {loading ? 'Saving...' : 'Save Configuration'}
+            </Button>
+            <Button variant="outline" onClick={handleReset} disabled={loading} className="flex-1 sm:flex-none">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reset to Defaults
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Current Configuration</CardTitle>
         </CardHeader>
         <CardContent>
@@ -1021,6 +1166,24 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
               <div className="font-medium">Food Choices Enabled</div>
               <div className={config.food_choices_enabled ? 'text-green-600' : 'text-red-600'}>
                 {config.food_choices_enabled ? 'Yes' : 'No'}
+              </div>
+            </div>
+            <div>
+              <div className="font-medium">Email Notifications</div>
+              <div className={config.notification_email_enabled ? 'text-green-600' : 'text-red-600'}>
+                {config.notification_email_enabled ? 'Enabled' : 'Disabled'}
+              </div>
+            </div>
+            <div>
+              <div className="font-medium">WhatsApp Notifications</div>
+              <div className={config.notification_whatsapp_enabled ? 'text-green-600' : 'text-red-600'}>
+                {config.notification_whatsapp_enabled ? 'Enabled' : 'Disabled'}
+              </div>
+            </div>
+            <div>
+              <div className="font-medium">SMS Notifications</div>
+              <div className={config.notification_sms_enabled ? 'text-green-600' : 'text-red-600'}>
+                {config.notification_sms_enabled ? 'Enabled' : 'Disabled'}
               </div>
             </div>
           </div>

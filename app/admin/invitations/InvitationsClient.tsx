@@ -190,10 +190,8 @@ export default function InvitationsClient({
 
   const handleDeleteInvitation = async (invitationId: string) => {
     try {
-      console.log('Deleting invitation:', invitationId)
       setLoading(true)
       await deleteInvitationsAction([invitationId])
-      console.log('Invitation deleted successfully')
       toast({
         title: "Success",
         description: "Invitation deleted successfully",
@@ -266,16 +264,16 @@ export default function InvitationsClient({
   }) => {
     setSendingEmail(true)
     try {
-      console.log('Sending email to:', data.to)
-      await sendInviteEmailAction({
+      const result = await sendInviteEmailAction({
         ...data,
         includeQr: data.includeQr ?? true,
         ignoreRateLimit: true,
         to: data.to || undefined,
       })
+      
       toast({
         title: "Success",
-        description: "Invitation email sent successfully",
+        description: result.message || "Invitation notification sent successfully",
       })
       setShowSendEmailDialog(false)
       await refreshData()
@@ -283,7 +281,7 @@ export default function InvitationsClient({
       console.error('Error sending email:', error)
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to send email",
+        description: error instanceof Error ? error.message : "Failed to send notification",
         variant: "destructive",
       })
     } finally {
@@ -383,25 +381,6 @@ export default function InvitationsClient({
     setLoading(true)
     try {
       switch (action) {
-        case 'send_email':
-          // Send emails for all selected invitations
-          for (const invitationId of invitationIds) {
-            const invitation = invitations.find(inv => inv.id === invitationId)
-            if (invitation?.invitation_events?.[0]) {
-              await sendInviteEmailAction({
-                invitationId,
-                eventIds: invitation.invitation_events.map(event => event.event_id),
-                includeQr: true,
-                ignoreRateLimit: true,
-                to: invitation.guest.email
-              })
-            }
-          }
-          toast({
-            title: "Success",
-            description: `Emails sent to ${invitationIds.length} invitations`,
-          })
-          break
         case 'send_rsvp_reminder':
           // Send RSVP reminders for all selected invitations
           let successCount = 0
@@ -509,55 +488,56 @@ export default function InvitationsClient({
   return (
     <>
       <div className="space-y-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <Link href="/admin">
-              <Button variant="outline" size="sm" className="w-full sm:w-auto">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Admin
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl lg:text-3xl font-serif">Invitations Management</h1>
-              <p className="text-gray-600 mt-1">
-                Manage wedding invitations and RSVPs
-              </p>
+        {/* Title and subtitle row with Back button */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <Link href="/admin">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Admin
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-serif">Invitations Management</h1>
+            <p className="text-gray-600 mt-1">
+              Manage wedding invitations and RSVPs
+            </p>
+          </div>
+        </div>
+
+        {/* Buttons row */}
+        <div className="flex flex-wrap items-center gap-2">
+          {isRefreshing && (
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <div className="animate-spin h-4 w-4 border-2 border-gold-600 border-t-transparent rounded-full"></div>
+              <span className="hidden sm:inline">Refreshing...</span>
             </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {isRefreshing && (
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <div className="animate-spin h-4 w-4 border-2 border-gold-600 border-t-transparent rounded-full"></div>
-                <span className="hidden sm:inline">Refreshing...</span>
-              </div>
-            )}
-            <Button
-              onClick={() => setShowRsvpRemindersDialog(true)}
-              variant="outline"
-              size="sm"
-              className="flex-1 sm:flex-none border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
-            >
-              <Bell className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Send RSVP Reminders</span>
-            </Button>
-            <Button
-              onClick={() => setShowImportDialog(true)}
-              variant="outline"
-              size="sm"
-              className="flex-1 sm:flex-none"
-            >
-              <Upload className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Import CSV</span>
-            </Button>
-            <Button
-              onClick={handleCreateInvitation}
-              className="bg-gold-600 text-white hover:bg-gold-700 flex-1 sm:flex-none"
-              size="sm"
-            >
-              <Plus className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Create Invitation</span>
-            </Button>
-          </div>
+          )}
+          <Button
+            onClick={() => setShowRsvpRemindersDialog(true)}
+            variant="outline"
+            size="sm"
+            className="flex-1 sm:flex-none border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+          >
+            <Bell className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Send RSVP Reminders</span>
+          </Button>
+          <Button
+            onClick={() => setShowImportDialog(true)}
+            variant="outline"
+            size="sm"
+            className="flex-1 sm:flex-none"
+          >
+            <Upload className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Import CSV</span>
+          </Button>
+          <Button
+            onClick={handleCreateInvitation}
+            className="bg-gold-600 text-white hover:bg-gold-700 flex-1 sm:flex-none"
+            size="sm"
+          >
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Create Invitation</span>
+          </Button>
         </div>
 
         {/* Table */}
@@ -576,7 +556,6 @@ export default function InvitationsClient({
         onDelete={handleDeleteInvitation}
         onRegenerateInviteToken={handleRegenerateInviteToken}
         onRegenerateEventToken={handleRegenerateEventToken}
-        onSendEmail={handleSendEmail}
         onResendRsvpConfirmation={handleResendRsvpConfirmation}
         onView={handleViewInvitation}
         onExport={handleExport}

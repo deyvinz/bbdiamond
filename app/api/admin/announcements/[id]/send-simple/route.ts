@@ -78,7 +78,6 @@ export async function POST(
         }
 
         results.sent++
-        console.log(`Simulated email sent to: ${recipient.email}`)
 
       } catch (error) {
         console.error(`Error processing recipient ${recipient.email}:`, error)

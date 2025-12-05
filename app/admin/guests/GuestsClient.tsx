@@ -10,6 +10,7 @@ import ImportCsvDialog from './ImportCsvDialog'
 import GuestDetailsDialog from './GuestDetailsDialog'
 import { BackfillInviteCodesDialog } from './BackfillInviteCodesDialog'
 import CleanupDuplicatesDialog from './CleanupDuplicatesDialog'
+import CleanupHouseholdsDialog from './CleanupHouseholdsDialog'
 import ExportDialog from './ExportDialog'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
@@ -26,6 +27,7 @@ import {
   sendInvitesToAllGuests
 } from '@/lib/guests-client'
 import { sendInviteEmailAction } from '@/lib/actions/invitations'
+import { CreateInvitationsDialog } from './CreateInvitationsDialog'
 
 interface GuestsClientProps {
   initialGuests: Guest[]
@@ -54,7 +56,10 @@ export default function GuestsClient({
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [showBackfillDialog, setShowBackfillDialog] = useState(false)
   const [showCleanupDialog, setShowCleanupDialog] = useState(false)
+  const [showCleanupHouseholdsDialog, setShowCleanupHouseholdsDialog] = useState(false)
   const [showExportDialog, setShowExportDialog] = useState(false)
+  const [showCreateInvitationsDialog, setShowCreateInvitationsDialog] = useState(false)
+  const [selectedGuestsForInvitations, setSelectedGuestsForInvitations] = useState<Guest[]>([])
   const [editingGuest, setEditingGuest] = useState<Guest | undefined>()
   const [viewGuest, setViewGuest] = useState<Guest | undefined>()
   const [loading, setLoading] = useState(false)
@@ -175,7 +180,6 @@ export default function GuestsClient({
             for (const eventId of data.invitation.event_ids) {
               await createInvitationForGuest(updatedGuest.id, eventId)
             }
-            console.log(`Created invitations for ${data.invitation.event_ids.length} events`)
           } catch (invitationError) {
             console.error('Error creating invitations:', invitationError)
             toast({
@@ -189,7 +193,7 @@ export default function GuestsClient({
         setGuests(prev => prev.map(g => g.id === editingGuest.id ? updatedGuest : g))
         toast({
           title: "✅ Guest Updated Successfully!",
-          description: `${updatedGuest.first_name} ${updatedGuest.last_name} has been updated.`,
+          description: `${updatedGuest.first_name} ${updatedGuest.last_name || ''} has been updated.`,
         })
       } else {
         // Create new guest
@@ -200,7 +204,6 @@ export default function GuestsClient({
             for (const eventId of data.invitation.event_ids) {
               await createInvitationForGuest(newGuest.id, eventId)
             }
-            console.log(`Created invitations for ${data.invitation.event_ids.length} events`)
           } catch (invitationError) {
             console.error('Error creating invitations:', invitationError)
             toast({
@@ -215,7 +218,7 @@ export default function GuestsClient({
         setTotalCountState(prev => prev + 1)
         toast({
           title: "🎉 Guest Created Successfully!",
-          description: `${newGuest.first_name} ${newGuest.last_name} has been added to your guest list.`,
+          description: `${newGuest.first_name} ${newGuest.last_name || ''} has been added to your guest list.`,
         })
       }
       setShowGuestForm(false)
@@ -236,7 +239,7 @@ export default function GuestsClient({
 
   const handleDelete = async (guestId: string) => {
     const guestToDelete = guests.find(g => g.id === guestId)
-    const guestName = guestToDelete ? `${guestToDelete.first_name} ${guestToDelete.last_name}` : 'this guest'
+    const guestName = guestToDelete ? `${guestToDelete.first_name} ${guestToDelete.last_name || ''}` : 'this guest'
     
     if (!confirm(`Are you sure you want to delete ${guestName}? This action cannot be undone and will remove all associated invitations.`)) {
       return
@@ -309,14 +312,18 @@ export default function GuestsClient({
       }
       
       if (!guest.invitations || guest.invitations.length === 0) {
-        throw new Error(`No invitations found for ${guest.first_name} ${guest.last_name}`)
+        throw new Error(`No invitations found for ${guest.first_name} ${guest.last_name || ''}`)
       }
       
       const invitation = guest.invitations[0]
       const invitationEvent = invitation.invitation_events?.find(ie => ie.event_id === eventId)
       
       if (!invitationEvent) {
-        throw new Error(`No invitation found for this event for ${guest.first_name} ${guest.last_name}`)
+        throw new Error(`No invitation found for this event for ${guest.first_name} ${guest.last_name || ''}`)
+      }
+      
+      if (!guest.email) {
+        throw new Error(`${guest.first_name} ${guest.last_name || ''} does not have an email address`)
       }
       
       await sendInviteEmailAction({
@@ -329,7 +336,7 @@ export default function GuestsClient({
       
       toast({
         title: "Success",
-        description: `Invitation email sent to ${guest.first_name} ${guest.last_name}`,
+        description: `Invitation email sent to ${guest.first_name} ${guest.last_name || ''}`,
       })
       // Refresh data to get updated state
       await refreshData()
@@ -354,9 +361,11 @@ export default function GuestsClient({
     try {
       switch (action) {
         case 'send_invite':
-          // Send invites for all selected guests
+          // Send invites for all selected guests using notification service
+          // The notification service will determine the best channel (email, WhatsApp, SMS)
           let successCount = 0
           let errorCount = 0
+          let skippedCount = 0
           
           for (const guestId of guestIds) {
             try {
@@ -369,7 +378,7 @@ export default function GuestsClient({
               
               // Check if guest has invitations
               if (!guest.invitations || guest.invitations.length === 0) {
-                console.error(`No invitations found for guest: ${guest.first_name} ${guest.last_name}`)
+                console.error(`No invitations found for guest: ${guest.first_name} ${guest.last_name || ''}`)
                 errorCount++
                 continue
               }
@@ -383,24 +392,42 @@ export default function GuestsClient({
                 continue
               }
               
-              await sendInviteEmailAction({
+              // Use notification service which determines best channel (email, WhatsApp, SMS)
+              // based on guest contact info and enabled channels
+              const result = await sendInviteEmailAction({
                 invitationId: invitation.id,
                 eventIds,
                 includeQr: true,
                 ignoreRateLimit: true,
-                to: guest.email
               })
-              successCount++
+              
+              if (result.success) {
+                successCount++
+              } else {
+                // Check if it was skipped (no channel available) vs failed
+                if (result.message?.includes('No notification channel') || result.message?.includes('no available contact')) {
+                  skippedCount++
+                } else {
+                  errorCount++
+                }
+              }
             } catch (error) {
               console.error(`Failed to send invite for guest ${guestId}:`, error)
               errorCount++
             }
           }
           
-          if (successCount > 0) {
+          if (successCount > 0 || skippedCount > 0) {
+            let description = `Notifications sent to ${successCount} guest${successCount !== 1 ? 's' : ''}`
+            if (skippedCount > 0) {
+              description += `, ${skippedCount} skipped (no contact method)`
+            }
+            if (errorCount > 0) {
+              description += `, ${errorCount} failed`
+            }
             toast({
-              title: "Success",
-              description: `Invitations sent to ${successCount} guests${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
+              title: "Complete",
+              description,
             })
           } else {
             toast({
@@ -412,6 +439,12 @@ export default function GuestsClient({
           
           // Refresh data after bulk action
           await refreshData()
+          break
+        case 'create_invitations':
+          // Open create invitations dialog with selected guests
+          const guestsToInvite = guests.filter(g => guestIds.includes(g.id))
+          setSelectedGuestsForInvitations(guestsToInvite)
+          setShowCreateInvitationsDialog(true)
           break
         case 'regenerate_tokens':
           // Regenerate tokens for all selected guests
@@ -561,14 +594,16 @@ export default function GuestsClient({
   return (
     <>
       <div className="space-y-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-serif">Guests Management</h1>
-            <p className="text-gray-600 mt-1">
-              Manage your wedding guest list, invitations, and RSVPs
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+        {/* Title and subtitle row */}
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-serif">Guests Management</h1>
+          <p className="text-gray-600 mt-1">
+            Manage your wedding guest list, invitations, and RSVPs
+          </p>
+        </div>
+
+        {/* Buttons row */}
+        <div className="flex flex-wrap items-center gap-2">
             <Button
               onClick={refreshData}
               variant="outline"
@@ -607,6 +642,15 @@ export default function GuestsClient({
               <span className="hidden sm:inline">Clean Duplicates</span>
             </Button>
             <Button
+              onClick={() => setShowCleanupHouseholdsDialog(true)}
+              variant="outline"
+              size="sm"
+              className="border-purple-200 text-purple-700 hover:bg-purple-50 flex-1 sm:flex-none"
+            >
+              <Settings className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Clean Households</span>
+            </Button>
+            <Button
               onClick={() => {
                 setEditingGuest(undefined)
                 setShowGuestForm(true)
@@ -617,7 +661,6 @@ export default function GuestsClient({
               <Plus className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Add Guest</span>
             </Button>
-          </div>
         </div>
 
         <GuestTable
@@ -665,6 +708,12 @@ export default function GuestsClient({
         onComplete={refreshData}
       />
 
+      <CleanupHouseholdsDialog
+        open={showCleanupHouseholdsDialog}
+        onOpenChange={setShowCleanupHouseholdsDialog}
+        onComplete={refreshData}
+      />
+
       <ExportDialog
         open={showExportDialog}
         onOpenChange={setShowExportDialog}
@@ -677,6 +726,19 @@ export default function GuestsClient({
         config={config || undefined}
         onOpenChange={(open) => !open && setViewGuest(undefined)}
         onInvitationCreated={() => refreshData()}
+      />
+
+      <CreateInvitationsDialog
+        open={showCreateInvitationsDialog}
+        onOpenChange={(open) => {
+          setShowCreateInvitationsDialog(open)
+          if (!open) {
+            // Refresh data when dialog closes
+            refreshData()
+          }
+        }}
+        selectedGuests={selectedGuestsForInvitations}
+        events={events}
       />
     </>
   )

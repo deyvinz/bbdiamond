@@ -49,7 +49,6 @@ export default async function InvitationsPage({ searchParams }: InvitationsPageP
   // Add timeout to prevent indefinite hanging
   const fetchWithTimeout = async <T,>(promise: Promise<T>, timeoutMs: number = 10000, fallback: T, name: string): Promise<T> => {
     const fetchStartTime = Date.now()
-    console.log(`[${name}] Starting fetch...`)
     
     try {
       const timeoutPromise = new Promise<T>((_, reject) => 
@@ -57,7 +56,6 @@ export default async function InvitationsPage({ searchParams }: InvitationsPageP
       )
       
       const result = await Promise.race([promise, timeoutPromise])
-      console.log(`[${name}] Completed in ${Date.now() - fetchStartTime}ms`)
       return result
     } catch (error) {
       console.error(`[${name}] Error or timeout after ${Date.now() - fetchStartTime}ms:`, error)
@@ -66,7 +64,6 @@ export default async function InvitationsPage({ searchParams }: InvitationsPageP
   }
   
   try {
-    console.log('[InvitationsPage] Fetching data with filters:', filters, 'pagination:', pagination)
     const pageStartTime = Date.now()
     
     const results = await Promise.allSettled([
@@ -97,8 +94,6 @@ export default async function InvitationsPage({ searchParams }: InvitationsPageP
     config = results[1].status === 'fulfilled' ? results[1].value : DEFAULT_CONFIG
     eventsResponse = results[2].status === 'fulfilled' ? results[2].value : { events: [], total_count: 0 }
     
-    console.log(`[InvitationsPage] All fetches completed in ${Date.now() - pageStartTime}ms`)
-    console.log(`[InvitationsPage] Invitations data:`, { count: invitationsData.invitations?.length || 0, total: invitationsData.total_count })
   } catch (error) {
     console.error('[InvitationsPage] Error fetching data:', error)
     invitationsData = {

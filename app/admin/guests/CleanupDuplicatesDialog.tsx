@@ -266,7 +266,7 @@ export default function CleanupDuplicatesDialog({
                             )}
                             <div className="flex-1">
                               <p className="text-sm font-medium text-gray-900">
-                                {guest.first_name} {guest.last_name}
+                                {guest.first_name} {guest.last_name || ''}
                                 {isUppercase && (
                                   <span className="ml-2 text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded">
                                     UPPERCASE
