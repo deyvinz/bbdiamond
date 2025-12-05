@@ -673,6 +673,41 @@ export default function RSVPForm(){
   const showAdditionalDietaryInfoField = weddingInfo?.show_additional_dietary_info ?? true
   const isInitialLoading = (isConfigLoading || isWeddingInfoLoading) && !currentRsvpStatus && !result
 
+  // Build dynamic subtitle based on enabled notification channels
+  const getInviteCodeSubtitle = (): string => {
+    if (!config) {
+      return 'Enter the invite code from your card or email'
+    }
+
+    const channels: string[] = []
+    
+    if (config.notification_email_enabled) {
+      channels.push('email')
+    }
+    if (config.notification_whatsapp_enabled) {
+      channels.push('WhatsApp message')
+    }
+    if (config.notification_sms_enabled) {
+      channels.push('SMS')
+    }
+
+    if (channels.length === 0) {
+      return 'Enter your invite code'
+    }
+
+    if (channels.length === 1) {
+      return `Enter the invite code from your ${channels[0]}`
+    }
+
+    if (channels.length === 2) {
+      return `Enter the invite code from your ${channels[0]} or ${channels[1]}`
+    }
+
+    // 3 channels
+    const lastChannel = channels.pop()
+    return `Enter the invite code from your ${channels.join(', ')}, or ${lastChannel}`
+  }
+
   if (isInitialLoading) {
     return (
       <Section title="RSVP" subtitle="Loading your personalized form..." narrow>
@@ -745,7 +780,7 @@ export default function RSVPForm(){
   }
 
   return (
-    <Section title="RSVP" subtitle="Enter the invite code from your card or email" narrow>
+    <Section title="RSVP" subtitle={getInviteCodeSubtitle()} narrow>
       <Card className="border border-gray-200 shadow-lg rounded-3xl bg-white" radius="lg">
         <CardBody className="p-6 md:p-8">
           {/* RSVP Deadline Warning */}

@@ -320,11 +320,18 @@ export async function getInvitationsPage(
   }
 }
 
+export interface CreateInvitationsResult {
+  invitations: Invitation[]
+  created: number
+  skipped: number
+  skippedGuestIds: string[]
+}
+
 export async function createInvitationsForGuests(
   guestIds: string[],
   eventDefs: Array<{ event_id: string; headcount: number; status: string }>,
   weddingId?: string
-): Promise<Invitation[]> {
+): Promise<CreateInvitationsResult> {
   const supabase = await supabaseServer()
   
   // Get wedding ID
@@ -360,139 +367,226 @@ export async function createInvitationsForGuests(
   }
   
   const invitations: Invitation[] = []
+  let createdCount = 0
+  let skippedCount = 0
+  const skippedGuestIds: string[] = []
 
   for (const guestId of guestIds) {
-    // Fetch guest info including total_guests (scoped to wedding)
-    const { data: guestData, error: guestError } = await supabase
-      .from('guests')
-      .select('invite_code, total_guests, wedding_id')
-      .eq('id', guestId)
-      .eq('wedding_id', resolvedWeddingId)
-      .single()
-
-    if (guestError || !guestData) {
-      throw new Error(`Failed to fetch guest: ${guestError?.message || 'Guest not found'}`)
-    }
-
-    const guest = guestData as { invite_code: string | null; total_guests: number | null; wedding_id: string }
-
-    // Additional security check: verify guest belongs to this wedding
-    if (guest.wedding_id !== resolvedWeddingId) {
-      throw new Error(`Guest does not belong to this wedding. Access denied.`)
-    }
-
-    // Validate and enforce headcount rules based on guest's total_guests and configuration
-    const validatedEventDefs = await validateAndEnforceHeadcount(eventDefs, guest.total_guests || undefined)
-
-    if (guestError) {
-      throw new Error(`Failed to fetch guest: ${guestError.message}`)
-    }
-
-    // Generate invite code if missing
-    if (!guest.invite_code) {
-      const inviteCode = await generateInviteCode()
-      const { error: updateError } = await supabase
+    try {
+      // Fetch guest info including total_guests (scoped to wedding)
+      const { data: guestData, error: guestError } = await supabase
         .from('guests')
-        .update({ invite_code: inviteCode })
+        .select('invite_code, total_guests, wedding_id')
         .eq('id', guestId)
         .eq('wedding_id', resolvedWeddingId)
-
-      if (updateError) {
-        throw new Error(`Failed to update guest invite code: ${updateError.message}`)
-      }
-    }
-
-    // Check if invitation already exists
-    const { data: existingInvitation } = await supabase
-      .from('invitations')
-      .select('id')
-      .eq('guest_id', guestId)
-      .eq('wedding_id', resolvedWeddingId)
-      .single()
-
-    let invitationId: string
-
-    if (existingInvitation) {
-      invitationId = existingInvitation.id
-    } else {
-      // Create new invitation
-      const { data: invitation, error: invitationError } = await supabase
-        .from('invitations')
-        .insert({
-          guest_id: guestId,
-          wedding_id: resolvedWeddingId,
-          token: crypto.randomUUID()
-        })
-        .select()
         .single()
 
-      if (invitationError) {
-        throw new Error(`Failed to create invitation: ${invitationError.message}`)
+      if (guestError || !guestData) {
+        console.warn(`Skipping guest ${guestId}: ${guestError?.message || 'Guest not found'}`)
+        skippedCount++
+        skippedGuestIds.push(guestId)
+        continue
       }
 
-      invitationId = invitation.id
-    }
+      const guest = guestData as { invite_code: string | null; total_guests: number | null; wedding_id: string }
 
-    // Create invitation events using validated event definitions
-    const invitationEvents = validatedEventDefs.map(eventDef => ({
-      invitation_id: invitationId,
-      event_id: eventDef.event_id,
-      wedding_id: resolvedWeddingId,
-      headcount: eventDef.headcount,
-      status: eventDef.status,
-      event_token: crypto.randomUUID()
-    }))
+      // Additional security check: verify guest belongs to this wedding
+      if (guest.wedding_id !== resolvedWeddingId) {
+        console.warn(`Skipping guest ${guestId}: Guest does not belong to this wedding`)
+        skippedCount++
+        skippedGuestIds.push(guestId)
+        continue
+      }
 
-    const { error: eventsError } = await supabase
-      .from('invitation_events')
-      .insert(invitationEvents)
+      // Validate and enforce headcount rules based on guest's total_guests and configuration
+      const validatedEventDefs = await validateAndEnforceHeadcount(eventDefs, guest.total_guests || undefined)
 
-    if (eventsError) {
-      throw new Error(`Failed to create invitation events: ${eventsError.message}`)
-    }
+      // Generate invite code if missing
+      if (!guest.invite_code) {
+        const inviteCode = await generateInviteCode()
+        const { error: updateError } = await supabase
+          .from('guests')
+          .update({ invite_code: inviteCode })
+          .eq('id', guestId)
+          .eq('wedding_id', resolvedWeddingId)
 
-    // Fetch the complete invitation
-    const { data: fullInvitation } = await supabase
-      .from('invitations')
-      .select(`
-        id,
-        guest_id,
-        token,
-        created_at,
-        guest:guests(
-          id,
-          first_name,
-          last_name,
-          email,
-          phone_number,
-          preferred_contact_method,
-          is_vip,
-          invite_code,
-          total_guests
-        ),
-        invitation_events(
-          id,
-          event_id,
-          status,
-          headcount,
-          event_token,
-          created_at,
-          updated_at,
-          event:events(
+        if (updateError) {
+          console.warn(`Skipping guest ${guestId}: Failed to update guest invite code: ${updateError.message}`)
+          skippedCount++
+          skippedGuestIds.push(guestId)
+          continue
+        }
+      }
+
+      // Check if invitation already exists
+      const { data: existingInvitation } = await supabase
+        .from('invitations')
+        .select('id')
+        .eq('guest_id', guestId)
+        .eq('wedding_id', resolvedWeddingId)
+        .single()
+
+      let invitationId: string
+      let isNewInvitation = false
+
+      if (existingInvitation) {
+        invitationId = existingInvitation.id
+      } else {
+        // Create new invitation
+        const { data: invitation, error: invitationError } = await supabase
+          .from('invitations')
+          .insert({
+            guest_id: guestId,
+            wedding_id: resolvedWeddingId,
+            token: crypto.randomUUID()
+          })
+          .select()
+          .single()
+
+        if (invitationError) {
+          console.warn(`Skipping guest ${guestId}: Failed to create invitation: ${invitationError.message}`)
+          skippedCount++
+          skippedGuestIds.push(guestId)
+          continue
+        }
+
+        invitationId = invitation.id
+        isNewInvitation = true
+      }
+
+      // Check for existing invitation_events to avoid duplicates
+      const { data: existingEvents } = await supabase
+        .from('invitation_events')
+        .select('event_id')
+        .eq('invitation_id', invitationId)
+
+      const existingEventIds = existingEvents?.map((e: { event_id: string }) => e.event_id) || []
+
+      // Filter out events that already exist for this invitation
+      const newEventDefs = validatedEventDefs.filter(eventDef => !existingEventIds.includes(eventDef.event_id))
+
+      // If all events already exist for this guest, skip
+      if (newEventDefs.length === 0 && !isNewInvitation) {
+        skippedCount++
+        skippedGuestIds.push(guestId)
+        // Still fetch and include the invitation for the response
+        const { data: fullInvitation } = await supabase
+          .from('invitations')
+          .select(`
             id,
-            name,
-            starts_at,
-            venue,
-            address
-          )
-        )
-      `)
-      .eq('id', invitationId)
-      .eq('wedding_id', resolvedWeddingId)
-      .single()
+            guest_id,
+            token,
+            created_at,
+            guest:guests(
+              id,
+              first_name,
+              last_name,
+              email,
+              phone_number,
+              preferred_contact_method,
+              is_vip,
+              invite_code,
+              total_guests
+            ),
+            invitation_events(
+              id,
+              event_id,
+              status,
+              headcount,
+              event_token,
+              created_at,
+              updated_at,
+              event:events(
+                id,
+                name,
+                starts_at,
+                venue,
+                address
+              )
+            )
+          `)
+          .eq('id', invitationId)
+          .eq('wedding_id', resolvedWeddingId)
+          .single()
 
-    if (fullInvitation) {
-      invitations.push(fullInvitation)
+        if (fullInvitation) {
+          invitations.push(fullInvitation)
+        }
+        continue
+      }
+
+      // Create only new invitation events
+      if (newEventDefs.length > 0) {
+        const invitationEvents = newEventDefs.map(eventDef => ({
+          invitation_id: invitationId,
+          event_id: eventDef.event_id,
+          wedding_id: resolvedWeddingId,
+          headcount: eventDef.headcount,
+          status: eventDef.status,
+          event_token: crypto.randomUUID()
+        }))
+
+        const { error: eventsError } = await supabase
+          .from('invitation_events')
+          .insert(invitationEvents)
+
+        if (eventsError) {
+          console.warn(`Skipping guest ${guestId}: Failed to create invitation events: ${eventsError.message}`)
+          skippedCount++
+          skippedGuestIds.push(guestId)
+          continue
+        }
+      }
+
+      // Fetch the complete invitation
+      const { data: fullInvitation } = await supabase
+        .from('invitations')
+        .select(`
+          id,
+          guest_id,
+          token,
+          created_at,
+          guest:guests(
+            id,
+            first_name,
+            last_name,
+            email,
+            phone_number,
+            preferred_contact_method,
+            is_vip,
+            invite_code,
+            total_guests
+          ),
+          invitation_events(
+            id,
+            event_id,
+            status,
+            headcount,
+            event_token,
+            created_at,
+            updated_at,
+            event:events(
+              id,
+              name,
+              starts_at,
+              venue,
+              address
+            )
+          )
+        `)
+        .eq('id', invitationId)
+        .eq('wedding_id', resolvedWeddingId)
+        .single()
+
+      if (fullInvitation) {
+        invitations.push(fullInvitation)
+        createdCount++
+      }
+    } catch (error) {
+      console.warn(`Skipping guest ${guestId}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      skippedCount++
+      skippedGuestIds.push(guestId)
+      continue
     }
   }
 
@@ -504,10 +598,17 @@ export async function createInvitationsForGuests(
     wedding_id: resolvedWeddingId,
     guest_count: guestIds.length,
     event_count: eventDefs.length,
-    guest_ids: guestIds
+    guest_ids: guestIds,
+    created_count: createdCount,
+    skipped_count: skippedCount
   })
 
-  return invitations
+  return {
+    invitations,
+    created: createdCount,
+    skipped: skippedCount,
+    skippedGuestIds
+  }
 }
 
 export async function updateInvitation(

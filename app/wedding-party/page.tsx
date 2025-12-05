@@ -10,7 +10,7 @@ export default async function Page(){
   
   if (!weddingId) {
     return (
-      <Section title="Wedding Party" subtitle="Our favorite people">
+      <Section title="Wedding Party" subtitle="Our Wedding Team">
         <Card className="text-center border border-gray-200 shadow-lg rounded-3xl" radius="lg">
           <CardBody className="p-12">
             <h3 className="text-xl font-semibold text-[#C8A951] mb-2">Wedding Party Unavailable</h3>
@@ -47,7 +47,7 @@ export default async function Page(){
 
   if (partyMembers.length === 0) {
     return (
-      <Section title="Wedding Party" subtitle="Our favorite people">
+      <Section title="Wedding Party" subtitle="Our Wedding Team">
         <Card className="text-center border border-gray-200 shadow-lg rounded-3xl" radius="lg">
           <CardBody className="p-12">
             <div className="text-6xl mb-4">👥</div>
@@ -62,7 +62,7 @@ export default async function Page(){
   }
 
   return (
-    <Section title="Wedding Party" subtitle="Our favorite people">
+    <Section title="Wedding Party" subtitle="Our Wedding Team">
       <MotionStagger className="grid xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
         {partyMembers.map((member: { name: string; role: string; image_url?: string | null; bio?: string | null }, index: number) => (
           <MotionItem key={index}>

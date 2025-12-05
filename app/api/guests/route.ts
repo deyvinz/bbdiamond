@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createGuest } from '@/lib/guests-service-server'
-import { getGuestsServer } from '@/lib/guests'
+import { getGuestsServer, getGuestsWithoutInvitations } from '@/lib/guests'
 import { requireWeddingId, getWeddingIdFromBody } from '@/lib/api-wedding-context'
 
 export async function GET(request: NextRequest) {
@@ -8,6 +8,19 @@ export async function GET(request: NextRequest) {
     const weddingId = await requireWeddingId(request)
     
     const { searchParams } = new URL(request.url)
+    
+    // Check if we need to filter guests without invitations
+    const withoutInvitations = searchParams.get('without_invitations') === 'true'
+    
+    if (withoutInvitations) {
+      // Use specialized function for guests without invitations
+      const pagination = {
+        page: parseInt(searchParams.get('page') || '1'),
+        page_size: parseInt(searchParams.get('pageSize') || '1000')
+      }
+      const result = await getGuestsWithoutInvitations(pagination, weddingId)
+      return NextResponse.json(result)
+    }
     
     const filters = {
       search: searchParams.get('q') || undefined,
