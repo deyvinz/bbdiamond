@@ -23,7 +23,7 @@ serve(async (req) => {
     const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID')
     const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN')
     const twilioWhatsappFromNumber = Deno.env.get('TWILIO_WHATSAPP_FROM_NUMBER')
-    const twilioWhatsappContentSid = Deno.env.get('TWILIO_WHATSAPP_CONTENT_SID') // Content SID for WhatsApp template
+    const twilioWhatsappContentSid = Deno.env.get('TWILIO_WHATSAPP_CONTENT_SID')
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
@@ -76,26 +76,37 @@ serve(async (req) => {
       )
     }
 
-    // Helper function to sanitize variables for Twilio (remove newlines, tabs, excessive spaces)
+    // Helper function to sanitize variables for Twilio
+    // Handles all whitespace variants and special characters
     const sanitizeVariable = (value: string): string => {
-      if (!value) return ''
-      // Replace newlines and tabs with spaces
-      let sanitized = value.replace(/[\n\r\t]/g, ' ')
-      // Replace multiple consecutive spaces (more than 4) with single space
-      sanitized = sanitized.replace(/ {5,}/g, ' ')
-      // Trim and ensure not empty
-      return sanitized.trim() || ''
+      if (!value || typeof value !== 'string') return ''
+      
+      let sanitized = value
+        // Replace all types of newlines
+        .replace(/\r\n/g, ' ')
+        .replace(/[\n\r]/g, ' ')
+        // Replace tabs
+        .replace(/\t/g, ' ')
+        // Replace non-breaking spaces and other Unicode whitespace
+        .replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000]/g, ' ')
+        // Replace any 2+ consecutive spaces with single space
+        .replace(/ {2,}/g, ' ')
+        // Remove any control characters
+        .replace(/[\x00-\x1F\x7F]/g, '')
+        // Trim
+        .trim()
+      
+      return sanitized || ''
     }
 
     // Format content variables for Twilio WhatsApp template
-    // Reduced to 4 variables to meet WhatsApp's variable-to-length ratio requirement
-    // These variables will be substituted in your Twilio Content template
-    // IMPORTANT: Variables cannot contain newlines, tabs, or more than 4 consecutive spaces
     const var1 = sanitizeVariable(payload.guestName)
     const var2 = sanitizeVariable(`${payload.coupleName}'s ${payload.eventName}`)
     const var3 = sanitizeVariable(`${payload.eventDate} at ${payload.eventTime} · ${payload.venue}`)
-    // For variable 4, use space instead of newline to separate URL and code
-    const var4 = sanitizeVariable(`${payload.rsvpUrl} Code: ${payload.inviteCode}`)
+    const var4 = sanitizeVariable(payload.rsvpUrl)  // Just the URL, no invite code
+
+    // Log variables for debugging
+    console.log('ContentVariables being sent:', { var1, var2, var3, var4 })
 
     // Validate that no variables are empty after sanitization
     if (!var1 || !var2 || !var3 || !var4) {
@@ -103,7 +114,12 @@ serve(async (req) => {
         JSON.stringify({ 
           success: false, 
           error: 'One or more required variables are empty after sanitization',
-          details: { var1: !!var1, var2: !!var2, var3: !!var3, var4: !!var4 }
+          details: { 
+            var1: var1 || '(empty)', 
+            var2: var2 || '(empty)', 
+            var3: var3 || '(empty)', 
+            var4: var4 || '(empty)' 
+          }
         }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       )
@@ -124,7 +140,7 @@ serve(async (req) => {
       ? twilioWhatsappFromNumber 
       : `whatsapp:${twilioWhatsappFromNumber}`
 
-    // Build Twilio request - use ContentSid for templates (required outside 24-hour window)
+    // Build Twilio request
     const formData = new URLSearchParams()
     formData.append('To', toNumber)
     formData.append('From', fromNumber)
@@ -185,4 +201,3 @@ serve(async (req) => {
     )
   }
 })
-
