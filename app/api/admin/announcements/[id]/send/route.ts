@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { bumpNamespaceVersion } from '@/lib/cache'
 import { getNotificationConfig, determineBestChannel } from '@/lib/notification-service'
+import { isNotificationAPIConfigured, mapAnnouncementToMergeTags } from '@/lib/notificationapi-service'
+
+/**
+ * Check if NotificationAPI should be used
+ */
+function useNotificationAPI(): boolean {
+  return (
+    process.env.NOTIFICATION_PROVIDER === 'notificationapi' &&
+    isNotificationAPIConfigured()
+  )
+}
 
 export async function POST(
   request: NextRequest,
@@ -96,16 +107,21 @@ export async function POST(
         .from('announcements')
         .update({ status: 'sent' })
         .eq('id', id)
-      
+
       await bumpNamespaceVersion()
-      
+
       return NextResponse.json({
         success: true,
         message: 'No more recipients to send to. Announcement marked as sent.'
       })
     }
 
-    // Get notification config
+    // Use NotificationAPI if configured
+    if (useNotificationAPI()) {
+      return await sendViaNotificationAPI(supabase, id, announcement, recipients)
+    }
+
+    // Get notification config (legacy path)
     const notificationConfig = await getNotificationConfig(announcement.wedding_id)
 
     // Group recipients by channel based on notification preferences
@@ -329,6 +345,149 @@ export async function POST(
     console.error('Error sending announcement:', error)
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * Send announcement via NotificationAPI
+ * Uses the unified NotificationAPI platform for all channels
+ */
+async function sendViaNotificationAPI(
+  supabase: Awaited<ReturnType<typeof supabaseServer>>,
+  announcementId: string,
+  announcement: any,
+  recipients: any[]
+): Promise<NextResponse> {
+  try {
+    // Prepare recipients for NotificationAPI bulk send
+    const notificationRecipients = recipients.map(recipient => {
+      const guest = recipient.guest as any
+      const guestName = `${guest?.first_name || ''} ${guest?.last_name || ''}`.trim() || 'Guest'
+
+      return {
+        recipientId: recipient.id,
+        userId: guest?.email || guest?.phone || recipient.id,
+        email: guest?.email,
+        phone: guest?.phone,
+        parameters: mapAnnouncementToMergeTags({
+          guestName,
+          title: announcement.title,
+          content: announcement.content,
+          coupleName: 'The Couple', // Could be fetched from wedding config
+        }),
+      }
+    })
+
+    // Create batch record
+    const { data: batch, error: batchError } = await supabase
+      .from('announcement_batches')
+      .insert({
+        announcement_id: announcementId,
+        batch_number: 1,
+        total_in_batch: notificationRecipients.length,
+        status: 'sending',
+        started_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+
+    if (batchError) {
+      console.error('Error creating batch:', batchError)
+      return NextResponse.json(
+        { success: false, error: 'Failed to create batch record' },
+        { status: 500 }
+      )
+    }
+
+    // Call NotificationAPI edge function for bulk send
+    const { data: result, error: sendError } = await supabase.functions.invoke('send-notification', {
+      body: {
+        notificationType: 'announcement',
+        recipients: notificationRecipients.map(r => ({
+          userId: r.userId,
+          email: r.email,
+          phone: r.phone,
+          parameters: r.parameters,
+        })),
+      }
+    })
+
+    if (sendError) {
+      console.error('NotificationAPI error:', sendError)
+
+      // Update batch status to failed
+      await supabase
+        .from('announcement_batches')
+        .update({ status: 'failed' })
+        .eq('id', batch.id)
+
+      // Update announcement status back to draft
+      await supabase
+        .from('announcements')
+        .update({ status: 'draft' })
+        .eq('announcementId', announcementId)
+
+      await bumpNamespaceVersion()
+
+      return NextResponse.json(
+        { success: false, error: sendError.message || 'Failed to send via NotificationAPI' },
+        { status: 500 }
+      )
+    }
+
+    // Update recipient statuses based on results
+    if (result?.results) {
+      for (let i = 0; i < result.results.length; i++) {
+        const sendResult = result.results[i]
+        const recipient = notificationRecipients[i]
+
+        await supabase
+          .from('announcement_recipients')
+          .update({
+            status: sendResult.success ? 'sent' : 'failed',
+            sent_at: sendResult.success ? new Date().toISOString() : null,
+            error_message: sendResult.error,
+          })
+          .eq('id', recipient.recipientId)
+      }
+    }
+
+    // Update batch status
+    await supabase
+      .from('announcement_batches')
+      .update({
+        status: 'completed',
+        sent_count: result?.totalSent || 0,
+        failed_count: result?.totalFailed || 0,
+      })
+      .eq('id', batch.id)
+
+    // Update announcement counts
+    await supabase
+      .from('announcements')
+      .update({
+        sent_count: announcement.sent_count + (result?.totalSent || 0),
+        failed_count: announcement.failed_count + (result?.totalFailed || 0),
+        status: 'sent',
+      })
+      .eq('id', announcementId)
+
+    await bumpNamespaceVersion()
+
+    return NextResponse.json({
+      success: true,
+      message: `Sent ${result?.totalSent || 0} announcements via NotificationAPI`,
+      provider: 'notificationapi',
+      batch_id: batch.id,
+      totalSent: result?.totalSent || 0,
+      totalFailed: result?.totalFailed || 0,
+    })
+  } catch (error) {
+    console.error('Error sending via NotificationAPI:', error)
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }

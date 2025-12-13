@@ -14,7 +14,7 @@ import CleanupHouseholdsDialog from './CleanupHouseholdsDialog'
 import ExportDialog from './ExportDialog'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
-import { Plus, Upload, RefreshCw, Settings, Trash2 } from 'lucide-react'
+import { Plus, Upload, RefreshCw, Settings, Trash2, Mail, Wrench } from 'lucide-react'
 import {
   createGuest, 
   updateGuest, 
@@ -23,11 +23,12 @@ import {
 import {
   regenerateInvitationToken,
   exportGuestsToCsv,
-  createInvitationForGuest,
-  sendInvitesToAllGuests
+  createInvitationForGuest
 } from '@/lib/guests-client'
-import { sendInviteEmailAction } from '@/lib/actions/invitations'
+import { sendInviteEmailAction, fixInvitationHeadcountsAction } from '@/lib/actions/invitations'
 import { CreateInvitationsDialog } from './CreateInvitationsDialog'
+import { SendInvitationsToPendingDialog } from './SendInvitationsToPendingDialog'
+import FixHeadcountsDialog from './FixHeadcountsDialog'
 
 interface GuestsClientProps {
   initialGuests: Guest[]
@@ -59,6 +60,8 @@ export default function GuestsClient({
   const [showCleanupHouseholdsDialog, setShowCleanupHouseholdsDialog] = useState(false)
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [showCreateInvitationsDialog, setShowCreateInvitationsDialog] = useState(false)
+  const [showSendInvitationsToPendingDialog, setShowSendInvitationsToPendingDialog] = useState(false)
+  const [showFixHeadcountsDialog, setShowFixHeadcountsDialog] = useState(false)
   const [selectedGuestsForInvitations, setSelectedGuestsForInvitations] = useState<Guest[]>([])
   const [editingGuest, setEditingGuest] = useState<Guest | undefined>()
   const [viewGuest, setViewGuest] = useState<Guest | undefined>()
@@ -509,87 +512,6 @@ export default function GuestsClient({
     await refreshData()
   }
 
-  const handleSendInvitesToAll = async () => {
-    // First, we need to get the available events
-    try {
-      const eventsResponse = await fetch('/api/events')
-      const eventsData = await eventsResponse.json()
-      
-      if (!eventsData.success || !eventsData.events || eventsData.events.length === 0) {
-        toast({
-          title: "Error",
-          description: "No events found. Please create events first.",
-          variant: "destructive",
-        })
-        return
-      }
-
-      const eventIds = eventsData.events.map((event: any) => event.id)
-      
-      // Show confirmation dialog
-      const confirmed = confirm(
-        `This will send invitation emails to ALL guests in the database for ${eventIds.length} event(s).\n\n` +
-        `Guests who have already RSVP'd (accepted/declined) will be skipped.\n` +
-        `Guests without invitations will have them created automatically.\n\n` +
-        `Are you sure you want to continue?`
-      )
-
-      if (!confirmed) {
-        return
-      }
-
-      setLoading(true)
-      
-      try {
-        const results = await sendInvitesToAllGuests(eventIds)
-        
-        // Show results
-        if (results.sent > 0) {
-          toast({
-            title: "✅ Bulk Invites Sent Successfully!",
-            description: `Processed ${results.processed} guests: ${results.sent} emails sent, ${results.skipped} skipped${results.errors.length > 0 ? `, ${results.errors.length} errors` : ''}`,
-          })
-        } else {
-          toast({
-            title: "No Emails Sent",
-            description: `Processed ${results.processed} guests: ${results.skipped} skipped${results.errors.length > 0 ? `, ${results.errors.length} errors` : ''}`,
-            variant: "destructive",
-          })
-        }
-
-        // Show errors if any
-        if (results.errors.length > 0) {
-          console.error('Bulk invite errors:', results.errors)
-          toast({
-            title: "Some Errors Occurred",
-            description: `Check console for details. ${results.errors.length} guests had errors.`,
-            variant: "destructive",
-          })
-        }
-
-        // Refresh data to get updated state
-        await refreshData()
-
-      } catch (error) {
-        console.error('Error in bulk invite:', error)
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "An error occurred during bulk invite",
-          variant: "destructive",
-        })
-      } finally {
-        setLoading(false)
-      }
-
-    } catch (error) {
-      console.error('Error fetching events:', error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch events. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }
 
   const handleCreateMissingInvitations = async () => {
     setLoading(true)
@@ -625,6 +547,41 @@ export default function GuestsClient({
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to fetch guests without invitations",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleFixInvitationHeadcounts = async () => {
+    setLoading(true)
+    try {
+      const result = await fixInvitationHeadcountsAction()
+      
+      if (result.success) {
+        toast({
+          title: "✅ Headcounts Fixed Successfully!",
+          description: result.message || `Fixed ${result.fixed || 0} invitation headcount${result.fixed !== 1 ? 's' : ''}.`,
+        })
+        
+        // Close dialog
+        setShowFixHeadcountsDialog(false)
+        
+        // Refresh data to show updated headcounts
+        await refreshData()
+      } else {
+        toast({
+          title: "Error",
+          description: result.message || "Failed to fix headcounts",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Error fixing headcounts:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to fix invitation headcounts",
         variant: "destructive",
       })
     } finally {
@@ -702,6 +659,25 @@ export default function GuestsClient({
               <Plus className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Add Guest</span>
             </Button>
+            <Button
+              onClick={() => setShowSendInvitationsToPendingDialog(true)}
+              variant="outline"
+              size="sm"
+              className="bg-gold-50 border-gold-200 text-gold-700 hover:bg-gold-100 flex-1 sm:flex-none"
+            >
+              <Mail className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Send Invites to All</span>
+            </Button>
+            <Button
+              onClick={() => setShowFixHeadcountsDialog(true)}
+              variant="outline"
+              size="sm"
+              disabled={loading}
+              className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 flex-1 sm:flex-none"
+            >
+              <Wrench className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Fix Headcounts</span>
+            </Button>
         </div>
 
         <GuestTable
@@ -719,7 +695,6 @@ export default function GuestsClient({
           onSendInvite={handleSendInvite}
           onExport={handleExport}
           onBulkAction={handleBulkAction}
-          onSendInvitesToAll={handleSendInvitesToAll}
           onCreateMissingInvitations={handleCreateMissingInvitations}
           onView={handleView}
           loading={loading && initialGuests.length === 0}
@@ -781,6 +756,22 @@ export default function GuestsClient({
         }}
         selectedGuests={selectedGuestsForInvitations}
         events={events}
+      />
+      <SendInvitationsToPendingDialog
+        open={showSendInvitationsToPendingDialog}
+        onOpenChange={(open) => {
+          setShowSendInvitationsToPendingDialog(open)
+          if (!open) {
+            // Reset state when dialog closes
+          }
+        }}
+        onComplete={refreshData}
+      />
+      <FixHeadcountsDialog
+        open={showFixHeadcountsDialog}
+        onOpenChange={setShowFixHeadcountsDialog}
+        onConfirm={handleFixInvitationHeadcounts}
+        loading={loading}
       />
     </>
   )

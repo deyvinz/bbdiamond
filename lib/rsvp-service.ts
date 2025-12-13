@@ -32,7 +32,9 @@ export interface InvitationWithEvents {
     first_name: string
     last_name: string
     email: string
+    phone?: string
     invite_code: string
+    total_guests?: number
   }
   invitation_events: Array<{
     id: string
@@ -72,8 +74,10 @@ export async function resolveInvitationByCode(
           first_name,
           last_name,
           email,
+          phone,
           invite_code,
-          wedding_id
+          wedding_id,
+          total_guests
         ),
         invitation_events(
           id,
@@ -147,8 +151,10 @@ export async function validateInviteCodeAndGetToken(
           first_name,
           last_name,
           email,
+          phone,
           invite_code,
-          wedding_id
+          wedding_id,
+          total_guests
         ),
         invitation_events(
           id,
@@ -221,7 +227,8 @@ export async function submitRsvpToDatabase(
     dietary_restrictions?: string
     dietary_information?: string
     food_choice?: string
-  }
+  },
+  partySize?: number
 ): Promise<boolean> {
   try {
     const supabase = await supabaseServer()
@@ -238,13 +245,35 @@ export async function submitRsvpToDatabase(
     // Use the invitation's wedding_id or the resolved one
     const finalWeddingId = invitation.wedding_id || weddingId
     
+    // Get config to validate headcount
+    const { getAppConfig } = await import('./config-service')
+    const config = await getAppConfig()
+    
     // Update each invitation event directly to support dietary fields
     for (const invitationEvent of invitation.invitation_events) {
+      // Use provided party_size if available, otherwise preserve existing headcount
+      // Validate it against guest's total_guests and config
+      let headcount = partySize !== undefined ? partySize : (invitationEvent.headcount || 1)
+      
+      // If plus-ones are enabled, validate against guest's total_guests
+      if (config.plus_ones_enabled && invitation.guest.total_guests) {
+        const maxHeadcount = Math.min(
+          invitation.guest.total_guests,
+          config.max_party_size || invitation.guest.total_guests
+        )
+        // Ensure headcount doesn't exceed the limit
+        headcount = Math.min(headcount, maxHeadcount)
+      } else if (!config.plus_ones_enabled) {
+        // If plus-ones are disabled, force to 1
+        headcount = 1
+      }
+      
       const updateData: any = {
         status: response,
-        headcount: 1, // Fixed at 1 as per requirements
-        goodwill_message: goodwillMessage || null,
-        responded_at: new Date().toISOString()
+        headcount,
+        // Note: goodwill_message and responded_at are not stored in invitation_events
+        // goodwill_message is logged separately via logRsvpDeclineMessage
+        // responded_at is tracked via updated_at timestamp
       }
 
       // Add dietary and food choice fields if provided (only for accepted)
@@ -293,14 +322,18 @@ export async function submitRsvpToDatabase(
 }
 
 /**
- * Send RSVP confirmation email
+ * Send RSVP confirmation via preferred channel (email, SMS, or WhatsApp)
  */
-export async function sendRsvpConfirmationEmail(
+export async function sendRsvpConfirmation(
   invitation: InvitationWithEvents,
   response: 'accepted' | 'declined',
-  emailOverride?: string,
-  goodwillMessage?: string
-): Promise<{ success: boolean; message: string }> {
+  options?: {
+    emailOverride?: string
+    phoneOverride?: string
+    preferredChannel?: 'email' | 'sms' | 'whatsapp'
+    goodwillMessage?: string
+  }
+): Promise<{ success: boolean; message: string; channel?: string }> {
   try {
     const supabase = await supabaseServer()
     
@@ -309,15 +342,14 @@ export async function sendRsvpConfirmationEmail(
     
     // Get email config and branding
     const { getEmailConfig, getWebsiteUrl } = await import('./email-service')
+    const { getNotificationConfig, determineBestChannel } = await import('./notification-service')
+    
     const emailConfigData = weddingId ? await getEmailConfig(weddingId) : null
     const websiteUrl = weddingId ? await getWebsiteUrl(weddingId) : (process.env.NEXT_PUBLIC_APP_URL || 'https://luwani.com')
     
     const coupleDisplayName = emailConfigData?.branding.coupleDisplayName || 'Wedding Celebration'
     const contactEmail = emailConfigData?.branding.contactEmail || 'contact@luwani.com'
     
-    // Skip rate limiting for now to test email sending
-
-    const recipientEmail = emailOverride || invitation.guest.email
     const guestName = `${invitation.guest.first_name} ${invitation.guest.last_name}`
     const rsvpUrl = `${websiteUrl}/rsvp?token=${invitation.token}`
 
@@ -331,6 +363,106 @@ export async function sendRsvpConfirmationEmail(
         address: ie.event.address
       }))
 
+    // Determine the best channel to use
+    const notificationConfig = weddingId ? await getNotificationConfig(weddingId) : null
+    
+    // Get contact info - use overrides first, then guest info
+    const recipientEmail = options?.emailOverride || invitation.guest.email
+    const recipientPhone = options?.phoneOverride || invitation.guest.phone
+    
+    // Determine which channel to use
+    let channelToUse: 'email' | 'sms' | 'whatsapp' | null = null
+    
+    if (options?.preferredChannel) {
+      // User explicitly chose a channel
+      channelToUse = options.preferredChannel
+    } else if (notificationConfig && weddingId) {
+      // Use notification config to determine best channel
+      const channelDecision = await determineBestChannel(
+        notificationConfig,
+        { email: recipientEmail, phone: recipientPhone },
+        weddingId
+      )
+      channelToUse = channelDecision.channel
+    } else {
+      // Default to email if available
+      channelToUse = recipientEmail ? 'email' : (recipientPhone ? 'sms' : null)
+    }
+
+    if (!channelToUse) {
+      console.warn('[RSVP Confirmation] No channel available - no contact info')
+      return { success: false, message: 'No contact information available to send confirmation' }
+    }
+
+    console.log('[RSVP Confirmation] Sending via channel:', {
+      channel: channelToUse,
+      hasEmail: !!recipientEmail,
+      hasPhone: !!recipientPhone,
+      guestName
+    })
+
+    // Send via the determined channel
+    if (channelToUse === 'email' && recipientEmail) {
+      return await sendRsvpConfirmationViaEmail(
+        supabase,
+        invitation,
+        response,
+        recipientEmail,
+        {
+          guestName,
+          rsvpUrl,
+          events,
+          coupleDisplayName,
+          contactEmail,
+          websiteUrl,
+          weddingId,
+          goodwillMessage: options?.goodwillMessage
+        }
+      )
+    } else if ((channelToUse === 'sms' || channelToUse === 'whatsapp') && recipientPhone) {
+      return await sendRsvpConfirmationViaSmsOrWhatsapp(
+        invitation,
+        response,
+        recipientPhone,
+        channelToUse,
+        {
+          guestName,
+          rsvpUrl,
+          events,
+          coupleDisplayName,
+          websiteUrl,
+          weddingId: weddingId || undefined
+        }
+      )
+    }
+
+    return { success: false, message: 'Unable to send confirmation - no valid channel/contact' }
+  } catch (error) {
+    console.error('Error sending RSVP confirmation:', error)
+    return { success: false, message: 'Failed to send confirmation' }
+  }
+}
+
+/**
+ * Send RSVP confirmation via email
+ */
+async function sendRsvpConfirmationViaEmail(
+  supabase: Awaited<ReturnType<typeof supabaseServer>>,
+  invitation: InvitationWithEvents,
+  response: 'accepted' | 'declined',
+  recipientEmail: string,
+  params: {
+    guestName: string
+    rsvpUrl: string
+    events: Array<{ name: string; startsAtISO: string; venue: string; address?: string }>
+    coupleDisplayName: string
+    contactEmail: string
+    websiteUrl: string
+    weddingId: string | null
+    goodwillMessage?: string
+  }
+): Promise<{ success: boolean; message: string; channel?: string }> {
+  try {
     // Generate QR code for email
     let qrAttachment: { filename: string; content: string; contentType: string } | undefined
     try {
@@ -346,13 +478,13 @@ export async function sendRsvpConfirmationEmail(
 
     // Generate digital pass for accepted RSVPs
     let passAttachment: { filename: string; content: string; contentType: string } | undefined
-    if (response === 'accepted' && events.length > 0) {
+    if (response === 'accepted' && params.events.length > 0) {
       try {
         const passData: DigitalPassData = {
-          guestName,
+          guestName: params.guestName,
           inviteCode: invitation.guest.invite_code,
           token: invitation.token,
-          events
+          events: params.events
         }
         const passResult = await generateDigitalPass(passData)
         passAttachment = {
@@ -366,27 +498,26 @@ export async function sendRsvpConfirmationEmail(
     }
 
     // Call edge function to send email
-    
-    const { data, error } = await supabase.functions.invoke('send-rsvp-confirmation', {
+    const { error } = await supabase.functions.invoke('send-rsvp-confirmation', {
       body: {
         to: recipientEmail,
         subject: response === 'accepted' 
-          ? `RSVP Confirmed — ${coupleDisplayName}` 
-          : `Thank you for your response — ${coupleDisplayName}`,
-        html: '', // Will be generated by edge function
-        text: '', // Will be generated by edge function
+          ? `RSVP Confirmed — ${params.coupleDisplayName}` 
+          : `Thank you for your response — ${params.coupleDisplayName}`,
+        html: '',
+        text: '',
         meta: {
           invitationId: invitation.id,
-          weddingId: weddingId || undefined,
-          rsvpUrl,
-          guestName,
+          weddingId: params.weddingId || undefined,
+          rsvpUrl: params.rsvpUrl,
+          guestName: params.guestName,
           inviteCode: invitation.guest.invite_code,
-          events,
+          events: params.events,
           isAccepted: response === 'accepted',
-          goodwillMessage,
-          coupleDisplayName,
-          contactEmail,
-          websiteUrl: websiteUrl
+          goodwillMessage: params.goodwillMessage,
+          coupleDisplayName: params.coupleDisplayName,
+          contactEmail: params.contactEmail,
+          websiteUrl: params.websiteUrl
         },
         attachments: [qrAttachment, passAttachment].filter(Boolean)
       }
@@ -394,25 +525,134 @@ export async function sendRsvpConfirmationEmail(
 
     if (error) {
       console.error('Error calling send-rsvp-confirmation function:', error)
-      console.error('Error details:', JSON.stringify(error, null, 2))
-      return { success: false, message: 'Failed to send confirmation email' }
+      return { success: false, message: 'Failed to send confirmation email', channel: 'email' }
     }
 
     // Log successful email send
     await logRsvpConfirmationEmailSend(
       invitation.id,
       recipientEmail,
-      events,
-      undefined, // user_id
-      undefined, // ip_address
-      undefined  // user_agent
+      params.events,
+      undefined,
+      undefined,
+      undefined
     )
 
-    return { success: true, message: 'Confirmation email sent successfully' }
+    return { success: true, message: 'Confirmation email sent successfully', channel: 'email' }
   } catch (error) {
     console.error('Error sending RSVP confirmation email:', error)
-    return { success: false, message: 'Failed to send confirmation email' }
+    return { success: false, message: 'Failed to send confirmation email', channel: 'email' }
   }
+}
+
+/**
+ * Send RSVP confirmation via SMS or WhatsApp using NotificationAPI
+ */
+async function sendRsvpConfirmationViaSmsOrWhatsapp(
+  invitation: InvitationWithEvents,
+  response: 'accepted' | 'declined',
+  recipientPhone: string,
+  channel: 'sms' | 'whatsapp',
+  params: {
+    guestName: string
+    rsvpUrl: string
+    events: Array<{ name: string; startsAtISO: string; venue: string; address?: string }>
+    coupleDisplayName: string
+    websiteUrl: string
+    weddingId?: string
+  }
+): Promise<{ success: boolean; message: string; channel?: string }> {
+  try {
+    const { 
+      sendNotification: sendNotificationAPI, 
+      isNotificationAPIConfigured,
+      getWeddingThemeParams,
+      mapRsvpConfirmationToMergeTags
+    } = await import('./notificationapi-service')
+
+    // Check if NotificationAPI is configured
+    if (!isNotificationAPIConfigured()) {
+      console.warn('[RSVP Confirmation] NotificationAPI not configured for SMS/WhatsApp')
+      return { success: false, message: `NotificationAPI not configured for ${channel}`, channel }
+    }
+
+    // Get theme params for branding
+    const theme = params.weddingId ? await getWeddingThemeParams(params.weddingId) : undefined
+
+    // Format event date/time for the first event
+    const primaryEvent = params.events[0]
+    let eventDate = ''
+    let eventTime = ''
+    
+    if (primaryEvent) {
+      const [datePart, timePart] = primaryEvent.startsAtISO.split(' ')
+      const [year, month, day] = datePart.split('-')
+      eventDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+      eventTime = timePart ? timePart.substring(0, 5) : ''
+    }
+
+    // Build merge tags
+    const mergeTags = mapRsvpConfirmationToMergeTags({
+      guestName: params.guestName,
+      coupleName: params.coupleDisplayName,
+      eventName: primaryEvent?.name || 'Wedding',
+      rsvpStatus: response === 'accepted' ? 'Confirmed' : 'Declined',
+      guestCount: 1,
+      eventDate,
+      eventTime,
+      venue: primaryEvent?.venue || '',
+      address: primaryEvent?.address,
+      rsvpUrl: params.rsvpUrl,
+      websiteUrl: params.websiteUrl,
+      theme
+    })
+
+    // Send via NotificationAPI
+    const result = await sendNotificationAPI({
+      type: 'rsvp_confirmation',
+      userId: recipientPhone,
+      phone: recipientPhone,
+      parameters: mergeTags,
+      weddingId: params.weddingId,
+      channel
+    })
+
+    if (result.success) {
+      console.log(`[RSVP Confirmation] ${channel.toUpperCase()} sent successfully`)
+      return { 
+        success: true, 
+        message: `Confirmation sent via ${channel === 'sms' ? 'SMS' : 'WhatsApp'}`,
+        channel 
+      }
+    } else {
+      console.error(`[RSVP Confirmation] ${channel.toUpperCase()} failed:`, result.error)
+      return { success: false, message: result.error || `Failed to send ${channel}`, channel }
+    }
+  } catch (error) {
+    console.error(`Error sending RSVP confirmation via ${channel}:`, error)
+    return { success: false, message: `Failed to send confirmation via ${channel}`, channel }
+  }
+}
+
+/**
+ * Send RSVP confirmation email (legacy - calls sendRsvpConfirmation)
+ */
+export async function sendRsvpConfirmationEmail(
+  invitation: InvitationWithEvents,
+  response: 'accepted' | 'declined',
+  emailOverride?: string,
+  goodwillMessage?: string
+): Promise<{ success: boolean; message: string }> {
+  return sendRsvpConfirmation(invitation, response, {
+    emailOverride,
+    preferredChannel: 'email',
+    goodwillMessage
+  })
 }
 
 /**
@@ -457,7 +697,8 @@ export async function submitRsvp(
         dietary_restrictions: validatedInput.dietary_restrictions,
         dietary_information: validatedInput.dietary_information,
         food_choice: validatedInput.food_choice
-      } : undefined
+      } : undefined,
+      validatedInput.party_size
     )
 
     if (!dbSuccess) {
@@ -528,25 +769,36 @@ export async function submitRsvp(
       }
     }
 
-    // Send confirmation email (non-blocking)
+    // Send confirmation via preferred channel (non-blocking)
     try {
-      await sendRsvpConfirmationEmail(
+      const confirmResult = await sendRsvpConfirmation(
         invitation,
         validatedInput.response,
-        validatedInput.email,
-        validatedInput.goodwill_message
+        {
+          emailOverride: validatedInput.email,
+          phoneOverride: validatedInput.phone,
+          preferredChannel: validatedInput.preferred_channel,
+          goodwillMessage: validatedInput.goodwill_message
+        }
       )
+      console.log('[RSVP] Confirmation sent:', confirmResult)
     } catch (error) {
-      console.error('Failed to send confirmation email:', error)
-      // Don't fail the RSVP for email issues
+      console.error('Failed to send confirmation:', error)
+      // Don't fail the RSVP for notification issues
     }
+
+    // Build success message based on available contact info
+    const hasContactInfo = validatedInput.email || validatedInput.phone || invitation.guest.email || invitation.guest.phone
+    const successMessage = validatedInput.response === 'accepted' 
+      ? hasContactInfo 
+        ? 'RSVP confirmed! Check your email or phone for details and your digital pass.'
+        : 'RSVP confirmed! We look forward to seeing you.'
+      : 'Thank you for letting us know. We\'ll miss you!'
 
     return { 
       success: true, 
       result,
-      message: validatedInput.response === 'accepted' 
-        ? 'RSVP confirmed! Check your email for details and your digital pass.'
-        : 'Thank you for letting us know. We\'ll miss you!'
+      message: successMessage
     }
   } catch (error) {
     console.error('Error in submitRsvp:', error)

@@ -18,7 +18,10 @@ export async function submitRsvpAction(
     // Extract form data
     const inviteCode = formData.get('invite_code') as string
     const response = formData.get('response') as string
+    const partySizeStr = formData.get('party_size') as string
     const email = formData.get('email') as string
+    const phone = formData.get('phone') as string
+    const preferredChannel = formData.get('preferred_channel') as string
     const goodwillMessage = formData.get('goodwill_message') as string
     const dietaryRestrictions = formData.get('dietary_restrictions') as string
     const dietaryInformation = formData.get('dietary_information') as string
@@ -28,7 +31,10 @@ export async function submitRsvpAction(
     const validationResult = rsvpSchema.safeParse({
       invite_code: inviteCode,
       response: response === 'accepted' ? 'accepted' : 'declined',
+      party_size: partySizeStr ? parseInt(partySizeStr, 10) : undefined,
       email: email || undefined,
+      phone: phone || undefined,
+      preferred_channel: preferredChannel || undefined,
       goodwill_message: goodwillMessage || undefined,
       dietary_restrictions: dietaryRestrictions || undefined,
       dietary_information: dietaryInformation || undefined,

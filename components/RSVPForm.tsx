@@ -26,7 +26,10 @@ import { isRsvpAllowed, getFormattedCutoffDate, getTimeUntilCutoff } from '@/lib
 type FormValues = { 
   invite_code: string
   response: 'accepted' | 'declined'
+  party_size?: number
   email?: string
+  phone?: string
+  preferred_channel?: 'email' | 'sms' | 'whatsapp'
   goodwill_message?: string
   dietary_restrictions?: string
   dietary_information?: string
@@ -53,7 +56,8 @@ export default function RSVPForm(){
   
   const {register, handleSubmit, setValue, watch, formState:{isSubmitting, errors}} = useForm<FormValues>({ 
     defaultValues:{ 
-      response:'accepted' 
+      response:'accepted',
+      party_size: 1
     },
     mode: 'onChange'
   })
@@ -78,6 +82,7 @@ export default function RSVPForm(){
 
   const response = watch('response')
   const inviteCode = watch('invite_code')
+  const partySize = watch('party_size')
 
   useEffect(() => {
     // Fetch configuration
@@ -145,6 +150,9 @@ export default function RSVPForm(){
             // Set form values
             setValue('invite_code', invitationData.guest.invite_code)
             setValue('email', invitationData.guest.email)
+            // Set default party_size from first event's headcount if available
+            const defaultHeadcount = invitationData.invitation_events?.[0]?.headcount || 1
+            setValue('party_size', defaultHeadcount)
             setPrefilledInviteCode(invitationData.guest.invite_code)
             setInvitationData(invitationData)
             
@@ -157,6 +165,9 @@ export default function RSVPForm(){
             if (inviteCodeData) {
               setValue('invite_code', inviteCodeData.guest.invite_code)
               setValue('email', inviteCodeData.guest.email)
+              // Set default party_size from first event's headcount if available
+              const defaultHeadcount = inviteCodeData.invitation_events?.[0]?.headcount || 1
+              setValue('party_size', defaultHeadcount)
               setPrefilledInviteCode(inviteCodeData.guest.invite_code)
               setInvitationData(inviteCodeData)
               const rsvpStatus = await getRSVPStatus(inviteCodeData)
@@ -180,37 +191,63 @@ export default function RSVPForm(){
     setShowGoodwillMessage(response === 'declined')
   }, [response])
 
-  // Check RSVP status when invite code changes (for manual entry)
+  // Fetch invitation data when invite code changes (for manual entry)
   useEffect(() => {
-    if (inviteCode && inviteCode.length > 3 && !token) {
+    // Skip if token is provided (handled by token useEffect) or if invite code matches prefilled
+    if (token || (prefilledInviteCode && inviteCode === prefilledInviteCode)) {
+      return
+    }
+
+    if (inviteCode && inviteCode.length > 3) {
+      setIsLoadingInvitation(true)
+      setInvitationError(null)
+      
       // Debounce the API call
-      const timeoutId = setTimeout(() => {
-        fetch(`/api/rsvp/status?invite_code=${encodeURIComponent(inviteCode)}`)
-          .then(res => res.json())
-          .then(data => {
-            if (data.success && data.rsvpStatus) {
-              setCurrentRsvpStatus(data.rsvpStatus)
-            } else {
-              setCurrentRsvpStatus(null)
-            }
-          })
-          .catch(error => {
-            console.error('Error checking RSVP status:', error)
+      const timeoutId = setTimeout(async () => {
+        try {
+          // Resolve invitation data
+          const inviteCodeData = await resolveInvitationByInviteCode(inviteCode)
+          if (inviteCodeData) {
+            setInvitationData(inviteCodeData)
+            // Set default party_size from first event's headcount if available
+            const defaultHeadcount = inviteCodeData.invitation_events?.[0]?.headcount || 1
+            setValue('party_size', defaultHeadcount)
+            // Get RSVP status
+            const rsvpStatus = await getRSVPStatus(inviteCodeData)
+            setCurrentRsvpStatus(rsvpStatus)
+            setInvitationError(null)
+          } else {
+            setInvitationData(null)
             setCurrentRsvpStatus(null)
-          })
+            setInvitationError('Invite code not found. Please check and try again.')
+          }
+        } catch (error) {
+          console.error('Error resolving invitation:', error)
+          setInvitationData(null)
+          setCurrentRsvpStatus(null)
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+          setInvitationError(`Failed to load invitation details (${errorMessage}). Please check your invite code.`)
+        } finally {
+          setIsLoadingInvitation(false)
+        }
       }, 500)
 
       return () => clearTimeout(timeoutId)
     } else if (!inviteCode) {
+      setInvitationData(null)
       setCurrentRsvpStatus(null)
+      setInvitationError(null)
     }
-  }, [inviteCode, token])
+  }, [inviteCode, token, prefilledInviteCode, setValue])
 
   const onSubmit = async (v: FormValues) => {
     const formData = new FormData()
     formData.append('invite_code', v.invite_code)
     formData.append('response', v.response)
+    if (v.party_size) formData.append('party_size', v.party_size.toString())
     if (v.email) formData.append('email', v.email)
+    if (v.phone) formData.append('phone', v.phone)
+    if (v.preferred_channel) formData.append('preferred_channel', v.preferred_channel)
     if (v.goodwill_message) formData.append('goodwill_message', v.goodwill_message)
     if (v.dietary_restrictions) formData.append('dietary_restrictions', v.dietary_restrictions)
     if (v.dietary_information) formData.append('dietary_information', v.dietary_information)
@@ -866,24 +903,157 @@ export default function RSVPForm(){
               )}
             </div>
 
-            {/* Email */}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email (to receive confirmation & QR code)</Label>
-              <Input 
-                id="email"
-                type="email" 
-                className={errors.email ? 'border-red-500 rounded-xl' : 'rounded-xl'}
-                {...register('email', {
-                  pattern: {
-                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                    message: 'Please enter a valid email address'
-                  }
-                })}
-              />
-              {errors.email && (
-                <p className="text-sm text-red-600">{errors.email.message}</p>
-              )}
-            </div>
+            {/* Party Size - Only show when accepted and plus-ones are enabled */}
+            {response === 'accepted' && config?.plus_ones_enabled && invitationData?.guest?.total_guests && invitationData.guest.total_guests > 1 && (() => {
+              const totalGuests = invitationData.guest.total_guests
+              // total_guests is guest-specific and should always be used as the maximum
+              // max_party_size is a global setting used when creating invitations, but guest-specific total_guests takes precedence
+              // Only apply max_party_size as an upper bound if it's set and is actually higher than totalGuests
+              // In practice, totalGuests should always be <= max_party_size when invitations are created properly
+              const calculatedMax = totalGuests
+              const maxPartySize = config.max_party_size || totalGuests
+              return (
+                <div className="space-y-2">
+                  <Label htmlFor="party_size">
+                    Number of Guests *
+                  </Label>
+                  <Input
+                    id="party_size"
+                    type="number"
+                    min="1"
+                    max={calculatedMax}
+                    defaultValue={invitationData.invitation_events?.[0]?.headcount || 1}
+                    className={errors.party_size ? 'border-red-500 rounded-xl' : 'rounded-xl'}
+                    {...register('party_size', {
+                      required: 'Please specify the number of guests',
+                      min: { value: 1, message: 'At least 1 guest is required' },
+                      max: {
+                        value: calculatedMax,
+                        message: `Maximum ${calculatedMax} guests allowed`
+                      },
+                      valueAsNumber: true
+                    })}
+                  />
+                  {errors.party_size && (
+                    <p className="text-sm text-red-600">{errors.party_size.message}</p>
+                  )}
+                  <p className="text-xs text-gray-500">
+                    Including yourself. Maximum: {calculatedMax} {totalGuests < maxPartySize ? `(based on your invitation)` : ''}
+                  </p>
+                </div>
+              )
+            })()}
+
+            {/* Contact Information - Dynamic based on notification channels */}
+            {(() => {
+              const emailEnabled = config?.notification_email_enabled ?? true
+              const smsEnabled = config?.notification_sms_enabled ?? false
+              const whatsappEnabled = config?.notification_whatsapp_enabled ?? false
+              const hasMultipleChannels = [emailEnabled, smsEnabled, whatsappEnabled].filter(Boolean).length > 1
+              const hasSmsOrWhatsapp = smsEnabled || whatsappEnabled
+              
+              // Determine which input to show
+              const showEmailInput = emailEnabled
+              const showPhoneInput = hasSmsOrWhatsapp
+              
+              // Build helper text
+              const getContactHelperText = () => {
+                const channels: string[] = []
+                if (emailEnabled) channels.push('email')
+                if (smsEnabled) channels.push('SMS')
+                if (whatsappEnabled) channels.push('WhatsApp')
+                
+                if (channels.length === 0) {
+                  return 'We\'ll use your contact info from the invitation'
+                }
+                
+                const channelText = channels.join(' or ')
+                return `Optional - We'll send your confirmation via ${channelText}. Leave blank to use your invitation contact info.`
+              }
+              
+              return (
+                <>
+                  {/* Email Input */}
+                  {showEmailInput && (
+                    <div className="space-y-2">
+                      <Label htmlFor="email">
+                        Email {!hasSmsOrWhatsapp ? '(for confirmation & QR code)' : ''}
+                      </Label>
+                      <Input 
+                        id="email"
+                        type="email" 
+                        placeholder={invitationData?.guest?.email || 'your@email.com'}
+                        className={errors.email ? 'border-red-500 rounded-xl' : 'rounded-xl'}
+                        {...register('email', {
+                          pattern: {
+                            value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                            message: 'Please enter a valid email address'
+                          }
+                        })}
+                      />
+                      {errors.email && (
+                        <p className="text-sm text-red-600">{errors.email.message}</p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Phone Input - shown when SMS or WhatsApp is enabled */}
+                  {showPhoneInput && (
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">
+                        Phone Number {smsEnabled && whatsappEnabled ? '(for SMS/WhatsApp confirmation)' : smsEnabled ? '(for SMS confirmation)' : '(for WhatsApp confirmation)'}
+                      </Label>
+                      <Input 
+                        id="phone"
+                        type="tel" 
+                        placeholder={invitationData?.guest?.phone || '+1234567890'}
+                        className={errors.phone ? 'border-red-500 rounded-xl' : 'rounded-xl'}
+                        {...register('phone', {
+                          pattern: {
+                            value: /^\+?[0-9\s\-().]{7,20}$/,
+                            message: 'Please enter a valid phone number'
+                          }
+                        })}
+                      />
+                      {errors.phone && (
+                        <p className="text-sm text-red-600">{errors.phone.message}</p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Preferred Channel Selection - shown when multiple channels available */}
+                  {hasMultipleChannels && (showEmailInput || showPhoneInput) && (
+                    <div className="space-y-2">
+                      <Label htmlFor="preferred_channel">Preferred Confirmation Method</Label>
+                      <Select 
+                        value={watch('preferred_channel') || ''}
+                        onValueChange={(v) => setValue('preferred_channel', v as 'email' | 'sms' | 'whatsapp', { shouldValidate: true })}
+                      >
+                        <SelectTrigger id="preferred_channel" className="rounded-xl">
+                          <SelectValue placeholder="Use default from invitation" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Use default from invitation</SelectItem>
+                          {emailEnabled && <SelectItem value="email">📧 Email</SelectItem>}
+                          {smsEnabled && <SelectItem value="sms">📱 SMS</SelectItem>}
+                          {whatsappEnabled && <SelectItem value="whatsapp">💬 WhatsApp</SelectItem>}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-gray-500">
+                        {getContactHelperText()}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Helper text when only one channel */}
+                  {!hasMultipleChannels && (showEmailInput || showPhoneInput) && (
+                    <p className="text-xs text-gray-500 -mt-1">
+                      {getContactHelperText()}
+                    </p>
+                  )}
+                </>
+              )
+            })()}
 
             {/* Dietary Requirements & Food Choices (only shown when accepted) */}
             {response === 'accepted' && config?.food_choices_enabled && (
@@ -1030,11 +1200,27 @@ export default function RSVPForm(){
                 color="primary"
                 className="bg-[#C8A951] text-white font-semibold"
                 isLoading={isSubmitting}
-                disabled={isSubmitting}
+                disabled={(() => {
+                  // Disable if submitting
+                  if (isSubmitting) return true
+                  
+                  // Disable if any data is still loading
+                  if (isLoadingInvitation || isConfigLoading || isWeddingInfoLoading) return true
+                  
+                  // Disable if config is not loaded yet
+                  if (!config) return true
+                  
+                  // Disable if party_size validation fails when required
+                  if (response === 'accepted' && config?.plus_ones_enabled && invitationData?.guest?.total_guests && invitationData.guest.total_guests > 1) {
+                    return errors.party_size !== undefined || partySize === undefined || partySize === null || partySize < 1
+                  }
+                  
+                  return false
+                })()}
                 radius="lg"
                 size="lg"
               >
-                {isSubmitting ? 'Submitting…' : 'Submit RSVP'}
+                {isSubmitting ? 'Submitting…' : (isLoadingInvitation || isConfigLoading || isWeddingInfoLoading) ? 'Loading…' : 'Submit RSVP'}
               </Button>
             </div>
           </form>

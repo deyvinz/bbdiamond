@@ -7,8 +7,24 @@ import { getWeddingId } from '@/lib/wedding-context-server'
 import { sendInviteWhatsApp } from '@/lib/invitations-service'
 import { sendInvitationSms } from '@/lib/sms-service'
 import { getEmailConfig, getWebsiteUrl } from '@/lib/email-service'
+import {
+  sendNotification as sendNotificationAPI,
+  mapInvitationToMergeTags,
+  isNotificationAPIConfigured,
+  getWeddingThemeParams,
+} from '@/lib/notificationapi-service'
 import type { InvitationNotificationParams } from '@/lib/types/notifications'
 import { logger } from '@/lib/logger'
+
+/**
+ * Check if NotificationAPI should be used for reminders
+ */
+function useNotificationAPI(): boolean {
+  return (
+    process.env.NOTIFICATION_PROVIDER === 'notificationapi' &&
+    isNotificationAPIConfigured()
+  )
+}
 
 const sendRsvpReminderSchema = z.object({
   invitationId: z.string().uuid(),
@@ -27,10 +43,19 @@ interface RsvpReminderResult {
   errors: Array<{ invitationId: string; error: string }>
 }
 
+// Response type for single reminder action
+interface RsvpReminderActionResult {
+  success: boolean
+  message: string
+  messageId?: string
+  channel?: string
+  error?: string
+}
+
 /**
  * Send urgent RSVP reminder to a single guest
  */
-export async function sendRsvpReminderAction(data: z.infer<typeof sendRsvpReminderSchema>) {
+export async function sendRsvpReminderAction(data: z.infer<typeof sendRsvpReminderSchema>): Promise<RsvpReminderActionResult> {
   try {
     logger.info('[RSVP Reminder] Starting single reminder action', { invitationId: data.invitationId, to: data.to })
     const validated = sendRsvpReminderSchema.parse(data)
@@ -41,7 +66,11 @@ export async function sendRsvpReminderAction(data: z.infer<typeof sendRsvpRemind
     const weddingId = await getWeddingId()
     if (!weddingId) {
       logger.error('[RSVP Reminder] Wedding ID not found')
-      throw new Error('Wedding ID is required to send RSVP reminders')
+      return {
+        success: false,
+        message: 'Unable to send reminder: Wedding configuration not found.',
+        error: 'Wedding ID is required to send RSVP reminders'
+      }
     }
     logger.info('[RSVP Reminder] Wedding ID resolved', { weddingId })
 
@@ -118,12 +147,20 @@ export async function sendRsvpReminderAction(data: z.infer<typeof sendRsvpRemind
 
     if (invError) {
       logger.error('[RSVP Reminder] Error fetching invitation', { error: invError })
-      throw new Error(`Failed to fetch invitation: ${invError.message}`)
+      return {
+        success: false,
+        message: 'Unable to find invitation. Please try again.',
+        error: `Failed to fetch invitation: ${invError.message}`
+      }
     }
 
     if (!invitation) {
       logger.error('[RSVP Reminder] Invitation not found', { invitationId: validated.invitationId })
-      throw new Error(`Invitation not found with ID: ${validated.invitationId}`)
+      return {
+        success: false,
+        message: 'Invitation not found. Please check and try again.',
+        error: `Invitation not found with ID: ${validated.invitationId}`
+      }
     }
 
     logger.info('[RSVP Reminder] Invitation found', { invitationId: invitation.id, guestId: invitation.guest_id })
@@ -134,7 +171,11 @@ export async function sendRsvpReminderAction(data: z.infer<typeof sendRsvpRemind
     // Validate guest exists
     if (!invitation.guest) {
       logger.error('[RSVP Reminder] Guest not found for invitation', { invitationId: validated.invitationId })
-      throw new Error(`Guest not found for invitation ${validated.invitationId}`)
+      return {
+        success: false,
+        message: 'Guest information not found for this invitation.',
+        error: `Guest not found for invitation ${validated.invitationId}`
+      }
     }
 
     const guest = invitation.guest as any
@@ -147,7 +188,11 @@ export async function sendRsvpReminderAction(data: z.infer<typeof sendRsvpRemind
     // Validate invitation has events
     if (!invitation.invitation_events || invitation.invitation_events.length === 0) {
       logger.error('[RSVP Reminder] No events found for invitation', { invitationId: validated.invitationId })
-      throw new Error(`No events found for invitation ${validated.invitationId}`)
+      return {
+        success: false,
+        message: 'No events found for this invitation.',
+        error: `No events found for invitation ${validated.invitationId}`
+      }
     }
     
     logger.debug('[RSVP Reminder] Invitation events', { eventCount: invitation.invitation_events.length })
@@ -159,7 +204,11 @@ export async function sendRsvpReminderAction(data: z.infer<typeof sendRsvpRemind
 
     if (hasResponded) {
       logger.warn('[RSVP Reminder] Guest has already RSVP\'d', { invitationId: validated.invitationId })
-      throw new Error('Guest has already RSVP\'d')
+      return {
+        success: false,
+        message: 'This guest has already responded to the RSVP.',
+        error: 'Guest has already RSVP\'d'
+      }
     }
 
     const guestName = `${guest.first_name} ${guest.last_name}`
@@ -188,7 +237,22 @@ export async function sendRsvpReminderAction(data: z.infer<typeof sendRsvpRemind
 
     if (!channelDecision.channel) {
       logger.warn('[RSVP Reminder] No channel available', { skipReason: channelDecision.skipReason })
-      throw new Error(channelDecision.skipReason || 'No notification channel available for this guest')
+      
+      // Build a user-friendly message based on the skip reason
+      let userMessage = 'Unable to send reminder to this guest.'
+      if (channelDecision.skipReason?.includes('no email or phone')) {
+        userMessage = `Cannot send reminder: ${guestName} has no email or phone number on file. Please add contact information first.`
+      } else if (channelDecision.skipReason?.includes('no email')) {
+        userMessage = `Cannot send reminder: ${guestName} has no email address on file.`
+      } else if (channelDecision.skipReason?.includes('no phone')) {
+        userMessage = `Cannot send reminder: ${guestName} has no phone number on file.`
+      }
+      
+      return {
+        success: false,
+        message: userMessage,
+        error: channelDecision.skipReason || 'No notification channel available for this guest'
+      }
     }
 
     // Prepare events data
@@ -200,9 +264,28 @@ export async function sendRsvpReminderAction(data: z.infer<typeof sendRsvpRemind
       address: ie.event.address || '',
     }))
 
-    // Get email config and website URL for notification params
-    const emailConfig = await getEmailConfig(finalWeddingId)
-    const websiteUrl = await getWebsiteUrl(finalWeddingId)
+    // Get email config and website URL for notification params with timeout
+    logger.debug('[RSVP Reminder] Fetching email config', { weddingId: finalWeddingId })
+    const emailConfigPromise = Promise.race([
+      getEmailConfig(finalWeddingId),
+      new Promise<null>((_, reject) => 
+        setTimeout(() => reject(new Error('getEmailConfig timeout after 10s')), 10000)
+      )
+    ]).catch(err => {
+      logger.warn('[RSVP Reminder] getEmailConfig failed/timeout, using defaults', { error: err.message })
+      return null
+    })
+
+    logger.debug('[RSVP Reminder] Fetching website URL', { weddingId: finalWeddingId })
+    const websiteUrlPromise = Promise.race([
+      getWebsiteUrl(finalWeddingId),
+      new Promise<string>((resolve) => 
+        setTimeout(() => resolve(process.env.NEXT_PUBLIC_APP_URL || 'https://luwani.com'), 10000)
+      )
+    ]).catch(() => process.env.NEXT_PUBLIC_APP_URL || 'https://luwani.com')
+
+    const [emailConfig, websiteUrl] = await Promise.all([emailConfigPromise, websiteUrlPromise])
+    logger.debug('[RSVP Reminder] Config fetched', { hasEmailConfig: !!emailConfig, websiteUrl })
     const baseUrl = websiteUrl || process.env.NEXT_PUBLIC_APP_URL || 'https://luwani.com'
     const rsvpUrl = `${baseUrl}/rsvp?token=${invitation.token}`
 
@@ -242,7 +325,11 @@ export async function sendRsvpReminderAction(data: z.infer<typeof sendRsvpRemind
       const recipientEmail = validated.to || guest.email
       if (!recipientEmail) {
         logger.error('[RSVP Reminder] No email address available')
-        throw new Error('No email address available')
+        return {
+          success: false,
+          message: `Cannot send email reminder: ${guestName} has no email address on file.`,
+          error: 'No email address available'
+        }
       }
 
       logger.debug('[RSVP Reminder] Invoking email edge function', { recipientEmail, invitationId: invitation.id })
@@ -259,12 +346,20 @@ export async function sendRsvpReminderAction(data: z.infer<typeof sendRsvpRemind
 
       if (functionError) {
         logger.error('[RSVP Reminder] Error calling edge function', { error: functionError })
-        throw new Error(`Failed to send reminder: ${functionError.message}`)
+        return {
+          success: false,
+          message: `Failed to send email reminder to ${guestName}. Please try again later.`,
+          error: `Failed to send reminder: ${functionError.message}`
+        }
       }
 
       if (!functionResult?.success) {
         logger.error('[RSVP Reminder] Edge function returned error', { error: functionResult?.error })
-        throw new Error(functionResult?.error || 'Failed to send reminder')
+        return {
+          success: false,
+          message: `Failed to send email reminder to ${guestName}. Please try again later.`,
+          error: functionResult?.error || 'Failed to send reminder'
+        }
       }
 
       logger.info('[RSVP Reminder] Email reminder sent successfully', { messageId: functionResult.messageId })
@@ -295,33 +390,97 @@ export async function sendRsvpReminderAction(data: z.infer<typeof sendRsvpRemind
         error: waResult.success ? undefined : waResult.message,
       }
     } else if (channel === 'sms') {
-      // Use SMS service for RSVP reminders
-      logger.debug('[RSVP Reminder] Sending SMS reminder', { phoneNumber: channelDecision.phoneNumber })
-      const smsResult = await sendInvitationSms({
-        ...notificationParams,
-        phoneNumber: channelDecision.phoneNumber!,
-      })
+      // Use NotificationAPI for SMS if configured, otherwise fall back to legacy Twilio
+      logger.debug('[RSVP Reminder] Sending SMS reminder', { phoneNumber: channelDecision.phoneNumber, useNotificationAPI: useNotificationAPI() })
 
-      if (smsResult.success) {
-        logger.info('[RSVP Reminder] SMS reminder sent successfully', { messageId: smsResult.messageId })
+      if (useNotificationAPI()) {
+        // Use NotificationAPI for SMS
+        logger.debug('[RSVP Reminder] Fetching wedding theme params', { weddingId: finalWeddingId })
+        const theme = await Promise.race([
+          getWeddingThemeParams(finalWeddingId),
+          new Promise<{ primaryColor?: string; logoUrl?: string; contactEmail?: string }>((resolve) =>
+            setTimeout(() => {
+              logger.warn('[RSVP Reminder] getWeddingThemeParams timeout, using defaults')
+              resolve({ primaryColor: '#C7A049', logoUrl: '', contactEmail: '' })
+            }, 10000)
+          )
+        ])
+        logger.debug('[RSVP Reminder] Theme params fetched', { theme })
+        const mergeTags = mapInvitationToMergeTags({ ...notificationParams, theme })
+
+        logger.debug('[RSVP Reminder] Calling NotificationAPI', { phoneNumber: channelDecision.phoneNumber })
+        const apiResult = await Promise.race([
+          sendNotificationAPI({
+            type: 'rsvp_reminder',
+            userId: channelDecision.phoneNumber!,
+            phone: channelDecision.phoneNumber,
+            parameters: mergeTags,
+            weddingId: finalWeddingId,
+            channel: 'sms',
+          }),
+          new Promise<{ success: false; error: string }>((resolve) =>
+            setTimeout(() => {
+              logger.error('[RSVP Reminder] NotificationAPI call timeout after 30s')
+              resolve({ success: false, error: 'NotificationAPI call timeout after 30s' })
+            }, 30000)
+          )
+        ])
+
+        if (apiResult.success) {
+          logger.info('[RSVP Reminder] SMS reminder sent via NotificationAPI', { notificationApiId: (apiResult as any).notificationApiId })
+        } else {
+          logger.error('[RSVP Reminder] NotificationAPI SMS failed', { error: apiResult.error })
+        }
+
+        result = {
+          success: apiResult.success,
+          message: apiResult.success ? 'Urgent RSVP reminder sent successfully via SMS (NotificationAPI)' : 'Failed to send SMS reminder',
+          messageId: (apiResult as any).notificationApiId,
+          error: apiResult.error,
+        }
       } else {
-        logger.error('[RSVP Reminder] SMS reminder failed', { error: smsResult.error })
-      }
+        // Fall back to legacy Twilio SMS
+        const smsResult = await sendInvitationSms({
+          ...notificationParams,
+          phoneNumber: channelDecision.phoneNumber!,
+        })
 
-      result = {
-        success: smsResult.success,
-        message: smsResult.success ? 'Urgent RSVP reminder sent successfully via SMS' : 'Failed to send SMS reminder',
-        messageId: smsResult.messageId,
-        error: smsResult.error,
+        if (smsResult.success) {
+          logger.info('[RSVP Reminder] SMS reminder sent successfully', { messageId: smsResult.messageId })
+        } else {
+          logger.error('[RSVP Reminder] SMS reminder failed', { error: smsResult.error })
+        }
+
+        result = {
+          success: smsResult.success,
+          message: smsResult.success ? 'Urgent RSVP reminder sent successfully via SMS' : 'Failed to send SMS reminder',
+          messageId: smsResult.messageId,
+          error: smsResult.error,
+        }
       }
     } else {
       logger.error('[RSVP Reminder] Unsupported channel', { channel })
-      throw new Error(`Unsupported channel: ${channel}`)
+      return {
+        success: false,
+        message: `Unsupported notification channel: ${channel}`,
+        error: `Unsupported channel: ${channel}`
+      }
     }
 
     if (!result.success) {
       logger.error('[RSVP Reminder] Reminder sending failed', { error: result.error })
-      throw new Error(result.error || 'Failed to send reminder')
+      // Return a user-friendly message based on the error
+      let userMessage = `Failed to send reminder to ${guestName}. Please try again.`
+      if (result.error?.includes('timeout')) {
+        userMessage = `Reminder to ${guestName} timed out. The notification service may be slow. Please try again.`
+      } else if (result.error?.includes('credentials')) {
+        userMessage = 'Notification service is not configured. Please contact support.'
+      }
+      return {
+        success: false,
+        message: userMessage,
+        error: result.error || 'Failed to send reminder'
+      }
     }
 
     logger.info('[RSVP Reminder] Reminder sent successfully', { channel, messageId: result.messageId })
@@ -336,7 +495,12 @@ export async function sendRsvpReminderAction(data: z.infer<typeof sendRsvpRemind
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined
     })
-    throw error
+    // Return error response instead of re-throwing
+    return {
+      success: false,
+      message: 'An unexpected error occurred while sending the reminder. Please try again.',
+      error: error instanceof Error ? error.message : String(error)
+    }
   }
 }
 
@@ -635,32 +799,46 @@ export async function sendBulkRsvpRemindersAction(
             logger.debug('[Bulk RSVP Reminders] WhatsApp reminder sent', { invitationId: invitation.id })
           }
         } else if (channel === 'sms') {
-          // Use SMS service for RSVP reminders
-          logger.debug('[Bulk RSVP Reminders] Sending SMS reminder', { 
-            invitationId: invitation.id, 
-            phoneNumber: channelDecision.phoneNumber 
-          })
-          const smsResult = await sendInvitationSms({
-            ...notificationParams,
-            phoneNumber: channelDecision.phoneNumber!,
+          // Use NotificationAPI for SMS if configured
+          logger.debug('[Bulk RSVP Reminders] Sending SMS reminder', {
+            invitationId: invitation.id,
+            phoneNumber: channelDecision.phoneNumber,
+            useNotificationAPI: useNotificationAPI()
           })
 
-          if (!smsResult.success) {
-            logger.error('[Bulk RSVP Reminders] SMS reminder failed', { 
-              invitationId: invitation.id, 
-              error: smsResult.error 
+          if (useNotificationAPI()) {
+            const theme = await getWeddingThemeParams(weddingId)
+            const mergeTags = mapInvitationToMergeTags({ ...notificationParams, theme })
+            const apiResult = await sendNotificationAPI({
+              type: 'rsvp_reminder',
+              userId: channelDecision.phoneNumber!,
+              phone: channelDecision.phoneNumber,
+              parameters: mergeTags,
+              weddingId,
+              channel: 'sms',
             })
-            sendError = smsResult.error || 'Failed to send SMS'
+            if (!apiResult.success) {
+              logger.error('[Bulk RSVP Reminders] NotificationAPI SMS failed', { invitationId: invitation.id, error: apiResult.error })
+              sendError = apiResult.error || 'Failed to send SMS via NotificationAPI'
+            } else {
+              logger.debug('[Bulk RSVP Reminders] SMS sent via NotificationAPI', { invitationId: invitation.id })
+            }
           } else {
-            logger.debug('[Bulk RSVP Reminders] SMS reminder sent', { 
-              invitationId: invitation.id, 
-              messageId: smsResult.messageId 
+            const smsResult = await sendInvitationSms({
+              ...notificationParams,
+              phoneNumber: channelDecision.phoneNumber!,
             })
+            if (!smsResult.success) {
+              logger.error('[Bulk RSVP Reminders] SMS reminder failed', { invitationId: invitation.id, error: smsResult.error })
+              sendError = smsResult.error || 'Failed to send SMS'
+            } else {
+              logger.debug('[Bulk RSVP Reminders] SMS reminder sent', { invitationId: invitation.id, messageId: smsResult.messageId })
+            }
           }
         } else {
-          logger.error('[Bulk RSVP Reminders] Unsupported channel', { 
-            invitationId: invitation.id, 
-            channel 
+          logger.error('[Bulk RSVP Reminders] Unsupported channel', {
+            invitationId: invitation.id,
+            channel
           })
           sendError = `Unsupported channel: ${channel}`
         }

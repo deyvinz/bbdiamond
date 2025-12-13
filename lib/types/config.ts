@@ -24,6 +24,7 @@ export interface ConfigValue {
   dress_code_message?: string // Custom dress code message for event details page
   age_restriction_message?: string // Custom age restriction message for event details page
   rsvp_footer?: string // WYSIWYG HTML content for RSVP form footer
+  registry_empty_message?: string // Custom message/subtitle for registry page when no registries exist
   // Notification channel settings
   notification_email_enabled: boolean
   notification_whatsapp_enabled: boolean
@@ -46,6 +47,7 @@ export interface ConfigUpdate {
   dress_code_message?: string
   age_restriction_message?: string
   rsvp_footer?: string
+  registry_empty_message?: string
   // Notification channel settings
   notification_email_enabled?: boolean
   notification_whatsapp_enabled?: boolean
@@ -69,6 +71,7 @@ export const DEFAULT_CONFIG: ConfigValue = {
   dress_code_message: undefined,
   age_restriction_message: undefined,
   rsvp_footer: undefined,
+  registry_empty_message: undefined,
   // Notification channel settings - email enabled by default
   notification_email_enabled: true,
   notification_whatsapp_enabled: false,

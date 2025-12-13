@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const { data: wedding, error } = await supabase
       .from('weddings')
       .select(
-        'enable_seating, enable_guest_notes, enable_things_to_do, show_dietary_restrictions, show_additional_dietary_info, rsvp_banner_days_before'
+        'enable_seating, enable_guest_notes, enable_things_to_do, enable_registry, show_dietary_restrictions, show_additional_dietary_info, rsvp_banner_days_before'
       )
       .eq('id', weddingId)
       .single()
@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
         enable_seating: wedding?.enable_seating || false,
         enable_guest_notes: wedding?.enable_guest_notes || false,
         enable_things_to_do: wedding?.enable_things_to_do || false,
+        enable_registry: wedding?.enable_registry || false,
         show_dietary_restrictions: wedding?.show_dietary_restrictions ?? true,
         show_additional_dietary_info: wedding?.show_additional_dietary_info ?? true,
         rsvp_banner_days_before: wedding?.rsvp_banner_days_before ?? 30,
@@ -53,6 +54,7 @@ export async function PUT(request: NextRequest) {
       enable_seating,
       enable_guest_notes,
       enable_things_to_do,
+      enable_registry,
       show_dietary_restrictions,
       show_additional_dietary_info,
       rsvp_banner_days_before,
@@ -64,6 +66,7 @@ export async function PUT(request: NextRequest) {
     if (typeof enable_seating === 'boolean') updateData.enable_seating = enable_seating
     if (typeof enable_guest_notes === 'boolean') updateData.enable_guest_notes = enable_guest_notes
     if (typeof enable_things_to_do === 'boolean') updateData.enable_things_to_do = enable_things_to_do
+    if (typeof enable_registry === 'boolean') updateData.enable_registry = enable_registry
     if (typeof show_dietary_restrictions === 'boolean') {
       updateData.show_dietary_restrictions = show_dietary_restrictions
     }
@@ -102,6 +105,7 @@ export async function PUT(request: NextRequest) {
         enable_seating: wedding?.enable_seating || false,
         enable_guest_notes: wedding?.enable_guest_notes || false,
         enable_things_to_do: wedding?.enable_things_to_do || false,
+        enable_registry: wedding?.enable_registry || false,
         show_dietary_restrictions: wedding?.show_dietary_restrictions ?? true,
         show_additional_dietary_info: wedding?.show_additional_dietary_info ?? true,
         rsvp_banner_days_before: wedding?.rsvp_banner_days_before ?? 30,

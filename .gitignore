@@ -49,3 +49,17 @@ deploy-email-functions.sh
 deploy-email-functions.ps1
 deploy.sh
 env.production.example
+docs/notificationapi-templates/sms/rsvp_reminder.txt
+.gitignore
+docs/notificationapi-templates/sms/announcement.txt
+docs/notificationapi-templates/sms/qr_code_email.txt
+docs/notificationapi-templates/sms/rsvp_confirmation.txt
+docs/notificationapi-templates/sms/wedding_invitation.txt
+docs/NOTIFICATIONAPI_MIGRATION_PLAN.md
+docs/notificationapi-templates/announcement.html
+docs/notificationapi-templates/qr_code_email.html
+docs/notificationapi-templates/README.md
+docs/notificationapi-templates/rsvp_confirmation.html
+docs/notificationapi-templates/rsvp_reminder.html
+docs/notificationapi-templates/wedding_invitation.html
+supabase/migrations/20251211_notificationapi_logs.sql

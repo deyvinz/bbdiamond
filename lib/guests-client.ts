@@ -150,6 +150,19 @@ export async function createGuest(
 
   // Create invitation if specified
   if (invitationData?.event_ids && invitationData.event_ids.length > 0) {
+    // Determine initial headcount - use provided headcount or default to 1
+    // Note: Full validation against total_guests and config will be done server-side
+    let initialHeadcount = invitationData.headcount || 1
+    
+    // Basic client-side validation: ensure headcount is at least 1
+    if (initialHeadcount < 1) {
+      initialHeadcount = 1
+    }
+    
+    // If guest has total_guests, don't exceed it
+    if (guest.total_guests && initialHeadcount > guest.total_guests) {
+      initialHeadcount = guest.total_guests
+    }
     
     // First, create the main invitation record
     const { data: invitation, error: invitationError } = await supabase
@@ -157,7 +170,6 @@ export async function createGuest(
       .insert({
         guest_id: guest.id,
         wedding_id: weddingId,
-        headcount: invitationData.headcount || 1,
         token: crypto.randomUUID()
       })
       .select()
@@ -174,7 +186,8 @@ export async function createGuest(
       invitation_id: invitation.id,
       event_id: eventId,
       wedding_id: weddingId,
-      headcount: invitationData.headcount || 1,
+      headcount: initialHeadcount,
+      status: 'pending',
       event_token: crypto.randomUUID()
     }))
     
@@ -258,28 +271,35 @@ export async function deleteGuest(guestId: string) {
 }
 
 export async function createInvitationForGuest(guestId: string, eventId: string, weddingIdParam?: string) {
-  // Get wedding ID - use parameter first, then try to get from guest, then client context
-  let weddingId: string | undefined = weddingIdParam
+  // Get guest's total_guests and wedding_id to validate headcount
+  const { data: guest } = await supabase
+    .from('guests')
+    .select('total_guests, wedding_id')
+    .eq('id', guestId)
+    .single()
+  
+  if (!guest) {
+    throw new Error('Guest not found')
+  }
+  
+  // Get wedding ID - use parameter first, then guest's wedding_id, then client context
+  let weddingId: string | undefined = weddingIdParam || guest.wedding_id
   
   if (!weddingId) {
-    // Try to get wedding_id from the guest record
-    const { data: guest } = await supabase
-      .from('guests')
-      .select('wedding_id')
-      .eq('id', guestId)
-      .single()
-    
-    if (guest?.wedding_id) {
-      weddingId = guest.wedding_id
-    } else {
-      // Fall back to client context
-      const clientWeddingId = getWeddingIdFromClient()
-      weddingId = clientWeddingId || undefined
-    }
+    // Fall back to client context
+    const clientWeddingId = getWeddingIdFromClient()
+    weddingId = clientWeddingId || undefined
   }
   
   if (!weddingId) {
     throw new Error('Wedding ID is required to create invitations. Please ensure you are in a valid wedding context.')
+  }
+
+  // Determine initial headcount based on guest's total_guests
+  // Note: Full validation against config will be done server-side if needed
+  let initialHeadcount = 1
+  if (guest.total_guests) {
+    initialHeadcount = Math.min(guest.total_guests, 10) // Cap at reasonable max for client-side
   }
 
   // Check if invitation already exists
@@ -306,7 +326,7 @@ export async function createInvitationForGuest(guestId: string, eventId: string,
           invitation_id: existingInvitation.id,
           event_id: eventId,
           wedding_id: weddingId,
-          headcount: 1,
+          headcount: initialHeadcount,
           status: 'pending',
           event_token: crypto.randomUUID()
         })
@@ -345,7 +365,7 @@ export async function createInvitationForGuest(guestId: string, eventId: string,
       invitation_id: invitation.id,
       event_id: eventId,
       wedding_id: weddingId,
-      headcount: 1,
+      headcount: initialHeadcount,
       status: 'pending',
       event_token: crypto.randomUUID()
     })

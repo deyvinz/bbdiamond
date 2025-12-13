@@ -60,7 +60,7 @@ export function AppSidebar(){
           if (data.wedding.enable_wedding_party) {
             weddingLinks.push(['Wedding Party', '/wedding-party'])
           }
-          if (data.wedding.enable_registry && data.wedding.registry_url) {
+          if (data.wedding.enable_registry) {
             weddingLinks.push(['Registry', '/registry'])
           }
           if (data.wedding.enable_gallery) {
