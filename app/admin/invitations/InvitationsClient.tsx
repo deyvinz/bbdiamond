@@ -386,6 +386,7 @@ export default function InvitationsClient({
           let successCount = 0
           let skippedCount = 0
           let errorCount = 0
+          const errorMessages: string[] = []
           
           for (const invitationId of invitationIds) {
             const invitation = invitations.find(inv => inv.id === invitationId)
@@ -404,23 +405,49 @@ export default function InvitationsClient({
               continue
             }
             
-            try {
-              await sendRsvpReminderAction({
-                invitationId,
-                to: invitation.guest.email
-              })
+            const result = await sendRsvpReminderAction({
+              invitationId,
+              to: invitation.guest.email
+            })
+            
+            if (result.success) {
               successCount++
-            } catch (error) {
-              console.error(`Failed to send reminder for invitation ${invitationId}:`, error)
+            } else {
               errorCount++
+              // Store unique error messages
+              const guestName = `${invitation.guest.first_name} ${invitation.guest.last_name}`
+              const errorMsg = result.message || result.error || 'Unknown error'
+              if (!errorMessages.includes(errorMsg)) {
+                errorMessages.push(`${guestName}: ${errorMsg}`)
+              }
             }
           }
           
-          toast({
-            title: successCount > 0 ? "RSVP Reminders Sent" : "No Reminders Sent",
-            description: `${successCount} sent, ${skippedCount} skipped (already RSVP'd)${errorCount > 0 ? `, ${errorCount} errors` : ''}`,
-            variant: successCount > 0 ? "default" : "destructive",
-          })
+          // Show detailed toast based on results
+          if (successCount > 0 && errorCount === 0) {
+            toast({
+              title: "RSVP Reminders Sent",
+              description: `${successCount} reminder${successCount > 1 ? 's' : ''} sent${skippedCount > 0 ? `, ${skippedCount} skipped (already RSVP'd)` : ''}`,
+            })
+          } else if (successCount > 0 && errorCount > 0) {
+            toast({
+              title: "Some Reminders Sent",
+              description: `${successCount} sent, ${errorCount} failed${skippedCount > 0 ? `, ${skippedCount} skipped` : ''}. ${errorMessages.slice(0, 2).join('; ')}${errorMessages.length > 2 ? '...' : ''}`,
+              variant: "default",
+            })
+          } else if (errorCount > 0) {
+            toast({
+              title: "Failed to Send Reminders",
+              description: errorMessages.slice(0, 3).join('; ') || 'An error occurred while sending reminders.',
+              variant: "destructive",
+            })
+          } else {
+            toast({
+              title: "No Reminders Sent",
+              description: `${skippedCount} skipped (already RSVP'd)`,
+              variant: "default",
+            })
+          }
           break
         case 'regenerate_tokens':
           // Regenerate tokens for all selected invitations

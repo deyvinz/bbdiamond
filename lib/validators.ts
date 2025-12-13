@@ -188,6 +188,7 @@ export const updateConfigSchema = z.object({
   dress_code_message: z.string().optional(),
   age_restriction_message: z.string().optional(),
   rsvp_footer: z.string().optional(),
+  registry_empty_message: z.string().optional(),
   // Notification channel settings
   notification_email_enabled: z.boolean().optional(),
   notification_whatsapp_enabled: z.boolean().optional(),
@@ -200,7 +201,10 @@ export const rsvpSchema = z.object({
   response: z.enum(['accepted', 'declined'], {
     message: 'Response must be either accepted or declined'
   }),
+  party_size: z.number().int().min(1).max(20).optional(),
   email: z.string().email('Invalid email address').max(100, 'Email too long').optional(),
+  phone: z.string().max(20, 'Phone number too long').optional(),
+  preferred_channel: z.enum(['email', 'sms', 'whatsapp']).optional(),
   goodwill_message: z.string().max(500, 'Goodwill message too long').optional(),
   dietary_restrictions: z.string().max(500, 'Dietary restrictions too long').optional(),
   dietary_information: z.string().max(500, 'Dietary information too long').optional(),

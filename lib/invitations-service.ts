@@ -54,7 +54,6 @@ export interface Invitation {
     last_name: string
     email: string
     phone_number?: string | null
-    preferred_contact_method?: string | null
     is_vip: boolean
     invite_code: string
     total_guests?: number
@@ -71,7 +70,8 @@ export interface InvitationsListResponse {
 }
 
 // Helper function to validate and enforce headcount rules
-async function validateAndEnforceHeadcount(
+// Exported so it can be used in guest creation and other places
+export async function validateAndEnforceHeadcount(
   events: Array<{ event_id: string; headcount: number; status: string }>,
   guestTotalGuests?: number
 ) {
@@ -483,7 +483,6 @@ export async function createInvitationsForGuests(
               last_name,
               email,
               phone_number,
-              preferred_contact_method,
               is_vip,
               invite_code,
               total_guests

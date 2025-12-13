@@ -52,7 +52,6 @@ interface GuestTableProps {
   onSendInvite: (guestId: string, eventId: string) => void
   onExport: () => void
   onBulkAction?: (action: string, guestIds: string[]) => void
-  onSendInvitesToAll?: () => void
   onCreateMissingInvitations?: () => void
   onView: (guest: Guest) => void
   loading?: boolean
@@ -73,7 +72,6 @@ function GuestTable({
   onSendInvite,
   onExport,
   onBulkAction,
-  onSendInvitesToAll,
   onCreateMissingInvitations,
   onView,
   loading = false,
@@ -165,18 +163,6 @@ function GuestTable({
             >
               <Mail className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Create Missing Invitations</span>
-            </Button>
-          )}
-          {onSendInvitesToAll && (
-            <Button 
-              onClick={onSendInvitesToAll} 
-              variant="default" 
-              size="sm" 
-              className="bg-gold-600 text-white hover:bg-gold-700 flex-1 sm:flex-none"
-              disabled={loading}
-            >
-              <Mail className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">{loading ? 'Sending...' : 'Send Invites to All'}</span>
             </Button>
           )}
         </div>

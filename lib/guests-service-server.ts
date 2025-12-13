@@ -234,6 +234,42 @@ export async function createInvitationForGuest(
   eventId: string
 ): Promise<{ id: string; token: string; created_at: string }> {
   const supabase = await supabaseServer()
+  
+  // Get guest's total_guests and wedding_id to validate headcount
+  const { data: guest } = await supabase
+    .from('guests')
+    .select('total_guests, wedding_id')
+    .eq('id', guestId)
+    .single()
+  
+  if (!guest) {
+    throw new Error('Guest not found')
+  }
+  
+  // Import validation function to ensure headcount respects guest's total_guests
+  const { validateAndEnforceHeadcount } = await import('./invitations-service')
+  const { getAppConfig } = await import('./config-service')
+  
+  // Get config
+  const config = await getAppConfig()
+  
+  // Determine initial headcount based on guest's total_guests
+  let initialHeadcount = 1
+  if (config?.plus_ones_enabled && guest.total_guests) {
+    initialHeadcount = Math.min(
+      guest.total_guests,
+      config.max_party_size || guest.total_guests
+    )
+  }
+  
+  // Validate headcount
+  const validatedEvents = await validateAndEnforceHeadcount([{
+    event_id: eventId,
+    headcount: initialHeadcount,
+    status: 'pending'
+  }], guest.total_guests || undefined)
+  
+  const validatedEvent = validatedEvents[0]
 
   // Check if invitation already exists
   const { data: existingInvitation } = await supabase
@@ -252,14 +288,15 @@ export async function createInvitationForGuest(
       .single()
 
     if (!existingEvent) {
-      // Create invitation event
+      // Create invitation event with validated headcount
       const { error: eventError } = await supabase
         .from('invitation_events')
         .insert({
           invitation_id: existingInvitation.id,
           event_id: eventId,
-          headcount: 1,
-          status: 'pending',
+          wedding_id: guest.wedding_id,
+          headcount: validatedEvent.headcount, // Use validated headcount
+          status: validatedEvent.status,
           event_token: crypto.randomUUID()
         })
 
@@ -280,6 +317,7 @@ export async function createInvitationForGuest(
     .from('invitations')
     .insert({
       guest_id: guestId,
+      wedding_id: guest.wedding_id,
       token: crypto.randomUUID()
     })
     .select('id, token, created_at')
@@ -289,14 +327,15 @@ export async function createInvitationForGuest(
     throw new Error(`Failed to create invitation: ${invitationError.message}`)
   }
 
-  // Create invitation event
+  // Create invitation event with validated headcount
   const { error: eventError } = await supabase
     .from('invitation_events')
     .insert({
       invitation_id: invitation.id,
       event_id: eventId,
-      headcount: 1,
-      status: 'pending',
+      wedding_id: guest.wedding_id,
+      headcount: validatedEvent.headcount, // Use validated headcount
+      status: validatedEvent.status,
       event_token: crypto.randomUUID()
     })
 

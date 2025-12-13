@@ -55,6 +55,7 @@ export async function getAppConfig(weddingId?: string): Promise<ConfigValue> {
     dress_code_message: configMap.dress_code_message && configMap.dress_code_message !== 'undefined' ? configMap.dress_code_message : undefined,
     age_restriction_message: configMap.age_restriction_message && configMap.age_restriction_message !== 'undefined' ? configMap.age_restriction_message : undefined,
     rsvp_footer: configMap.rsvp_footer && configMap.rsvp_footer !== 'undefined' ? configMap.rsvp_footer : undefined,
+    registry_empty_message: configMap.registry_empty_message && configMap.registry_empty_message !== 'undefined' ? configMap.registry_empty_message : undefined,
     // Notification channel settings - email enabled by default
     notification_email_enabled: configMap.notification_email_enabled === undefined ? true : configMap.notification_email_enabled === 'true',
     notification_whatsapp_enabled: configMap.notification_whatsapp_enabled === 'true',
@@ -105,7 +106,8 @@ export async function updateAppConfig(updates: ConfigUpdate, weddingId?: string)
       config.key === 'rsvp_cutoff_timezone' ||
       config.key === 'dress_code_message' ||
       config.key === 'age_restriction_message' ||
-      config.key === 'rsvp_footer'
+      config.key === 'rsvp_footer' ||
+      config.key === 'registry_empty_message'
     )) {
       const { error } = await supabase
         .from('wedding_config')
@@ -184,6 +186,7 @@ async function getFreshAppConfig(weddingId: string): Promise<ConfigValue> {
     dress_code_message: configMap.dress_code_message && configMap.dress_code_message !== 'undefined' ? configMap.dress_code_message : undefined,
     age_restriction_message: configMap.age_restriction_message && configMap.age_restriction_message !== 'undefined' ? configMap.age_restriction_message : undefined,
     rsvp_footer: configMap.rsvp_footer && configMap.rsvp_footer !== 'undefined' ? configMap.rsvp_footer : undefined,
+    registry_empty_message: configMap.registry_empty_message && configMap.registry_empty_message !== 'undefined' ? configMap.registry_empty_message : undefined,
     // Notification channel settings - email enabled by default
     notification_email_enabled: configMap.notification_email_enabled === undefined ? true : configMap.notification_email_enabled === 'true',
     notification_whatsapp_enabled: configMap.notification_whatsapp_enabled === 'true',
@@ -261,6 +264,7 @@ function getConfigDescription(key: string): string {
     dress_code_message: 'Custom dress code message displayed on the Event Details page',
     age_restriction_message: 'Custom age restriction message displayed on the Event Details page',
     rsvp_footer: 'WYSIWYG HTML content for RSVP form footer message/PSA',
+    registry_empty_message: 'Custom message/subtitle displayed on the Registry page when no registries have been added',
     notification_email_enabled: 'Enable email notifications for invitations',
     notification_whatsapp_enabled: 'Enable WhatsApp notifications for invitations',
     notification_sms_enabled: 'Enable SMS notifications for invitations',

@@ -19,7 +19,7 @@ export default async function Nav() {
     if (wedding.enable_wedding_party) {
       links.push(['Wedding Party', '/wedding-party']);
     }
-    if (wedding.enable_registry && wedding.registry_url) {
+    if (wedding.enable_registry) {
       links.push(['Registry', '/registry']);
     }
     if (wedding.enable_gallery) {

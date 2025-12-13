@@ -2,6 +2,12 @@
  * Notification Orchestration Service
  * Handles multi-channel notification delivery (Email, WhatsApp, SMS)
  * with smart routing logic based on guest contact info and admin config
+ *
+ * Supports two modes:
+ * - Legacy: Individual providers (Resend, Twilio, AWS SNS)
+ * - NotificationAPI: Unified platform for all channels
+ *
+ * Set NOTIFICATION_PROVIDER=notificationapi to use NotificationAPI
  */
 
 import { supabaseServer } from './supabase-server'
@@ -13,6 +19,12 @@ import { checkWhatsAppRegistration, formatPhoneNumber } from './whatsapp-service
 import { sendInvitationSms, formatPhoneForTwilio, validatePhoneNumber } from './sms-service'
 import { getEmailConfig, getWebsiteUrl } from './email-service'
 import { logAdminAction } from './audit'
+import {
+  sendNotification as sendNotificationAPI,
+  mapInvitationToMergeTags,
+  isNotificationAPIConfigured,
+  type NotificationType,
+} from './notificationapi-service'
 import type {
   NotificationChannel,
   NotificationConfig,
@@ -20,6 +32,16 @@ import type {
   SendNotificationOptions,
   InvitationNotificationParams,
 } from './types/notifications'
+
+/**
+ * Check if NotificationAPI should be used
+ */
+function useNotificationAPI(): boolean {
+  return (
+    process.env.NOTIFICATION_PROVIDER === 'notificationapi' &&
+    isNotificationAPIConfigured()
+  )
+}
 
 export interface NotificationOrchestrationResult {
   invitationId: string
@@ -149,7 +171,8 @@ export async function sendInvitationNotification(
   const notificationConfig = await getNotificationConfig(weddingId)
 
   // Get invitation with guest details
-  const { data: invitation, error: invitationError } = await supabase
+  // First try with wedding_id filter, then fallback without it for backward compatibility
+  let { data: invitation, error: invitationError } = await supabase
     .from('invitations')
     .select(`
       *,
@@ -159,7 +182,6 @@ export async function sendInvitationNotification(
         last_name,
         email,
         phone,
-        preferred_contact_method,
         invite_code
       ),
       invitation_events(
@@ -169,14 +191,63 @@ export async function sendInvitationNotification(
     `)
     .eq('id', options.invitationId)
     .eq('wedding_id', weddingId)
-    .single()
+    .maybeSingle()
+
+  // If not found and wedding_id filter was applied, try without it for backward compatibility
+  if ((invitationError || !invitation) && weddingId) {
+    const { data: fallbackInvitation, error: fallbackError } = await supabase
+      .from('invitations')
+      .select(`
+        *,
+        guest:guests(
+          id,
+          first_name,
+          last_name,
+          email,
+          phone,
+          invite_code
+        ),
+        invitation_events(
+          *,
+          event:events(id, name, starts_at, venue, address)
+        )
+      `)
+      .eq('id', options.invitationId)
+      .maybeSingle()
+    
+    if (fallbackError) {
+      throw new Error(`Invitation not found: ${options.invitationId} - ${fallbackError.message}`)
+    }
+    
+    if (fallbackInvitation) {
+      // Verify the invitation's wedding_id matches if it's set
+      if (!fallbackInvitation.wedding_id || fallbackInvitation.wedding_id === weddingId) {
+        invitation = fallbackInvitation
+        invitationError = null
+      } else {
+        throw new Error(`Invitation belongs to a different wedding (ID: ${fallbackInvitation.wedding_id})`)
+      }
+    }
+  }
 
   if (invitationError || !invitation) {
-    throw new Error(`Invitation not found: ${options.invitationId}`)
+    const errorMsg = invitationError 
+      ? `Invitation not found: ${options.invitationId} - ${invitationError.message}`
+      : `Invitation not found: ${options.invitationId}`
+    throw new Error(errorMsg)
+  }
+
+  // Validate guest exists
+  if (!invitation.guest) {
+    throw new Error(`Guest not found for invitation ${options.invitationId}`)
   }
 
   const guest = invitation.guest
   const guestName = `${guest.first_name} ${guest.last_name || ''}`
+
+  // Ensure phone is available - check both 'phone' and 'phone_number' properties
+  // as there might be inconsistencies in the database schema
+  const guestPhone = (guest as any).phone || (guest as any).phone_number || null
 
   // Get selected events
   const selectedEvents = invitation.invitation_events?.filter((ie: any) =>
@@ -217,8 +288,52 @@ export async function sendInvitationNotification(
     websiteUrl,
   }
 
-  // Determine best channel to use based on priority
-  const channelDecision = await determineBestChannel(notificationConfig, guest, weddingId)
+  // Use NotificationAPI if configured
+  if (useNotificationAPI()) {
+    // Still use determineBestChannel to respect admin config and guest contact info
+    // Pass guest contact info explicitly to ensure correct channel selection
+    console.log('[sendInvitationNotification] Guest contact info:', {
+      guestId: guest.id,
+      hasEmail: !!guest.email,
+      hasPhone: !!guestPhone,
+      email: guest.email,
+      phone: guestPhone,
+      guestObject: guest,
+    })
+    
+    const channelDecision = await determineBestChannel(
+      notificationConfig, 
+      { email: guest.email || undefined, phone: guestPhone || undefined }, 
+      weddingId
+    )
+
+    console.log('[sendInvitationNotification] Channel decision:', {
+      channel: channelDecision.channel,
+      skipReason: channelDecision.skipReason,
+      phoneNumber: channelDecision.phoneNumber,
+      notificationConfig,
+    })
+
+    return sendInvitationViaNotificationAPI({
+      invitationId: options.invitationId,
+      guestId: guest.id,
+      guestName,
+      email: guest.email || undefined,
+      phone: guestPhone || undefined,
+      notificationParams,
+      weddingId,
+      channel: channelDecision.channel, // Pass the determined channel
+      skipReason: channelDecision.skipReason,
+    })
+  }
+
+  // Determine best channel to use based on priority (legacy path)
+  // Pass guest contact info explicitly to ensure correct channel selection
+  const channelDecision = await determineBestChannel(
+    notificationConfig, 
+    { email: guest.email || undefined, phone: guestPhone || undefined }, 
+    weddingId
+  )
 
   if (!channelDecision.channel) {
     // No channel available
@@ -372,4 +487,97 @@ async function logSmsDelivery(
     channel: 'sms',
     message_id: messageId,
   })
+}
+
+/**
+ * Send invitation via NotificationAPI
+ * Uses the unified NotificationAPI platform for all channels
+ * Respects the channel determined by determineBestChannel()
+ */
+async function sendInvitationViaNotificationAPI(params: {
+  invitationId: string
+  guestId: string
+  guestName: string
+  email?: string
+  phone?: string
+  notificationParams: InvitationNotificationParams
+  weddingId: string
+  channel: NotificationChannel | null
+  skipReason?: string
+}): Promise<NotificationOrchestrationResult> {
+  const { invitationId, guestId, guestName, email, phone, notificationParams, weddingId, channel, skipReason } = params
+  const results: NotificationResult[] = []
+
+  // If no channel available, skip notification
+  if (!channel) {
+    results.push({
+      channel: 'email', // Default for tracking purposes
+      success: false,
+      skipped: true,
+      skipReason: skipReason || 'No notification channel available',
+    })
+
+    return {
+      invitationId,
+      guestId,
+      guestName,
+      results,
+      allSuccessful: false,
+      anySuccessful: false,
+    }
+  }
+
+  // Convert to NotificationAPI format
+  const mergeTags = mapInvitationToMergeTags(notificationParams)
+
+  // Create unique user ID for NotificationAPI
+  const userId = email || phone || guestId
+
+  try {
+    const result = await sendNotificationAPI({
+      type: 'wedding_invitation',
+      userId,
+      email,
+      phone,
+      parameters: mergeTags,
+      weddingId,
+      channel, // Pass the specific channel to use
+    })
+
+    results.push({
+      channel,
+      success: result.success,
+      messageId: result.notificationApiId,
+      error: result.error,
+    })
+
+    // Log audit
+    await logAdminAction('notification_send', {
+      wedding_id: weddingId,
+      invitation_id: invitationId,
+      guest_id: guestId,
+      provider: 'notificationapi',
+      channel_used: channel,
+      channels_attempted: [channel],
+      results: results.map(r => ({
+        channel: r.channel,
+        success: r.success,
+      })),
+    })
+  } catch (error) {
+    results.push({
+      channel,
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
+  }
+
+  return {
+    invitationId,
+    guestId,
+    guestName,
+    results,
+    allSuccessful: results.every(r => r.success),
+    anySuccessful: results.some(r => r.success),
+  }
 }

@@ -18,7 +18,7 @@ export async function PUT(
     const updateData: any = {}
     if (title !== undefined) updateData.title = title
     if (description !== undefined) updateData.description = description
-    if (url !== undefined) updateData.url = url
+    if (url !== undefined) updateData.url = url || null
     if (priority !== undefined) updateData.priority = priority
 
     const { data, error } = await supabase

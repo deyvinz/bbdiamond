@@ -2,15 +2,18 @@ import Section from '@/components/Section'
 import { Card, CardBody, Button } from '@heroui/react'
 import { supabaseServer } from '@/lib/supabase-server'
 import { getWeddingId } from '@/lib/wedding-context-server'
+import { getAppConfig } from '@/lib/config-service'
 
 export default async function Page(){
   const weddingId = await getWeddingId()
+  
+  const defaultSubtitle = "Your presence is the greatest gift, but if you wish to give, cash gifts are warmly appreciated."
   
   if (!weddingId) {
     return (
       <Section
         title="Registry"
-        subtitle="Your presence is the greatest gift, but if you wish to give, cash gifts are warmly appreciated."
+        subtitle={defaultSubtitle}
       >
         <Card className="text-center border border-gray-200 shadow-lg rounded-3xl" radius="lg">
           <CardBody className="p-12">
@@ -32,10 +35,14 @@ export default async function Page(){
     .order('priority', { ascending: true })
   const items: { title:string; description:string; url:string }[] = data ?? []
 
+  // Get configurable empty message
+  const config = await getAppConfig(weddingId)
+  const subtitle = config.registry_empty_message || defaultSubtitle
+
   return (
     <Section
       title="Registry"
-      subtitle="Your presence is the greatest gift, but if you wish to give, cash gifts are warmly appreciated."
+      subtitle={subtitle}
     >
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         {items.map((it) => (

@@ -15,6 +15,7 @@ export interface InvitationData {
     first_name: string
     last_name: string
     email: string
+    phone?: string
     invite_code: string
     total_guests?: number
   }
@@ -96,7 +97,7 @@ export async function resolveInvitationByToken(token: string, weddingId?: string
     // Fetch guest details
     let guestQuery = supabase
       .from('guests')
-      .select('id, first_name, last_name, email, invite_code, total_guests')
+      .select('id, first_name, last_name, email, phone, invite_code, total_guests')
       .eq('id', invitation.guest_id)
     
     if (finalWeddingId) {
@@ -143,7 +144,7 @@ export async function resolveInvitationByInviteCode(inviteCode: string, weddingI
     // First find the guest by invite code
     let guestQuery = supabase
       .from('guests')
-      .select('id, first_name, last_name, email, invite_code, wedding_id, total_guests')
+      .select('id, first_name, last_name, email, phone, invite_code, wedding_id, total_guests')
       .eq('invite_code', inviteCode)
     
     if (resolvedWeddingId) {
@@ -287,8 +288,9 @@ export async function submitRSVP(
       const updateData: any = {
         status: response.status,
         headcount: response.headcount,
-        goodwill_message: response.goodwill_message || null,
-        responded_at: new Date().toISOString()
+        // Note: goodwill_message and responded_at are not stored in invitation_events
+        // goodwill_message should be stored in rsvps_v2 table if needed
+        // responded_at is tracked via updated_at timestamp
       }
 
       // Add dietary and food choice fields if provided (only for accepted)

@@ -259,6 +259,21 @@ export async function createGuestServer(guestData: any, invitationData?: any, we
 
   // Create invitation if specified
   if (invitationData?.event_id) {
+    // Import validation function to ensure headcount respects guest's total_guests
+    const { validateAndEnforceHeadcount } = await import('./invitations-service')
+    
+    // Determine initial headcount
+    let initialHeadcount = invitationData.headcount || 1
+    
+    // Validate headcount against guest's total_guests
+    const validatedEvents = await validateAndEnforceHeadcount([{
+      event_id: invitationData.event_id,
+      headcount: initialHeadcount,
+      status: 'pending'
+    }], guest.total_guests || undefined)
+    
+    const validatedEvent = validatedEvents[0]
+    
     const { error: invitationError } = await supabase
       .from('invitations')
       .insert({
@@ -271,15 +286,27 @@ export async function createGuestServer(guestData: any, invitationData?: any, we
       throw new Error(`Failed to create invitation: ${invitationError.message}`)
     }
     
-    // Create invitation_event link
+    // Get the invitation ID
+    const { data: invitation } = await supabase
+      .from('invitations')
+      .select('id')
+      .eq('guest_id', guest.id)
+      .eq('wedding_id', resolvedWeddingId)
+      .single()
+    
+    if (!invitation) {
+      throw new Error('Failed to retrieve created invitation')
+    }
+    
+    // Create invitation_event link with validated headcount
     const { error: invitationEventError } = await supabase
       .from('invitation_events')
       .insert({
-        invitation_id: (await supabase.from('invitations').select('id').eq('guest_id', guest.id).single()).data?.id,
-        event_id: invitationData.event_id,
+        invitation_id: invitation.id,
+        event_id: validatedEvent.event_id,
         wedding_id: resolvedWeddingId,
-        headcount: invitationData.headcount || 1,
-        status: 'pending',
+        headcount: validatedEvent.headcount, // Use validated headcount
+        status: validatedEvent.status,
         event_token: crypto.randomUUID()
       })
 

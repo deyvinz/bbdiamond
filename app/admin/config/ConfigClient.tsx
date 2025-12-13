@@ -28,6 +28,7 @@ interface WeddingSettingsState {
   enable_seating: boolean
   enable_guest_notes: boolean
   enable_things_to_do: boolean
+  enable_registry: boolean
   show_dietary_restrictions: boolean
   show_additional_dietary_info: boolean
   rsvp_banner_days_before: number
@@ -43,6 +44,7 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
     enable_seating: false,
     enable_guest_notes: false,
     enable_things_to_do: false,
+    enable_registry: false,
     show_dietary_restrictions: true,
     show_additional_dietary_info: true,
     rsvp_banner_days_before: 30,
@@ -63,6 +65,7 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
             enable_seating: data.settings.enable_seating || false,
             enable_guest_notes: data.settings.enable_guest_notes || false,
             enable_things_to_do: data.settings.enable_things_to_do || false,
+            enable_registry: data.settings.enable_registry || false,
             show_dietary_restrictions: data.settings.show_dietary_restrictions ?? true,
             show_additional_dietary_info: data.settings.show_additional_dietary_info ?? true,
             rsvp_banner_days_before: data.settings.rsvp_banner_days_before ?? 30,
@@ -98,6 +101,9 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
       }
       if (config.rsvp_footer !== undefined) {
         configToSave.rsvp_footer = config.rsvp_footer
+      }
+      if (config.registry_empty_message !== undefined) {
+        configToSave.registry_empty_message = config.registry_empty_message
       }
       if (config.plus_ones_enabled !== undefined) {
         configToSave.plus_ones_enabled = config.plus_ones_enabled
@@ -720,6 +726,51 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Registry Page Configuration
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="registry_empty_message">Registry Empty Message</Label>
+              <Textarea
+                id="registry_empty_message"
+                placeholder="e.g., Your presence is the greatest gift, but if you wish to give, cash gifts are warmly appreciated."
+                value={config.registry_empty_message || ''}
+                onChange={(e) => handleConfigChange('registry_empty_message', e.target.value)}
+                disabled={loading}
+                rows={3}
+                className="resize-none"
+              />
+              <p className="text-sm text-muted-foreground">
+                Custom message or subtitle that will appear on the Registry page when no registries have been added. This will replace the default subtitle. Leave empty to use the default message.
+              </p>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-800">
+                ℹ️ <strong>Preview:</strong> This message will be displayed as the subtitle on the Registry page when the registry feature is enabled but no registries have been added yet.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-3 pt-4 border-t">
+            <Button onClick={handleSave} disabled={loading} className="flex-1 sm:flex-none">
+              <Save className="h-4 w-4 mr-2" />
+              {loading ? 'Saving...' : 'Save Configuration'}
+            </Button>
+            <Button variant="outline" onClick={handleReset} disabled={loading} className="flex-1 sm:flex-none">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reset to Defaults
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
             Wedding Features
           </CardTitle>
@@ -845,6 +896,49 @@ export default function ConfigClient({ initialConfig }: ConfigClientProps) {
                   } catch (error) {
                     console.error('Error updating things to do setting:', error)
                     setWeddingSettings(prev => ({ ...prev, enable_things_to_do: !checked }))
+                    toast({
+                      title: "❌ Update Failed",
+                      description: error instanceof Error ? error.message : "Failed to update setting",
+                      variant: "destructive",
+                    })
+                  }
+                }}
+                disabled={loading}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="enable_registry" className="text-base">
+                  Enable Registry Navigation
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Show the Registry link in the navigation menu
+                </p>
+              </div>
+              <Switch
+                id="enable_registry"
+                checked={weddingSettings.enable_registry}
+                onCheckedChange={async (checked) => {
+                  setWeddingSettings(prev => ({ ...prev, enable_registry: checked }))
+                  try {
+                    const response = await fetch('/api/admin/wedding-settings', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ enable_registry: checked }),
+                    })
+                    const data = await response.json()
+                    if (data.success) {
+                      toast({
+                        title: "✅ Setting Updated",
+                        description: "Registry navigation setting has been saved.",
+                      })
+                      router.refresh()
+                    } else {
+                      throw new Error(data.error || 'Failed to update setting')
+                    }
+                  } catch (error) {
+                    console.error('Error updating registry setting:', error)
+                    setWeddingSettings(prev => ({ ...prev, enable_registry: !checked }))
                     toast({
                       title: "❌ Update Failed",
                       description: error instanceof Error ? error.message : "Failed to update setting",
