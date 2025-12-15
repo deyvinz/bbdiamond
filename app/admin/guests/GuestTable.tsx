@@ -33,6 +33,7 @@ import {
   Trash2,
   Edit,
   Eye,
+  MailPlus,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -148,10 +149,10 @@ function GuestTable({
           <h1 className="text-xl lg:text-2xl font-serif">Guests</h1>
           <Badge>{filteredGuests.length} of {totalCount}</Badge>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex sm:flex-wrap sm:items-center sm:flex-row flex-col gap-2 w-full sm:w-auto">
           <Button onClick={onExport} variant="outline" size="sm" className="flex-1 sm:flex-none">
             <Download className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Export CSV</span>
+            <span className="inline">Export CSV</span>
           </Button>
           {onCreateMissingInvitations && (
             <Button 
@@ -162,7 +163,7 @@ function GuestTable({
               disabled={loading}
             >
               <Mail className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Create Missing Invitations</span>
+              <span className="inline">Create Missing Invitations</span>
             </Button>
           )}
         </div>
@@ -211,15 +212,15 @@ function GuestTable({
           <span className="text-sm text-gold-700 font-medium">
             {selectedGuests.length} selected
           </span>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex sm:flex-wrap sm:items-center sm:flex-row flex-col gap-2 w-full sm:w-auto">
             <Button
               size="sm"
               variant="outline"
               onClick={() => onBulkAction?.('create_invitations', selectedGuests)}
               className="flex-1 sm:flex-none"
             >
-              <Mail className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Create Invitations</span>
+              <MailPlus className="h-4 w-4 sm:mr-2" />
+              <span className="inline">Create Invitations</span>
             </Button>
             <Button
               size="sm"
@@ -228,7 +229,7 @@ function GuestTable({
               className="flex-1 sm:flex-none"
             >
               <Mail className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Send Invites</span>
+              <span className="inline">Send Invites</span>
             </Button>
             <Button
               size="sm"
@@ -237,7 +238,7 @@ function GuestTable({
               className="flex-1 sm:flex-none"
             >
               <RefreshCw className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Regenerate</span>
+              <span className="inline">Regenerate</span>
             </Button>
             <Button
               size="sm"
@@ -246,7 +247,7 @@ function GuestTable({
               className="flex-1 sm:flex-none"
             >
               <Download className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Export</span>
+              <span className="inline">Export</span>
             </Button>
             <Button
               size="sm"
@@ -255,7 +256,7 @@ function GuestTable({
               className="flex-1 sm:flex-none"
             >
               <Trash2 className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Delete</span>
+              <span className="inline">Delete</span>
             </Button>
           </div>
         </div>

@@ -601,7 +601,7 @@ export default function GuestsClient({
         </div>
 
         {/* Buttons row */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex sm:flex-wrap sm:items-center sm:flex-row flex-col gap-2">
             <Button
               onClick={refreshData}
               variant="outline"
@@ -610,7 +610,7 @@ export default function GuestsClient({
               className="flex-1 sm:flex-none"
             >
               <RefreshCw className={`h-4 w-4 sm:mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+              <span className="inline">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
             </Button>
             <Button
               onClick={() => setShowImportDialog(true)}
@@ -619,7 +619,7 @@ export default function GuestsClient({
               className="flex-1 sm:flex-none"
             >
               <Upload className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Import CSV</span>
+              <span className="inline">Import CSV</span>
             </Button>
             <Button
               onClick={() => setShowBackfillDialog(true)}
@@ -628,7 +628,7 @@ export default function GuestsClient({
               className="bg-gold-50 border-gold-200 text-gold-700 hover:bg-gold-100 flex-1 sm:flex-none"
             >
               <Settings className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Backfill</span>
+              <span className="inline">Backfill</span>
             </Button>
             <Button
               onClick={() => setShowCleanupDialog(true)}
@@ -637,7 +637,7 @@ export default function GuestsClient({
               className="border-orange-200 text-orange-700 hover:bg-orange-50 flex-1 sm:flex-none"
             >
               <Trash2 className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Clean Duplicates</span>
+              <span className="inline">Clean Duplicates</span>
             </Button>
             <Button
               onClick={() => setShowCleanupHouseholdsDialog(true)}
@@ -646,7 +646,7 @@ export default function GuestsClient({
               className="border-purple-200 text-purple-700 hover:bg-purple-50 flex-1 sm:flex-none"
             >
               <Settings className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Clean Households</span>
+              <span className="inline">Clean Households</span>
             </Button>
             <Button
               onClick={() => {
@@ -657,7 +657,7 @@ export default function GuestsClient({
               className="flex-1 sm:flex-none"
             >
               <Plus className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Add Guest</span>
+              <span className="inline">Add Guest</span>
             </Button>
             <Button
               onClick={() => setShowSendInvitationsToPendingDialog(true)}
@@ -666,7 +666,7 @@ export default function GuestsClient({
               className="bg-gold-50 border-gold-200 text-gold-700 hover:bg-gold-100 flex-1 sm:flex-none"
             >
               <Mail className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Send Invites to All</span>
+              <span className="inline">Send Invites to All</span>
             </Button>
             <Button
               onClick={() => setShowFixHeadcountsDialog(true)}
@@ -676,7 +676,7 @@ export default function GuestsClient({
               className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 flex-1 sm:flex-none"
             >
               <Wrench className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Fix Headcounts</span>
+              <span className="inline">Fix Headcounts</span>
             </Button>
         </div>
 

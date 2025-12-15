@@ -127,6 +127,17 @@ export async function sendNotification(params: SendNotificationParams): Promise<
       },
     })
 
+    // Determine channel: use explicit channel (excluding 'inapp'), or infer from contact info
+    const determinedChannel: 'email' | 'sms' | 'whatsapp' | undefined = 
+      (channel && channel !== 'inapp' ? channel : undefined) || 
+      (phone && !email ? 'sms' : email ? 'email' : undefined)
+    
+    // Include channel in parameters for accurate tracking
+    const parametersWithChannel = {
+      ...parameters,
+      ...(determinedChannel && { channel: determinedChannel }),
+    }
+
     if (error) {
       console.error('NotificationAPI Edge Function error:', error)
       
@@ -144,6 +155,22 @@ export async function sendNotification(params: SendNotificationParams): Promise<
         }
       }
       
+      // Log failed notification
+      if (resolvedWeddingId) {
+        await logNotification({
+          weddingId: resolvedWeddingId,
+          notificationType: type,
+          recipientId: userId,
+          recipientEmail: email,
+          recipientPhone: phone,
+          parameters: parametersWithChannel,
+          success: false,
+          notificationApiId: undefined,
+          error: errorMessage,
+          channel: determinedChannel,
+        })
+      }
+      
       return {
         success: false,
         error: errorMessage,
@@ -158,10 +185,11 @@ export async function sendNotification(params: SendNotificationParams): Promise<
         recipientId: userId,
         recipientEmail: email,
         recipientPhone: phone,
-        parameters,
+        parameters: parametersWithChannel,
         success: data?.success ?? false,
         notificationApiId: data?.result?.id,
         error: data?.error,
+        channel: determinedChannel,
       })
     }
 
@@ -172,6 +200,32 @@ export async function sendNotification(params: SendNotificationParams): Promise<
     }
   } catch (error) {
     console.error('NotificationAPI send error:', error)
+    
+    // Log failed notification for exceptions
+    if (resolvedWeddingId) {
+      const determinedChannel: 'email' | 'sms' | 'whatsapp' | undefined = 
+        (channel && channel !== 'inapp' ? channel : undefined) || 
+        (phone && !email ? 'sms' : email ? 'email' : undefined)
+      
+      const parametersWithChannel = {
+        ...parameters,
+        ...(determinedChannel && { channel: determinedChannel }),
+      }
+      
+      await logNotification({
+        weddingId: resolvedWeddingId,
+        notificationType: type,
+        recipientId: userId,
+        recipientEmail: email,
+        recipientPhone: phone,
+        parameters: parametersWithChannel,
+        success: false,
+        notificationApiId: undefined,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        channel: determinedChannel,
+      })
+    }
+    
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -267,6 +321,69 @@ export async function sendBulkNotifications(
 }
 
 /**
+ * Get guest name from recipient ID (could be guest ID, email, or phone)
+ */
+async function getGuestName(
+  recipientId: string,
+  recipientEmail: string | undefined,
+  recipientPhone: string | undefined,
+  weddingId: string
+): Promise<string | undefined> {
+  const supabase = await supabaseServer()
+  
+  try {
+    // Try to find guest by ID first (if recipientId is a UUID)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recipientId)
+    
+    if (isUUID) {
+      const { data: guest } = await supabase
+        .from('guests')
+        .select('first_name, last_name')
+        .eq('id', recipientId)
+        .eq('wedding_id', weddingId)
+        .single()
+      
+      if (guest) {
+        return `${guest.first_name} ${guest.last_name}`.trim()
+      }
+    }
+    
+    // Try to find by email
+    if (recipientEmail) {
+      const { data: guest } = await supabase
+        .from('guests')
+        .select('first_name, last_name')
+        .eq('email', recipientEmail)
+        .eq('wedding_id', weddingId)
+        .single()
+      
+      if (guest) {
+        return `${guest.first_name} ${guest.last_name}`.trim()
+      }
+    }
+    
+    // Try to find by phone
+    if (recipientPhone) {
+      const { data: guest } = await supabase
+        .from('guests')
+        .select('first_name, last_name')
+        .eq('phone', recipientPhone)
+        .eq('wedding_id', weddingId)
+        .single()
+      
+      if (guest) {
+        return `${guest.first_name} ${guest.last_name}`.trim()
+      }
+    }
+  } catch (error) {
+    // Silently fail - guest name is optional
+    console.debug('Could not fetch guest name:', error)
+  }
+  
+  return undefined
+}
+
+/**
  * Log notification to database for tracking
  */
 async function logNotification(params: {
@@ -279,8 +396,27 @@ async function logNotification(params: {
   success: boolean
   notificationApiId?: string
   error?: string
+  channel?: 'email' | 'sms' | 'whatsapp'
+  guestName?: string
 }): Promise<void> {
   const supabase = await supabaseServer()
+
+  // Ensure channel is stored in parameters for accurate tracking
+  const parametersWithChannel = {
+    ...params.parameters,
+    ...(params.channel && { channel: params.channel }),
+  }
+
+  // Fetch guest name if not provided
+  let guestName = params.guestName
+  if (!guestName) {
+    guestName = await getGuestName(
+      params.recipientId,
+      params.recipientEmail,
+      params.recipientPhone,
+      params.weddingId
+    )
+  }
 
   const { error } = await supabase.from('notification_logs').insert({
     wedding_id: params.weddingId,
@@ -288,11 +424,13 @@ async function logNotification(params: {
     recipient_id: params.recipientId,
     recipient_email: params.recipientEmail,
     recipient_phone: params.recipientPhone,
-    parameters: params.parameters,
+    parameters: parametersWithChannel,
+    channel: params.channel, // Store channel explicitly in column
     status: params.success ? 'delivered' : 'failed',
     notificationapi_id: params.notificationApiId,
     error_message: params.error,
     delivered_at: params.success ? new Date().toISOString() : null,
+    guest_name: guestName, // Store guest name if available
   })
 
   if (error) {
