@@ -46,7 +46,13 @@ export async function GET(request: NextRequest) {
               id,
               name,
               starts_at
-            )
+            ),
+            rsvp_guests(
+              id,
+              guest_index,
+              name,
+              food_choice
+            ).order('guest_index')
           )
         )
       `)
@@ -136,22 +142,58 @@ export async function GET(request: NextRequest) {
         csvRows.push(row)
       } else {
         for (const invEvent of filteredEvents) {
-          const row: string[] = []
-          if (selectedColumns.includes('first_name')) row.push(guest.first_name || '')
-          if (selectedColumns.includes('last_name')) row.push(guest.last_name || '')
-          if (selectedColumns.includes('email')) row.push(guest.email || '')
-          if (selectedColumns.includes('invite_code')) row.push(guest.invite_code || '')
-          if (selectedColumns.includes('events')) row.push(invEvent.event?.name || '')
-          if (selectedColumns.includes('rsvp_status')) row.push(invEvent.status || 'pending')
-          if (selectedColumns.includes('headcount')) row.push(invEvent.headcount?.toString() || '1')
-          if (selectedColumns.includes('dietary_restrictions')) row.push(invEvent.dietary_restrictions || '')
-          if (selectedColumns.includes('dietary_information')) row.push(invEvent.dietary_information || '')
-          if (selectedColumns.includes('food_choice')) row.push(invEvent.food_choice || '')
-          if (selectedColumns.includes('notes')) row.push(guest.notes || '')
-          if (selectedColumns.includes('created_at')) {
-            row.push(guest.created_at ? format(new Date(guest.created_at), 'yyyy-MM-dd HH:mm:ss') : '')
+          // Handle multiple guest food choices
+          const rsvpGuests = (invEvent.rsvp_guests || []) as any[]
+          
+          if (rsvpGuests.length > 0) {
+            // Create a row for each guest with food choice
+            for (const rsvpGuest of rsvpGuests) {
+              const row: string[] = []
+              if (selectedColumns.includes('first_name')) {
+                // For primary guest, use guest name; for plus-ones, use rsvp_guest name
+                row.push(rsvpGuest.guest_index === 1 ? guest.first_name || '' : rsvpGuest.name || '')
+              }
+              if (selectedColumns.includes('last_name')) {
+                row.push(rsvpGuest.guest_index === 1 ? guest.last_name || '' : '')
+              }
+              if (selectedColumns.includes('email')) row.push(guest.email || '')
+              if (selectedColumns.includes('invite_code')) row.push(guest.invite_code || '')
+              if (selectedColumns.includes('events')) row.push(invEvent.event?.name || '')
+              if (selectedColumns.includes('rsvp_status')) row.push(invEvent.status || 'pending')
+              if (selectedColumns.includes('headcount')) row.push(invEvent.headcount?.toString() || '1')
+              if (selectedColumns.includes('dietary_restrictions')) row.push(invEvent.dietary_restrictions || '')
+              if (selectedColumns.includes('dietary_information')) row.push(invEvent.dietary_information || '')
+              if (selectedColumns.includes('food_choice')) {
+                const guestLabel = rsvpGuest.guest_index === 1 
+                  ? 'Primary Guest' 
+                  : `Guest ${rsvpGuest.guest_index}${rsvpGuest.name ? ` (${rsvpGuest.name})` : ''}`
+                row.push(`${guestLabel}: ${rsvpGuest.food_choice || ''}`)
+              }
+              if (selectedColumns.includes('notes')) row.push(guest.notes || '')
+              if (selectedColumns.includes('created_at')) {
+                row.push(guest.created_at ? format(new Date(guest.created_at), 'yyyy-MM-dd HH:mm:ss') : '')
+              }
+              csvRows.push(row)
+            }
+          } else {
+            // Fallback to single food_choice (backward compatibility)
+            const row: string[] = []
+            if (selectedColumns.includes('first_name')) row.push(guest.first_name || '')
+            if (selectedColumns.includes('last_name')) row.push(guest.last_name || '')
+            if (selectedColumns.includes('email')) row.push(guest.email || '')
+            if (selectedColumns.includes('invite_code')) row.push(guest.invite_code || '')
+            if (selectedColumns.includes('events')) row.push(invEvent.event?.name || '')
+            if (selectedColumns.includes('rsvp_status')) row.push(invEvent.status || 'pending')
+            if (selectedColumns.includes('headcount')) row.push(invEvent.headcount?.toString() || '1')
+            if (selectedColumns.includes('dietary_restrictions')) row.push(invEvent.dietary_restrictions || '')
+            if (selectedColumns.includes('dietary_information')) row.push(invEvent.dietary_information || '')
+            if (selectedColumns.includes('food_choice')) row.push(invEvent.food_choice || '')
+            if (selectedColumns.includes('notes')) row.push(guest.notes || '')
+            if (selectedColumns.includes('created_at')) {
+              row.push(guest.created_at ? format(new Date(guest.created_at), 'yyyy-MM-dd HH:mm:ss') : '')
+            }
+            csvRows.push(row)
           }
-          csvRows.push(row)
         }
       }
     }

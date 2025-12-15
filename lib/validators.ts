@@ -196,6 +196,11 @@ export const updateConfigSchema = z.object({
 })
 
 // RSVP schemas
+const rsvpGuestSchema = z.object({
+  name: z.string().max(255, 'Guest name too long').optional(),
+  food_choice: z.string().max(100, 'Food choice too long'),
+})
+
 export const rsvpSchema = z.object({
   invite_code: z.string().min(1, 'Invite code is required').max(20, 'Invite code too long'),
   response: z.enum(['accepted', 'declined'], {
@@ -208,7 +213,8 @@ export const rsvpSchema = z.object({
   goodwill_message: z.string().max(500, 'Goodwill message too long').optional(),
   dietary_restrictions: z.string().max(500, 'Dietary restrictions too long').optional(),
   dietary_information: z.string().max(500, 'Dietary information too long').optional(),
-  food_choice: z.string().max(100, 'Food choice too long').optional(),
+  food_choice: z.string().max(100, 'Food choice too long').optional(), // Keep for backward compatibility
+  guests: z.array(rsvpGuestSchema).optional(), // Array of guest food choices
 })
 
 export const rsvpConfirmationEmailSchema = z.object({

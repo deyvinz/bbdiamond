@@ -26,6 +26,17 @@ export async function submitRsvpAction(
     const dietaryRestrictions = formData.get('dietary_restrictions') as string
     const dietaryInformation = formData.get('dietary_information') as string
     const foodChoice = formData.get('food_choice') as string
+    const guestsStr = formData.get('guests') as string
+
+    // Parse guests array if provided
+    let guests: Array<{ name?: string; food_choice: string }> | undefined
+    if (guestsStr) {
+      try {
+        guests = JSON.parse(guestsStr)
+      } catch (e) {
+        console.error('Failed to parse guests JSON:', e)
+      }
+    }
 
     // Validate input
     const validationResult = rsvpSchema.safeParse({
@@ -39,6 +50,7 @@ export async function submitRsvpAction(
       dietary_restrictions: dietaryRestrictions || undefined,
       dietary_information: dietaryInformation || undefined,
       food_choice: foodChoice || undefined,
+      guests: guests,
     })
 
     if (!validationResult.success) {

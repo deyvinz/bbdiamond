@@ -228,7 +228,8 @@ export async function submitRsvpToDatabase(
     dietary_information?: string
     food_choice?: string
   },
-  partySize?: number
+  partySize?: number,
+  guests?: Array<{ name?: string; food_choice: string }>
 ): Promise<boolean> {
   try {
     const supabase = await supabaseServer()
@@ -311,6 +312,65 @@ export async function submitRsvpToDatabase(
       if (error) {
         console.error('Error submitting RSVP for event:', invitationEvent.event.name, error)
         return false
+      }
+
+      // Insert record into rsvps_v2 table
+      const { error: rsvpError } = await supabase
+        .from('rsvps_v2')
+        .insert({
+          invitation_event_id: invitationEvent.id,
+          response: response,
+          party_size: headcount,
+          message: goodwillMessage || null,
+          wedding_id: finalWeddingId,
+        })
+
+      if (rsvpError) {
+        console.error('Error inserting RSVP into rsvps_v2:', invitationEvent.event.name, rsvpError)
+        // Don't return false here - the invitation_events update succeeded
+        // Log the error but continue
+      }
+
+      // Handle guest food choices if provided (only for accepted responses)
+      if (response === 'accepted' && guests && guests.length > 0) {
+        // Delete existing rsvp_guests for this invitation_event
+        const { error: deleteError } = await supabase
+          .from('rsvp_guests')
+          .delete()
+          .eq('invitation_event_id', invitationEvent.id)
+
+        if (deleteError) {
+          console.error('Error deleting existing rsvp_guests:', deleteError)
+          // Continue anyway - might be first time
+        }
+
+        // Insert new rsvp_guests records
+        const rsvpGuestsToInsert = guests.map((guest, index) => ({
+          invitation_event_id: invitationEvent.id,
+          guest_index: index + 1,
+          name: guest.name || null,
+          food_choice: guest.food_choice || null,
+        }))
+
+        const { error: insertGuestsError } = await supabase
+          .from('rsvp_guests')
+          .insert(rsvpGuestsToInsert)
+
+        if (insertGuestsError) {
+          console.error('Error inserting rsvp_guests:', insertGuestsError)
+          // Don't return false - main RSVP update succeeded
+        }
+      } else if (response === 'declined') {
+        // Clear rsvp_guests for declined responses
+        const { error: deleteError } = await supabase
+          .from('rsvp_guests')
+          .delete()
+          .eq('invitation_event_id', invitationEvent.id)
+
+        if (deleteError) {
+          console.error('Error deleting rsvp_guests for declined:', deleteError)
+          // Continue anyway
+        }
       }
     }
 
@@ -478,13 +538,59 @@ async function sendRsvpConfirmationViaEmail(
 
     // Generate digital pass for accepted RSVPs
     let passAttachment: { filename: string; content: string; contentType: string } | undefined
-    if (response === 'accepted' && params.events.length > 0) {
+    if (response === 'accepted' && params.events.length > 0 && params.weddingId) {
       try {
+        // Fetch invitation events with RSVP guests data
+        const acceptedInvitationEvents = invitation.invitation_events.filter(ie => ie.status === 'accepted')
+        const invitationEventIds = acceptedInvitationEvents.map(ie => ie.id)
+        
+        // Fetch RSVP guests for these events
+        let rsvpGuestsMap: Record<string, Array<{ guest_index: number; name?: string; food_choice?: string }>> = {}
+        if (invitationEventIds.length > 0) {
+          const { data: rsvpGuests } = await supabase
+            .from('rsvp_guests')
+            .select('invitation_event_id, guest_index, name, food_choice')
+            .in('invitation_event_id', invitationEventIds)
+            .order('invitation_event_id')
+            .order('guest_index')
+          
+          if (rsvpGuests) {
+            for (const guest of rsvpGuests) {
+              if (!rsvpGuestsMap[guest.invitation_event_id]) {
+                rsvpGuestsMap[guest.invitation_event_id] = []
+              }
+              rsvpGuestsMap[guest.invitation_event_id].push({
+                guest_index: guest.guest_index,
+                name: guest.name || undefined,
+                food_choice: guest.food_choice || undefined,
+              })
+            }
+          }
+        }
+        
+        // Create a map of event name to invitation event for matching
+        const eventNameToInvitationEvent = new Map(
+          acceptedInvitationEvents.map(ie => [ie.event.name, ie])
+        )
+        
+        // Map events with RSVP guests data - match by event name
+        const eventsWithGuests = params.events.map((event) => {
+          const invitationEvent = eventNameToInvitationEvent.get(event.name)
+          return {
+            ...event,
+            invitationEventId: invitationEvent?.id,
+            headcount: invitationEvent?.headcount,
+            rsvpGuests: invitationEvent?.id ? rsvpGuestsMap[invitationEvent.id] : undefined,
+          }
+        })
+        
         const passData: DigitalPassData = {
           guestName: params.guestName,
           inviteCode: invitation.guest.invite_code,
           token: invitation.token,
-          events: params.events
+          weddingId: params.weddingId,
+          coupleDisplayName: params.coupleDisplayName,
+          events: eventsWithGuests
         }
         const passResult = await generateDigitalPass(passData)
         passAttachment = {
@@ -698,7 +804,8 @@ export async function submitRsvp(
         dietary_information: validatedInput.dietary_information,
         food_choice: validatedInput.food_choice
       } : undefined,
-      validatedInput.party_size
+      validatedInput.party_size,
+      validatedInput.guests
     )
 
     if (!dbSuccess) {
@@ -733,14 +840,16 @@ export async function submitRsvp(
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://brendabagsherdiamond.com'
     const rsvpUrl = `${baseUrl}/rsvp?token=${invitation.token}`
 
-    const events = invitation.invitation_events
-      .filter(ie => ie.status === 'accepted' || validatedInput.response === 'accepted')
-      .map(ie => ({
-        name: ie.event.name,
-        startsAtISO: ie.event.starts_at,
-        venue: ie.event.venue,
-        address: ie.event.address
-      }))
+    const acceptedInvitationEvents = invitation.invitation_events.filter(ie => 
+      ie.status === 'accepted' || validatedInput.response === 'accepted'
+    )
+    
+    const events = acceptedInvitationEvents.map(ie => ({
+      name: ie.event.name,
+      startsAtISO: ie.event.starts_at,
+      venue: ie.event.venue,
+      address: ie.event.address
+    }))
 
     const result: RsvpResult = {
       status: validatedInput.response,
@@ -755,11 +864,80 @@ export async function submitRsvp(
         const qrResult = await generateEmailQR(invitation.token)
         result.qrImageUrl = `data:image/png;base64,${qrResult.buffer.toString('base64')}`
         
+        // Get wedding ID
+        const weddingId = invitation.wedding_id || await getWeddingId()
+        if (!weddingId) {
+          throw new Error('Wedding ID not found')
+        }
+        
+        // Fetch accepted invitation events with RSVP guests
+        const acceptedInvitationEvents = invitation.invitation_events.filter(ie => 
+          ie.status === 'accepted' || validatedInput.response === 'accepted'
+        )
+        const invitationEventIds = acceptedInvitationEvents.map(ie => ie.id)
+        
+        // Fetch RSVP guests for these events
+        let rsvpGuestsMap: Record<string, Array<{ guest_index: number; name?: string; food_choice?: string }>> = {}
+        if (invitationEventIds.length > 0) {
+          const supabase = await supabaseServer()
+          const { data: rsvpGuests } = await supabase
+            .from('rsvp_guests')
+            .select('invitation_event_id, guest_index, name, food_choice')
+            .in('invitation_event_id', invitationEventIds)
+            .order('invitation_event_id')
+            .order('guest_index')
+          
+          if (rsvpGuests) {
+            for (const guest of rsvpGuests) {
+              if (!rsvpGuestsMap[guest.invitation_event_id]) {
+                rsvpGuestsMap[guest.invitation_event_id] = []
+              }
+              rsvpGuestsMap[guest.invitation_event_id].push({
+                guest_index: guest.guest_index,
+                name: guest.name || undefined,
+                food_choice: guest.food_choice || undefined,
+              })
+            }
+          }
+        }
+        
+        // Create a map of event name to invitation event for matching
+        const eventNameToInvitationEvent = new Map(
+          acceptedInvitationEvents.map(ie => [ie.event.name, ie])
+        )
+        
+        // Map events with RSVP guests data - match by event name
+        const eventsWithGuests = events.map((event) => {
+          const invitationEvent = eventNameToInvitationEvent.get(event.name)
+          return {
+            ...event,
+            invitationEventId: invitationEvent?.id,
+            headcount: invitationEvent?.headcount,
+            rsvpGuests: invitationEvent?.id ? rsvpGuestsMap[invitationEvent.id] : undefined,
+          }
+        })
+        
+        // Fetch couple display name
+        let coupleDisplayName: string | undefined
+        try {
+          const supabase = await supabaseServer()
+          const { data: weddingData } = await supabase
+            .from('weddings')
+            .select('couple_display_name')
+            .eq('id', weddingId)
+            .single()
+          coupleDisplayName = weddingData?.couple_display_name
+        } catch (error) {
+          console.warn('Failed to fetch couple display name:', error)
+        }
+        
         const passData: DigitalPassData = {
           guestName,
           inviteCode: invitation.guest.invite_code,
           token: invitation.token,
-          events
+          weddingId,
+          coupleDisplayName,
+          events: eventsWithGuests
         }
         const passResult = await generateDigitalPass(passData)
         result.passUrl = passResult.publicUrl

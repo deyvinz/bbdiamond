@@ -256,6 +256,253 @@ export async function GET(request: NextRequest) {
       return dateB - dateA
     })
 
+    // Calculate summary statistics
+    const successfulLogs = allLogs.filter(log => {
+      const isSuccess = log.success !== undefined ? log.success : log.status === 'delivered'
+      return isSuccess
+    })
+    const failedLogs = allLogs.filter(log => {
+      const isSuccess = log.success !== undefined ? log.success : log.status === 'delivered'
+      return !isSuccess
+    })
+
+    // Fetch all guests with their invitation events count and invitation IDs
+    const { data: guestsWithInvitations } = await supabase
+      .from('guests')
+      .select(`
+        id,
+        first_name,
+        last_name,
+        email,
+        phone,
+        invitations(
+          id,
+          invitation_events(
+            id,
+            event_id
+          )
+        )
+      `)
+      .eq('wedding_id', weddingId)
+
+    // Create map of guest ID to invitation events count, invitation IDs, and event IDs
+    const guestInvitationEventsCount = new Map<string, number>()
+    const guestInvitationIds = new Map<string, string[]>()
+    const guestInvitationEventIds = new Map<string, Map<string, string[]>>() // Map<guestId, Map<invitationId, eventIds[]>>
+    const guestInfoMap = new Map<string, { name: string; email?: string; phone?: string }>()
+    
+    guestsWithInvitations?.forEach((guest: any) => {
+      const guestId = guest.id
+      const guestName = `${guest.first_name} ${guest.last_name}`.trim()
+      const invitations = guest.invitations || []
+      const totalEvents = invitations.reduce((sum: number, inv: any) => {
+        return sum + (inv.invitation_events?.length || 0)
+      }, 0)
+      const invitationIds = invitations.map((inv: any) => inv.id)
+      
+      // Map invitation IDs to event IDs
+      const invitationEventIdsMap = new Map<string, string[]>()
+      invitations.forEach((inv: any) => {
+        const eventIds = inv.invitation_events?.map((ie: any) => ie.event_id) || []
+        invitationEventIdsMap.set(inv.id, eventIds)
+      })
+      
+      guestInvitationEventsCount.set(guestId, totalEvents)
+      guestInvitationIds.set(guestId, invitationIds)
+      guestInvitationEventIds.set(guestId, invitationEventIdsMap)
+      guestInfoMap.set(guestId, {
+        name: guestName,
+        email: guest.email,
+        phone: guest.phone,
+      })
+      
+      // Also map by email and phone for lookup
+      if (guest.email) {
+        guestInfoMap.set(guest.email, {
+          name: guestName,
+          email: guest.email,
+          phone: guest.phone,
+        })
+      }
+      if (guest.phone) {
+        guestInfoMap.set(guest.phone, {
+          name: guestName,
+          email: guest.email,
+          phone: guest.phone,
+        })
+      }
+    })
+
+    // Group logs by guest
+    const guestLogsMap = new Map<string, any[]>()
+    const guestKeyToGuestId = new Map<string, string>()
+    
+    allLogs.forEach(log => {
+      // Try to find guest ID from various identifiers
+      let guestId: string | undefined
+      let guestKey: string | undefined
+      
+      // Try by recipient_id if it's a UUID
+      if (log.recipient_id) {
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(log.recipient_id))
+        if (isUUID && guestInvitationEventsCount.has(log.recipient_id)) {
+          guestId = log.recipient_id
+        }
+      }
+      
+      // Try by email
+      if (!guestId && log.email) {
+        const guestInfo = guestInfoMap.get(log.email)
+        if (guestInfo) {
+          // Find guest ID by email
+          const guest = guestsWithInvitations?.find((g: any) => g.email === log.email)
+          if (guest) {
+            guestId = guest.id
+          }
+        }
+      }
+      
+      // Try by phone
+      if (!guestId && log.recipient_phone) {
+        const guestInfo = guestInfoMap.get(log.recipient_phone)
+        if (guestInfo) {
+          const guest = guestsWithInvitations?.find((g: any) => g.phone === log.recipient_phone)
+          if (guest) {
+            guestId = guest.id
+          }
+        }
+      }
+      
+      // Use guest_name as fallback key
+      if (!guestId) {
+        guestKey = log.guest_name || log.email || log.recipient_email || log.recipient_phone || 'Unknown'
+      } else {
+        guestKey = guestId
+      }
+      
+      if (guestKey && !guestLogsMap.has(guestKey)) {
+        guestLogsMap.set(guestKey, [])
+        if (guestId) {
+          guestKeyToGuestId.set(guestKey, guestId)
+        }
+      }
+      if (guestKey) {
+        guestLogsMap.get(guestKey)?.push(log)
+      }
+    })
+
+    // Create grouped guest data from logs
+    const groupedByGuestFromLogs = Array.from(guestLogsMap.entries()).map(([guestKey, logs]) => {
+      const guestId = guestKeyToGuestId.get(guestKey)
+      const guestInfo = guestId ? guestInfoMap.get(guestId) : guestInfoMap.get(guestKey)
+      const invitationEventsCount = guestId ? (guestInvitationEventsCount.get(guestId) || 0) : 0
+      
+      const successful = logs.filter(log => {
+        const isSuccess = log.success !== undefined ? log.success : log.status === 'delivered'
+        return isSuccess
+      }).length
+      const failed = logs.length - successful
+      const lastNotification = logs.length > 0 ? logs[0].sent_at || logs[0].delivered_at || logs[0].created_at : null
+      
+      const notificationsReceived = logs.length
+      const missingCount = Math.max(0, invitationEventsCount - notificationsReceived)
+      
+      const invitationIds = guestId ? (guestInvitationIds.get(guestId) || []) : []
+      const invitationEventIdsMap = guestId ? (guestInvitationEventIds.get(guestId) || new Map()) : new Map()
+      
+      // Create map of invitation IDs to event IDs
+      const invitationEventIds: Record<string, string[]> = {}
+      invitationEventIdsMap.forEach((eventIds, invId) => {
+        invitationEventIds[invId] = eventIds
+      })
+      
+      return {
+        guest_id: guestId,
+        guest_name: guestInfo?.name || guestKey,
+        guest_email: guestInfo?.email || logs[0]?.email || logs[0]?.recipient_email,
+        guest_phone: guestInfo?.phone || logs[0]?.recipient_phone,
+        invitation_events_count: invitationEventsCount,
+        notifications_received: notificationsReceived,
+        missing_count: missingCount,
+        successful,
+        failed,
+        last_notification: lastNotification,
+        invitation_ids: invitationIds,
+        invitation_event_ids: invitationEventIds, // Map of invitation ID to event IDs
+        logs: logs.slice(0, 10),
+      }
+    })
+
+    // Add guests who have invitation events but no notifications
+    const guestsWithLogs = new Set(groupedByGuestFromLogs.map(g => g.guest_id).filter(Boolean))
+    const guestsWithoutNotifications = guestsWithInvitations?.filter((guest: any) => {
+      const guestId = guest.id
+      const hasInvitations = guest.invitations && guest.invitations.length > 0
+      const hasLogs = guestsWithLogs.has(guestId)
+      return hasInvitations && !hasLogs
+    }) || []
+
+    const guestsWithoutNotificationsData = guestsWithoutNotifications.map((guest: any) => {
+      const guestId = guest.id
+      const guestName = `${guest.first_name} ${guest.last_name}`.trim()
+      const invitations = guest.invitations || []
+      const totalEvents = invitations.reduce((sum: number, inv: any) => {
+        return sum + (inv.invitation_events?.length || 0)
+      }, 0)
+      const invitationIds = invitations.map((inv: any) => inv.id)
+
+      // Get event IDs for invitations
+      const invitationEventIdsMap = new Map<string, string[]>()
+      invitations.forEach((inv: any) => {
+        const eventIds = inv.invitation_events?.map((ie: any) => ie.event_id) || []
+        invitationEventIdsMap.set(inv.id, eventIds)
+      })
+      
+      const invitationEventIds: Record<string, string[]> = {}
+      invitationEventIdsMap.forEach((eventIds, invId) => {
+        invitationEventIds[invId] = eventIds
+      })
+      
+      return {
+        guest_id: guestId,
+        guest_name: guestName,
+        guest_email: guest.email,
+        guest_phone: guest.phone,
+        invitation_events_count: totalEvents,
+        notifications_received: 0,
+        missing_count: totalEvents, // All events are missing notifications
+        successful: 0,
+        failed: 0,
+        last_notification: null,
+        invitation_ids: invitationIds,
+        invitation_event_ids: invitationEventIds,
+        logs: [],
+      }
+    })
+
+    // Combine and sort
+    const groupedByGuest = [...groupedByGuestFromLogs, ...guestsWithoutNotificationsData].sort((a, b) => {
+      // Sort by missing count first (highest first), then by last notification date
+      if (a.missing_count !== b.missing_count) {
+        return b.missing_count - a.missing_count
+      }
+      const dateA = a.last_notification ? new Date(a.last_notification).getTime() : 0
+      const dateB = b.last_notification ? new Date(b.last_notification).getTime() : 0
+      return dateB - dateA
+    })
+
+    // Count unique guests notified
+    const uniqueGuestsNotified = new Set(
+      allLogs
+        .map(log => log.guest_name || log.email || log.recipient_email || log.recipient_phone)
+        .filter(Boolean)
+    ).size
+
+    // Count guests with missing notifications
+    const guestsWithMissingNotifications = groupedByGuest.filter(
+      guest => guest.missing_count > 0
+    ).length
+
     // Calculate total count and pagination
     const totalCount = mailLogsCount + notificationLogsCount
     const totalPages = Math.ceil(totalCount / pageSize)
@@ -272,6 +519,15 @@ export async function GET(request: NextRequest) {
         total_count: totalCount,
         total_pages: totalPages,
       },
+      summary: {
+        total_sent: allLogs.length,
+        successful: successfulLogs.length,
+        failed: failedLogs.length,
+        unique_guests_notified: uniqueGuestsNotified,
+        total_guests: guestsWithInvitations?.length || 0,
+        guests_with_missing_notifications: guestsWithMissingNotifications,
+      },
+      grouped_by_guest: groupedByGuest,
     })
   } catch (error) {
     console.error('Error fetching notification logs:', error)

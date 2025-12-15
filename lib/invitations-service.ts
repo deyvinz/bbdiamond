@@ -18,6 +18,16 @@ import { getAppConfig } from './config-service'
 import { getWeddingId } from './wedding-context-server'
 import { logger } from './logger'
 
+export interface RsvpGuest {
+  id: string
+  invitation_event_id: string
+  guest_index: number
+  name?: string
+  food_choice?: string
+  created_at: string
+  updated_at: string
+}
+
 export interface InvitationEvent {
   id: string
   event_id: string
@@ -41,6 +51,7 @@ export interface InvitationEvent {
     party_size: number
     created_at: string
   }
+  rsvp_guests?: RsvpGuest[]
 }
 
 export interface Invitation {
@@ -154,6 +165,14 @@ export async function getInvitationsPage(
           starts_at,
           venue,
           address
+        ),
+        rsvp_guests(
+          id,
+          guest_index,
+          name,
+          food_choice,
+          created_at,
+          updated_at
         )
       ).order('event.starts_at', { foreignTable: 'events' })
     `)
@@ -287,12 +306,15 @@ export async function getInvitationsPage(
     }
   }
 
-  // Attach latest RSVP to each invitation event
+  // Attach latest RSVP to each invitation event and sort rsvp_guests by guest_index
   const allProcessedInvitations = invitations?.map((invitation: any) => ({
     ...invitation,
     invitation_events: invitation.invitation_events?.map((event: any) => ({
       ...event,
-      latest_rsvp: latestRsvps[event.id] || null
+      latest_rsvp: latestRsvps[event.id] || null,
+      rsvp_guests: event.rsvp_guests && Array.isArray(event.rsvp_guests)
+        ? event.rsvp_guests.sort((a: any, b: any) => (a.guest_index || 0) - (b.guest_index || 0))
+        : event.rsvp_guests
     })) || []
   })) || []
 
@@ -501,7 +523,15 @@ export async function createInvitationsForGuests(
                 starts_at,
                 venue,
                 address
-              )
+              ),
+              rsvp_guests(
+                id,
+                guest_index,
+                name,
+                food_choice,
+                created_at,
+                updated_at
+              ).order('guest_index')
             )
           `)
           .eq('id', invitationId)
@@ -701,6 +731,14 @@ export async function updateInvitation(
           starts_at,
           venue,
           address
+        ),
+        rsvp_guests(
+          id,
+          guest_index,
+          name,
+          food_choice,
+          created_at,
+          updated_at
         )
       )
     `)

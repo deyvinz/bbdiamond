@@ -13,6 +13,7 @@ import { RsvpConfetti } from './RsvpConfetti'
 import { toast } from '@/components/ui/use-toast'
 import type { ConfigValue } from '@/lib/types/config'
 import GuestSeatingInfo from '@/components/GuestSeatingInfo'
+import GuestFoodChoiceForm from './GuestFoodChoiceForm'
 import { 
   resolveInvitationByToken, 
   resolveInvitationByInviteCode, 
@@ -33,7 +34,8 @@ type FormValues = {
   goodwill_message?: string
   dietary_restrictions?: string
   dietary_information?: string
-  food_choice?: string
+  food_choice?: string // Keep for backward compatibility (single guest)
+  guests?: Array<{ name?: string; food_choice: string }> // For multiple guests
 }
 
 interface RsvpResult {
@@ -54,7 +56,7 @@ export default function RSVPForm(){
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
   
-  const {register, handleSubmit, setValue, watch, formState:{isSubmitting, errors}} = useForm<FormValues>({ 
+  const {register, handleSubmit, setValue, watch, getValues, formState:{isSubmitting, errors}} = useForm<FormValues>({ 
     defaultValues:{ 
       response:'accepted',
       party_size: 1
@@ -191,6 +193,39 @@ export default function RSVPForm(){
     setShowGoodwillMessage(response === 'declined')
   }, [response])
 
+  // Initialize guests array when party_size changes and is greater than 1
+  useEffect(() => {
+    // Don't run if config is still loading
+    if (isConfigLoading) {
+      return
+    }
+
+    if (partySize && partySize > 1 && response === 'accepted' && config?.food_choices_enabled) {
+      // Initialize guests array if not already initialized
+      const currentGuests = getValues('guests') || []
+      if (currentGuests.length !== partySize) {
+        const newGuests = Array.from({ length: partySize }).map((_, index) => {
+          const existingGuest = currentGuests[index]
+          if (existingGuest) {
+            return existingGuest
+          }
+          return {
+            name: index === 0 ? undefined : '',
+            food_choice: ''
+          }
+        })
+        setValue('guests', newGuests, { shouldValidate: false })
+      }
+    } else if ((!partySize || partySize <= 1)) {
+      const currentGuests = getValues('guests')
+      if (currentGuests && Array.isArray(currentGuests) && currentGuests.length > 0) {
+        // Clear guests array if party_size is 1 or less
+        setValue('guests', undefined, { shouldValidate: false })
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partySize, response, config?.food_choices_enabled, isConfigLoading, getValues, setValue])
+
   // Fetch invitation data when invite code changes (for manual entry)
   useEffect(() => {
     // Skip if token is provided (handled by token useEffect) or if invite code matches prefilled
@@ -251,8 +286,13 @@ export default function RSVPForm(){
     if (v.goodwill_message) formData.append('goodwill_message', v.goodwill_message)
     if (v.dietary_restrictions) formData.append('dietary_restrictions', v.dietary_restrictions)
     if (v.dietary_information) formData.append('dietary_information', v.dietary_information)
-    // Handle food choice
-    if (v.food_choice) {
+    
+    // Handle food choices: use guests array if party_size > 1, otherwise use single food_choice
+    if (v.party_size && v.party_size > 1 && v.guests && v.guests.length > 0) {
+      // Multiple guests - send guests array as JSON
+      formData.append('guests', JSON.stringify(v.guests))
+    } else if (v.food_choice) {
+      // Single guest - backward compatibility
       formData.append('food_choice', v.food_choice)
     }
     
@@ -380,7 +420,7 @@ export default function RSVPForm(){
                     >
                       💾 Save Digital Pass
                     </Button>
-                    <Button
+                    {/* <Button
                       onClick={() => {
                         if (!currentRsvpStatus.passUrl) return
                         if (navigator.userAgent.includes('iPhone') || navigator.userAgent.includes('iPad')) {
@@ -402,7 +442,7 @@ export default function RSVPForm(){
                       radius="lg"
                     >
                       📱 Add to Wallet
-                    </Button>
+                    </Button> */}
                   </div>
                 </div>
               )}
@@ -602,7 +642,7 @@ export default function RSVPForm(){
                       >
                         💾 Save Digital Pass
                       </Button>
-                      <Button
+                      {/* <Button
                         onClick={() => {
                           if (!rsvpResult.passUrl) return
                           // Try to add to Apple Wallet (iOS) or Google Pay (Android)
@@ -627,7 +667,7 @@ export default function RSVPForm(){
                         radius="lg"
                       >
                         📱 Add to Wallet
-                      </Button>
+                      </Button> */}
                     </div>
                   </div>
                 )}
@@ -1058,59 +1098,92 @@ export default function RSVPForm(){
             {/* Dietary Requirements & Food Choices (only shown when accepted) */}
             {response === 'accepted' && config?.food_choices_enabled && (
               <>
-                {/* Food Choice */}
-                <div className="space-y-2">
-                  <Label htmlFor="food_choice">
-                    Meal Selection
-                    {config.food_choices_required && <span className="text-red-500 ml-1">*</span>}
-                  </Label>
-                  {foodChoices.length > 0 ? (
-                    <Select 
-                      value={watch('food_choice') || ''}
-                      onValueChange={(value) => {
-                        setValue('food_choice', value, { shouldValidate: true })
-                      }}
-                    >
-                      <SelectTrigger 
-                        id="food_choice" 
-                        className={errors.food_choice ? 'border-red-500 rounded-xl' : 'rounded-xl'}
+                {/* Multiple Guests Food Choices */}
+                {partySize && partySize > 1 ? (
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Guest Meal Selections</h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Please select meal preferences for each guest ({partySize} {partySize === 1 ? 'guest' : 'guests'})
+                      </p>
+                    </div>
+                    {Array.from({ length: partySize }).map((_, index) => {
+                      const guestIndex = index + 1
+                      const isPrimary = index === 0
+                      const primaryGuestName = invitationData?.guest 
+                        ? `${invitationData.guest.first_name} ${invitationData.guest.last_name}`.trim()
+                        : undefined
+                      
+                      return (
+                        <GuestFoodChoiceForm
+                          key={index}
+                          guestIndex={guestIndex}
+                          isPrimary={isPrimary}
+                          primaryGuestName={primaryGuestName}
+                          foodChoices={foodChoices}
+                          register={register}
+                          setValue={setValue}
+                          watch={watch}
+                          errors={errors}
+                          foodChoicesRequired={config.food_choices_required}
+                        />
+                      )
+                    })}
+                  </div>
+                ) : (
+                  /* Single Guest Food Choice (backward compatibility) */
+                  <div className="space-y-2">
+                    <Label htmlFor="food_choice">
+                      Meal Selection
+                      {config.food_choices_required && <span className="text-red-500 ml-1">*</span>}
+                    </Label>
+                    {foodChoices.length > 0 ? (
+                      <Select 
+                        value={watch('food_choice') || ''}
+                        onValueChange={(value) => {
+                          setValue('food_choice', value, { shouldValidate: true })
+                        }}
                       >
-                        <SelectValue placeholder="Select your meal preference" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {foodChoices.map((choice) => (
-                          <SelectItem key={choice.id} value={choice.name}>
-                            {choice.name}
-                            {choice.description && ` - ${choice.description}`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input 
-                      id="food_choice"
-                      type="text"
-                      placeholder="Enter your meal preference"
-                      className={errors.food_choice ? 'border-red-500 rounded-xl' : 'rounded-xl'}
+                        <SelectTrigger 
+                          id="food_choice" 
+                          className={errors.food_choice ? 'border-red-500 rounded-xl' : 'rounded-xl'}
+                        >
+                          <SelectValue placeholder="Select your meal preference" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {foodChoices.map((choice) => (
+                            <SelectItem key={choice.id} value={choice.name}>
+                              {choice.name}
+                              {choice.description && ` - ${choice.description}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input 
+                        id="food_choice"
+                        type="text"
+                        placeholder="Enter your meal preference"
+                        className={errors.food_choice ? 'border-red-500 rounded-xl' : 'rounded-xl'}
+                        {...register('food_choice', {
+                          required: config.food_choices_required ? 'Please select or enter your meal preference' : false
+                        })}
+                      />
+                    )}
+                    <input
+                      type="hidden"
                       {...register('food_choice', {
                         required: config.food_choices_required ? 'Please select or enter your meal preference' : false
                       })}
                     />
-                  )}
-                  <input
-                    type="hidden"
-                    {...register('food_choice', {
-                      required: config.food_choices_required ? 'Please select or enter your meal preference' : false
-                    })}
-                  />
-                  {errors.food_choice && (
-                    <p className="text-sm text-red-600">{errors.food_choice.message}</p>
-                  )}
-                  {foodChoices.length > 0 && (
-                    <p className="text-xs text-gray-500">Select a meal option from the list</p>
-                  )}
-                </div>
-
+                    {errors.food_choice && (
+                      <p className="text-sm text-red-600">{errors.food_choice.message}</p>
+                    )}
+                    {foodChoices.length > 0 && (
+                      <p className="text-xs text-gray-500">Select a meal option from the list</p>
+                    )}
+                  </div>
+                )}
               </>
             )}
             {response === 'accepted' && showDietaryRestrictionsField && (
