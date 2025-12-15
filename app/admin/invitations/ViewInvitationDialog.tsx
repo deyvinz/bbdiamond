@@ -338,19 +338,39 @@ export default function ViewInvitationDialog({
                           )}
 
                           {/* Dietary Information - Show only if event is accepted and dietary data exists */}
-                          {event.status === 'accepted' && (event.dietary_restrictions || event.dietary_information || event.food_choice) && (
+                          {event.status === 'accepted' && (event.dietary_restrictions || event.dietary_information || event.food_choice || (event.rsvp_guests && event.rsvp_guests.length > 0)) && (
                             <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                               <h5 className="text-sm font-medium text-amber-900 mb-3 flex items-center gap-2">
                                 <Utensils className="h-4 w-4" />
                                 Dietary Information
                               </h5>
                               <div className="space-y-3 text-sm">
-                                {event.food_choice && (
+                                {/* Multiple Guests Food Choices */}
+                                {event.rsvp_guests && event.rsvp_guests.length > 0 ? (
+                                  <div className="space-y-2">
+                                    <span className="font-medium text-amber-800">Guest Meal Selections:</span>
+                                    {event.rsvp_guests.map((guest: any, idx: number) => (
+                                      <div key={guest.id || idx} className="ml-4 p-2 bg-white rounded border border-amber-200">
+                                        <div className="font-medium text-amber-900">
+                                          {guest.guest_index === 1 
+                                            ? 'Primary Guest' 
+                                            : `Guest ${guest.guest_index}${guest.name ? ` (${guest.name})` : ''}`}
+                                        </div>
+                                        {guest.food_choice && (
+                                          <div className="text-amber-800 mt-1">
+                                            Meal: {guest.food_choice}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : event.food_choice ? (
+                                  /* Single Guest Food Choice (backward compatibility) */
                                   <div className="break-words">
                                     <span className="font-medium text-amber-800">Meal Selection:</span>
                                     <span className="ml-2 text-amber-900">{event.food_choice}</span>
                                   </div>
-                                )}
+                                ) : null}
                                 {event.dietary_restrictions && (
                                   <div className="break-words">
                                     <span className="font-medium text-amber-800">Dietary Restrictions:</span>

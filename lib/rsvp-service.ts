@@ -228,7 +228,8 @@ export async function submitRsvpToDatabase(
     dietary_information?: string
     food_choice?: string
   },
-  partySize?: number
+  partySize?: number,
+  guests?: Array<{ name?: string; food_choice: string }>
 ): Promise<boolean> {
   try {
     const supabase = await supabaseServer()
@@ -328,6 +329,48 @@ export async function submitRsvpToDatabase(
         console.error('Error inserting RSVP into rsvps_v2:', invitationEvent.event.name, rsvpError)
         // Don't return false here - the invitation_events update succeeded
         // Log the error but continue
+      }
+
+      // Handle guest food choices if provided (only for accepted responses)
+      if (response === 'accepted' && guests && guests.length > 0) {
+        // Delete existing rsvp_guests for this invitation_event
+        const { error: deleteError } = await supabase
+          .from('rsvp_guests')
+          .delete()
+          .eq('invitation_event_id', invitationEvent.id)
+
+        if (deleteError) {
+          console.error('Error deleting existing rsvp_guests:', deleteError)
+          // Continue anyway - might be first time
+        }
+
+        // Insert new rsvp_guests records
+        const rsvpGuestsToInsert = guests.map((guest, index) => ({
+          invitation_event_id: invitationEvent.id,
+          guest_index: index + 1,
+          name: guest.name || null,
+          food_choice: guest.food_choice || null,
+        }))
+
+        const { error: insertGuestsError } = await supabase
+          .from('rsvp_guests')
+          .insert(rsvpGuestsToInsert)
+
+        if (insertGuestsError) {
+          console.error('Error inserting rsvp_guests:', insertGuestsError)
+          // Don't return false - main RSVP update succeeded
+        }
+      } else if (response === 'declined') {
+        // Clear rsvp_guests for declined responses
+        const { error: deleteError } = await supabase
+          .from('rsvp_guests')
+          .delete()
+          .eq('invitation_event_id', invitationEvent.id)
+
+        if (deleteError) {
+          console.error('Error deleting rsvp_guests for declined:', deleteError)
+          // Continue anyway
+        }
       }
     }
 
@@ -715,7 +758,8 @@ export async function submitRsvp(
         dietary_information: validatedInput.dietary_information,
         food_choice: validatedInput.food_choice
       } : undefined,
-      validatedInput.party_size
+      validatedInput.party_size,
+      validatedInput.guests
     )
 
     if (!dbSuccess) {

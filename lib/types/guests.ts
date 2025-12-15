@@ -30,6 +30,16 @@ export interface Invitation {
   invitation_events?: InvitationEvent[]
 }
 
+export interface RsvpGuest {
+  id: string
+  invitation_event_id: string
+  guest_index: number
+  name?: string
+  food_choice?: string
+  created_at: string
+  updated_at: string
+}
+
 export interface InvitationEvent {
   id: string
   event_id: string
@@ -50,6 +60,7 @@ export interface InvitationEvent {
     message?: string
     created_at: string
   }[]
+  rsvp_guests?: RsvpGuest[]
 }
 
 export interface Household {
