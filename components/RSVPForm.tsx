@@ -216,15 +216,15 @@ export default function RSVPForm(){
             const rsvpStatus = await getRSVPStatus(inviteCodeData)
             setCurrentRsvpStatus(rsvpStatus)
             setInvitationError(null)
-          } else {
+            } else {
             setInvitationData(null)
-            setCurrentRsvpStatus(null)
+              setCurrentRsvpStatus(null)
             setInvitationError('Invite code not found. Please check and try again.')
-          }
+            }
         } catch (error) {
           console.error('Error resolving invitation:', error)
           setInvitationData(null)
-          setCurrentRsvpStatus(null)
+            setCurrentRsvpStatus(null)
           const errorMessage = error instanceof Error ? error.message : 'Unknown error'
           setInvitationError(`Failed to load invitation details (${errorMessage}). Please check your invite code.`)
         } finally {

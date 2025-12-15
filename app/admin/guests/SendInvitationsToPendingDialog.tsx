@@ -72,7 +72,7 @@ export function SendInvitationsToPendingDialog({
             title: 'Some Errors Occurred',
             description: `Check console for details. ${result.errors.length} guest${result.errors.length !== 1 ? 's' : ''} had errors.`,
             variant: 'destructive',
-          })
+        })
         }
         
         onOpenChange(false)

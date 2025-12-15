@@ -709,16 +709,16 @@ export async function sendInvitationsToAllGuestsAction(eventIds?: string[]): Pro
     const { data: guests, error: guestsError } = await supabase
       .from('guests')
       .select(`
-        id,
-        first_name,
-        last_name,
-        email,
+          id,
+          first_name,
+          last_name,
+          email,
         phone,
         invitations(
           id,
-          invitation_events(
-            id,
-            event_id,
+        invitation_events(
+          id,
+          event_id,
             status,
             rsvps_v2(response)
           )
@@ -846,10 +846,10 @@ export async function sendInvitationsToAllGuestsAction(eventIds?: string[]): Pro
             skipped++
           } else {
             const failedResult = result.results[0]
-            errors.push({
+          errors.push({
               guestId: guest.id,
               error: failedResult?.error || 'Failed to send notification'
-            })
+          })
           }
         }
       } catch (error) {

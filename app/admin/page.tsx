@@ -106,6 +106,13 @@ export default function AdminHome(){
           <h3 className="font-medium text-base lg:text-lg group-hover:text-gold-700 transition-colors">Registry</h3>
           <p className="text-sm text-black/60 mt-1">Manage wedding registries</p>
         </a>
+        <a 
+          className="border border-gold-200 rounded-xl p-4 lg:p-6 bg-white/70 backdrop-blur hover:bg-gold-50/50 transition-all duration-200 hover:scale-105 hover:shadow-lg group" 
+          href="/admin/notification-logs"
+        >
+          <h3 className="font-medium text-base lg:text-lg group-hover:text-gold-700 transition-colors">Notification Logs</h3>
+          <p className="text-sm text-black/60 mt-1">Track all notifications sent to guests</p>
+        </a>
       </div>
     )
   }
