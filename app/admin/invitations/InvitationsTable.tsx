@@ -181,21 +181,21 @@ export default function InvitationsTable({
           <CardTitle className="text-2xl font-bold text-gold-700">
             Invitations ({totalCount})
           </CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex sm:flex-wrap sm:items-center sm:flex-row flex-col gap-2 w-full sm:w-auto">
             <Button
               onClick={() => onExport()}
               variant="outline"
               size="sm"
-              className="bg-gold-50 border-gold-200 text-gold-700 hover:bg-gold-100"
+              className="bg-gold-50 border-gold-200 text-gold-700 hover:bg-gold-100 flex-1 sm:flex-none"
             >
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
+              <Download className="h-4 w-4 sm:mr-2" />
+              <span className="inline">Export CSV</span>
             </Button>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-4 mt-4">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-4 mt-4">
           <div className="flex-1 min-w-[200px]">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -253,52 +253,57 @@ export default function InvitationsTable({
               // Clear all filter parameters from URL
               onClearFilters()
             }}
+            className="flex-1 sm:flex-none"
           >
-            <Filter className="h-4 w-4 mr-2" />
-            Clear
+            <Filter className="h-4 w-4 sm:mr-2" />
+            <span className="inline">Clear</span>
           </Button>
         </div>
 
         {/* Bulk Actions */}
         {selectedInvitations.length > 0 && (
-          <div className="flex items-center gap-2 mt-4 p-3 bg-gold-50 rounded-lg border border-gold-200">
-            <span className="text-sm text-gold-700">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-4 p-3 bg-gold-50 rounded-lg border border-gold-200">
+            <span className="text-sm text-gold-700 font-medium">
               {selectedInvitations.length} selected
             </span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleBulkAction('send_rsvp_reminder')}
-              className="border-red-200 text-red-700 hover:bg-red-50"
-            >
-              <Bell className="h-4 w-4 mr-2" />
-              Send RSVP Reminders
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleBulkAction('regenerate_tokens')}
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Regenerate Tokens
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleBulkAction('export')}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export Selected
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleBulkAction('delete')}
-              className="text-red-600 hover:text-red-700"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </Button>
+            <div className="flex sm:flex-wrap sm:items-center sm:flex-row flex-col gap-2 w-full sm:w-auto">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleBulkAction('send_rsvp_reminder')}
+                className="border-red-200 text-red-700 hover:bg-red-50 flex-1 sm:flex-none"
+              >
+                <Bell className="h-4 w-4 sm:mr-2" />
+                <span className="inline">Send RSVP Reminders</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleBulkAction('regenerate_tokens')}
+                className="flex-1 sm:flex-none"
+              >
+                <RefreshCw className="h-4 w-4 sm:mr-2" />
+                <span className="inline">Regenerate Tokens</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleBulkAction('export')}
+                className="flex-1 sm:flex-none"
+              >
+                <Download className="h-4 w-4 sm:mr-2" />
+                <span className="inline">Export Selected</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleBulkAction('delete')}
+                className="text-red-600 hover:text-red-700 flex-1 sm:flex-none"
+              >
+                <Trash2 className="h-4 w-4 sm:mr-2" />
+                <span className="inline">Delete</span>
+              </Button>
+            </div>
           </div>
         )}
       </CardHeader>

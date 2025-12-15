@@ -532,11 +532,11 @@ export default function InvitationsClient({
         </div>
 
         {/* Buttons row */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex sm:flex-wrap sm:items-center sm:flex-row flex-col gap-2 w-full sm:w-auto">
           {isRefreshing && (
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <div className="animate-spin h-4 w-4 border-2 border-gold-600 border-t-transparent rounded-full"></div>
-              <span className="hidden sm:inline">Refreshing...</span>
+              <span className="inline">Refreshing...</span>
             </div>
           )}
           <Button
@@ -546,7 +546,7 @@ export default function InvitationsClient({
             className="flex-1 sm:flex-none border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
           >
             <Bell className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Send RSVP Reminders</span>
+            <span className="inline">Send RSVP Reminders</span>
           </Button>
           <Button
             onClick={() => setShowImportDialog(true)}
@@ -555,7 +555,7 @@ export default function InvitationsClient({
             className="flex-1 sm:flex-none"
           >
             <Upload className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Import CSV</span>
+            <span className="inline">Import CSV</span>
           </Button>
           <Button
             onClick={handleCreateInvitation}
@@ -563,7 +563,7 @@ export default function InvitationsClient({
             size="sm"
           >
             <Plus className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Create Invitation</span>
+            <span className="inline">Create Invitation</span>
           </Button>
         </div>
 
