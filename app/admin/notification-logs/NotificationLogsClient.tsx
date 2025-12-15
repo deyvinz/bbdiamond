@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,8 +42,17 @@ import {
   Eye,
   RefreshCw,
   Calendar,
+  Users,
+  AlertCircle,
+  ChevronDown,
+  ChevronRight,
+  Send,
+  List,
+  LayoutGrid,
 } from 'lucide-react'
 import { format } from 'date-fns'
+import { Checkbox } from '@/components/ui/checkbox'
+import ResendNotificationsDialog from './ResendNotificationsDialog'
 
 interface NotificationLog {
   id: string
@@ -69,6 +78,31 @@ interface NotificationLog {
   guest_name?: string
 }
 
+interface GroupedGuest {
+  guest_id?: string
+  guest_name: string
+  guest_email?: string
+  guest_phone?: string
+  invitation_events_count: number
+  notifications_received: number
+  missing_count: number
+  successful: number
+  failed: number
+  last_notification: string | null
+  invitation_ids?: string[]
+  invitation_event_ids?: Record<string, string[]> // Map of invitation ID to event IDs
+  logs: NotificationLog[]
+}
+
+interface SummaryStats {
+  total_sent: number
+  successful: number
+  failed: number
+  unique_guests_notified: number
+  total_guests: number
+  guests_with_missing_notifications: number
+}
+
 interface NotificationLogsClientProps {
   initialPage: number
   initialFilters: {
@@ -90,12 +124,19 @@ export default function NotificationLogsClient({
   const { toast } = useToast()
 
   const [logs, setLogs] = useState<NotificationLog[]>([])
+  const [groupedGuests, setGroupedGuests] = useState<GroupedGuest[]>([])
+  const [summary, setSummary] = useState<SummaryStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(initialPage)
   const [totalCount, setTotalCount] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [selectedLog, setSelectedLog] = useState<NotificationLog | null>(null)
   const [showDetailDialog, setShowDetailDialog] = useState(false)
+  const [viewMode, setViewMode] = useState<'individual' | 'grouped'>('individual')
+  const [showMissingOnly, setShowMissingOnly] = useState(false)
+  const [selectedGuests, setSelectedGuests] = useState<Set<string>>(new Set())
+  const [expandedGuests, setExpandedGuests] = useState<Set<string>>(new Set())
+  const [showResendDialog, setShowResendDialog] = useState(false)
 
   const [filters, setFilters] = useState({
     channel: initialFilters.channel || '',
@@ -124,6 +165,8 @@ export default function NotificationLogsClient({
 
       if (data.success) {
         setLogs(data.logs || [])
+        setGroupedGuests(data.grouped_by_guest || [])
+        setSummary(data.summary || null)
         setTotalCount(data.pagination?.total_count || 0)
         setTotalPages(data.pagination?.total_pages || 0)
       } else {
@@ -202,6 +245,51 @@ export default function NotificationLogsClient({
     }
   }
 
+  const toggleGuestSelection = (guestKey: string) => {
+    setSelectedGuests(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(guestKey)) {
+        newSet.delete(guestKey)
+      } else {
+        newSet.add(guestKey)
+      }
+      return newSet
+    })
+  }
+
+  const toggleGuestExpansion = (guestKey: string) => {
+    setExpandedGuests(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(guestKey)) {
+        newSet.delete(guestKey)
+      } else {
+        newSet.add(guestKey)
+      }
+      return newSet
+    })
+  }
+
+  const handleSelectAll = () => {
+    const guestsToSelect = filteredGroupedGuests
+      .filter(guest => guest.missing_count > 0)
+      .map(guest => guest.guest_id || guest.guest_name)
+    
+    if (selectedGuests.size === guestsToSelect.length) {
+      setSelectedGuests(new Set())
+    } else {
+      setSelectedGuests(new Set(guestsToSelect))
+    }
+  }
+
+  const filteredGroupedGuests = showMissingOnly
+    ? groupedGuests.filter(guest => guest.missing_count > 0)
+    : groupedGuests
+
+  const selectedGuestsForResend = filteredGroupedGuests.filter(guest => {
+    const key = guest.guest_id || guest.guest_name
+    return selectedGuests.has(key)
+  })
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -215,6 +303,103 @@ export default function NotificationLogsClient({
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
+      </div>
+
+      {/* Summary Statistics Cards */}
+      {summary && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Sent</p>
+                  <p className="text-2xl font-bold mt-1">{summary.total_sent}</p>
+                </div>
+                <Mail className="h-8 w-8 text-blue-500" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Successful</p>
+                  <p className="text-2xl font-bold mt-1 text-green-600">{summary.successful}</p>
+                </div>
+                <CheckCircle2 className="h-8 w-8 text-green-500" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Failed</p>
+                  <p className="text-2xl font-bold mt-1 text-red-600">{summary.failed}</p>
+                </div>
+                <XCircle className="h-8 w-8 text-red-500" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Missing Notifications</p>
+                  <p className="text-2xl font-bold mt-1 text-orange-600">{summary.guests_with_missing_notifications}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {summary.unique_guests_notified} of {summary.total_guests} guests notified
+                  </p>
+                </div>
+                <AlertCircle className="h-8 w-8 text-orange-500" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* View Toggle and Actions */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button
+            variant={viewMode === 'individual' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('individual')}
+          >
+            <List className="h-4 w-4 mr-2" />
+            Individual Logs
+          </Button>
+          <Button
+            variant={viewMode === 'grouped' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('grouped')}
+          >
+            <LayoutGrid className="h-4 w-4 mr-2" />
+            Grouped by Guest
+          </Button>
+          {viewMode === 'grouped' && (
+            <div className="flex items-center gap-2 ml-4">
+              <Checkbox
+                id="show-missing"
+                checked={showMissingOnly}
+                onCheckedChange={(checked) => setShowMissingOnly(checked === true)}
+              />
+              <Label htmlFor="show-missing" className="text-sm cursor-pointer">
+                Show only guests with missing notifications
+              </Label>
+            </div>
+          )}
+        </div>
+        {viewMode === 'grouped' && selectedGuests.size > 0 && (
+          <Button
+            onClick={() => setShowResendDialog(true)}
+            className="bg-gold-600 text-white hover:bg-gold-700"
+            size="sm"
+          >
+            <Send className="h-4 w-4 mr-2" />
+            Resend to {selectedGuests.size} Guest{selectedGuests.size !== 1 ? 's' : ''}
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
@@ -323,6 +508,195 @@ export default function NotificationLogsClient({
                 <div key={i} className="h-16 bg-gray-100 rounded animate-pulse" />
               ))}
             </div>
+          ) : viewMode === 'grouped' ? (
+            filteredGroupedGuests.length === 0 ? (
+              <div className="p-12 text-center">
+                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No guests found</p>
+                <p className="text-sm text-gray-500 mt-2">
+                  {showMissingOnly 
+                    ? 'No guests with missing notifications'
+                    : 'Try adjusting your filters or check back later'}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">
+                        {viewMode === 'grouped' && (
+                          <Checkbox
+                            checked={selectedGuests.size > 0 && selectedGuests.size === filteredGroupedGuests.filter(g => g.missing_count > 0).length}
+                            onCheckedChange={handleSelectAll}
+                          />
+                        )}
+                      </TableHead>
+                      <TableHead>Guest</TableHead>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>Invitation Events</TableHead>
+                      <TableHead>Notifications Received</TableHead>
+                      <TableHead>Missing</TableHead>
+                      <TableHead>Success/Failed</TableHead>
+                      <TableHead>Last Notification</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredGroupedGuests.map((guest) => {
+                      const guestKey = guest.guest_id || guest.guest_name
+                      const isSelected = selectedGuests.has(guestKey)
+                      const isExpanded = expandedGuests.has(guestKey)
+                      const hasMissing = guest.missing_count > 0
+
+                      return (
+                        <React.Fragment key={guestKey}>
+                          <TableRow 
+                            className={hasMissing ? 'bg-orange-50' : ''}
+                          >
+                            <TableCell>
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleGuestSelection(guestKey)}
+                                disabled={!hasMissing}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => toggleGuestExpansion(guestKey)}
+                                >
+                                  {isExpanded ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <div className="max-w-[200px] truncate font-medium" title={guest.guest_name}>
+                                  {guest.guest_name}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="space-y-1">
+                                {guest.guest_email && (
+                                  <div className="text-xs text-gray-600 truncate max-w-[150px]" title={guest.guest_email}>
+                                    {guest.guest_email}
+                                  </div>
+                                )}
+                                {guest.guest_phone && (
+                                  <div className="text-xs text-gray-600 truncate max-w-[150px]" title={guest.guest_phone}>
+                                    {guest.guest_phone}
+                                  </div>
+                                )}
+                                {!guest.guest_email && !guest.guest_phone && (
+                                  <span className="text-xs text-gray-400">No contact info</span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className="font-medium">{guest.invitation_events_count}</span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="font-medium">{guest.notifications_received}</span>
+                            </TableCell>
+                            <TableCell>
+                              {hasMissing ? (
+                                <Badge className="bg-orange-100 text-orange-800">
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                  {guest.missing_count} missing
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-green-100 text-green-800">
+                                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                                  Complete
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Badge className="bg-green-100 text-green-800">
+                                  {guest.successful} ✓
+                                </Badge>
+                                {guest.failed > 0 && (
+                                  <Badge className="bg-red-100 text-red-800">
+                                    {guest.failed} ✗
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm text-gray-600">
+                                {guest.last_notification ? formatDate(guest.last_notification) : 'Never'}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => toggleGuestExpansion(guestKey)}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded && guest.logs.length > 0 && (
+                            <TableRow>
+                              <TableCell colSpan={9} className="bg-gray-50">
+                                <div className="p-4">
+                                  <h4 className="font-medium mb-3">Notification Details</h4>
+                                  <div className="space-y-2">
+                                    {guest.logs.map((log, index) => {
+                                      const isSuccess = log.success !== undefined ? log.success : log.status === 'delivered'
+                                      const recipient = log.email || log.recipient_email || log.recipient_phone || 'N/A'
+                                      const sentDate = log.sent_at || log.delivered_at || log.created_at
+
+                                      return (
+                                        <div key={log.id || `log-${index}-${sentDate}`} className="flex items-center justify-between p-2 bg-white rounded border">
+                                          <div className="flex items-center gap-4">
+                                            <Badge className={getChannelBadgeColor(log.channel)}>
+                                              {getChannelIcon(log.channel)}
+                                              <span className="ml-1">{log.channel || 'email'}</span>
+                                            </Badge>
+                                            <span className="text-sm text-gray-600">{formatDate(sentDate)}</span>
+                                            <span className="text-sm text-gray-600">{recipient}</span>
+                                            {isSuccess ? (
+                                              <Badge className="bg-green-100 text-green-800">
+                                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                                Success
+                                              </Badge>
+                                            ) : (
+                                              <Badge className="bg-red-100 text-red-800">
+                                                <XCircle className="h-3 w-3 mr-1" />
+                                                Failed
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleViewDetails(log)}
+                                          >
+                                            <Eye className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )
           ) : logs.length === 0 ? (
             <div className="p-12 text-center">
               <Mail className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -347,7 +721,7 @@ export default function NotificationLogsClient({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {logs.map((log) => {
+                  {logs.map((log, index) => {
                     const isSuccess = log.success !== undefined ? log.success : log.status === 'delivered'
                     const recipient = log.email || log.recipient_email || log.recipient_phone || 'N/A'
                     const sentDate = log.sent_at || log.delivered_at || log.created_at
@@ -355,7 +729,7 @@ export default function NotificationLogsClient({
                     const guestName = log.guest_name
 
                     return (
-                      <TableRow key={log.id}>
+                      <TableRow key={log.id || `log-${index}-${sentDate}`}>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4 text-gray-400" />
@@ -544,6 +918,14 @@ export default function NotificationLogsClient({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Resend Notifications Dialog */}
+      <ResendNotificationsDialog
+        open={showResendDialog}
+        onOpenChange={setShowResendDialog}
+        guests={selectedGuestsForResend}
+        onComplete={fetchLogs}
+      />
     </div>
   )
 }

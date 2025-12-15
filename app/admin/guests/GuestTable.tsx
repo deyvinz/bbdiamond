@@ -238,7 +238,7 @@ function GuestTable({
               className="flex-1 sm:flex-none"
             >
               <RefreshCw className="h-4 w-4 sm:mr-2" />
-              <span className="inline">Regenerate</span>
+              <span className="inline">Regenerate Tokens</span>
             </Button>
             <Button
               size="sm"

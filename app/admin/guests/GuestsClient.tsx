@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Guest, GuestFilters } from '@/lib/types/guests'
 import type { ConfigValue } from '@/lib/types/config'
@@ -69,6 +69,21 @@ export default function GuestsClient({
   const [refreshing, setRefreshing] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+  const lastSendInvitesClickRef = useRef<number>(0)
+  const DEBOUNCE_DELAY = 2000 // 2 seconds
+
+  const handleSendInvitesToAllClick = () => {
+    const now = Date.now()
+    const timeSinceLastClick = now - lastSendInvitesClickRef.current
+    
+    // Prevent duplicate clicks within debounce window
+    if (timeSinceLastClick < DEBOUNCE_DELAY) {
+      return
+    }
+    
+    lastSendInvitesClickRef.current = now
+    setShowSendInvitationsToPendingDialog(true)
+  }
 
   // Update local state when props change (after refresh)
   // Always reset loading states when props update (data arrives from server)
@@ -660,10 +675,11 @@ export default function GuestsClient({
               <span className="inline">Add Guest</span>
             </Button>
             <Button
-              onClick={() => setShowSendInvitationsToPendingDialog(true)}
+              onClick={handleSendInvitesToAllClick}
+              disabled={showSendInvitationsToPendingDialog}
               variant="outline"
               size="sm"
-              className="bg-gold-50 border-gold-200 text-gold-700 hover:bg-gold-100 flex-1 sm:flex-none"
+              className="bg-gold-50 border-gold-200 text-gold-700 hover:bg-gold-100 flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Mail className="h-4 w-4 sm:mr-2" />
               <span className="inline">Send Invites to All</span>

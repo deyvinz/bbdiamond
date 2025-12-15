@@ -312,6 +312,23 @@ export async function submitRsvpToDatabase(
         console.error('Error submitting RSVP for event:', invitationEvent.event.name, error)
         return false
       }
+
+      // Insert record into rsvps_v2 table
+      const { error: rsvpError } = await supabase
+        .from('rsvps_v2')
+        .insert({
+          invitation_event_id: invitationEvent.id,
+          response: response,
+          party_size: headcount,
+          message: goodwillMessage || null,
+          wedding_id: finalWeddingId,
+        })
+
+      if (rsvpError) {
+        console.error('Error inserting RSVP into rsvps_v2:', invitationEvent.event.name, rsvpError)
+        // Don't return false here - the invitation_events update succeeded
+        // Log the error but continue
+      }
     }
 
     return true
