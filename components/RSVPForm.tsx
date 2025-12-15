@@ -420,7 +420,7 @@ export default function RSVPForm(){
                     >
                       💾 Save Digital Pass
                     </Button>
-                    <Button
+                    {/* <Button
                       onClick={() => {
                         if (!currentRsvpStatus.passUrl) return
                         if (navigator.userAgent.includes('iPhone') || navigator.userAgent.includes('iPad')) {
@@ -442,7 +442,7 @@ export default function RSVPForm(){
                       radius="lg"
                     >
                       📱 Add to Wallet
-                    </Button>
+                    </Button> */}
                   </div>
                 </div>
               )}
@@ -642,7 +642,7 @@ export default function RSVPForm(){
                       >
                         💾 Save Digital Pass
                       </Button>
-                      <Button
+                      {/* <Button
                         onClick={() => {
                           if (!rsvpResult.passUrl) return
                           // Try to add to Apple Wallet (iOS) or Google Pay (Android)
@@ -667,7 +667,7 @@ export default function RSVPForm(){
                         radius="lg"
                       >
                         📱 Add to Wallet
-                      </Button>
+                      </Button> */}
                     </div>
                   </div>
                 )}

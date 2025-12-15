@@ -35,7 +35,9 @@ export async function GET(request: NextRequest) {
           guest_id,
           wedding_id,
           invitation_events!inner(
+            id,
             status,
+            headcount,
             event:events!inner(
               id,
               name,
@@ -90,7 +92,9 @@ export async function GET(request: NextRequest) {
           guest_id,
           wedding_id,
           invitation_events!inner(
+            id,
             status,
+            headcount,
             event:events!inner(
               id,
               name,
@@ -173,6 +177,11 @@ export async function GET(request: NextRequest) {
     // Generate QR code and digital pass for accepted RSVPs
     if (overallStatus === 'accepted' && acceptedEvents.length > 0) {
       try {
+        const finalWeddingId = weddingId || invitation.wedding_id
+        if (!finalWeddingId) {
+          throw new Error('Wedding ID not found')
+        }
+        
         // Generate QR code
         const qrResult = await generateInvitationQR(invitation.token, {
           width: 200,
@@ -180,16 +189,60 @@ export async function GET(request: NextRequest) {
         })
         qrImageUrl = `data:image/png;base64,${qrResult.buffer.toString('base64')}`
 
+        // Fetch RSVP guests for accepted events
+        const invitationEventIds = acceptedEvents.map((ie: any) => ie.id)
+        let rsvpGuestsMap: Record<string, Array<{ guest_index: number; name?: string; food_choice?: string }>> = {}
+        
+        if (invitationEventIds.length > 0) {
+          const { data: rsvpGuests } = await supabase
+            .from('rsvp_guests')
+            .select('invitation_event_id, guest_index, name, food_choice')
+            .in('invitation_event_id', invitationEventIds)
+            .order('invitation_event_id')
+            .order('guest_index')
+          
+          if (rsvpGuests) {
+            for (const guest of rsvpGuests) {
+              if (!rsvpGuestsMap[guest.invitation_event_id]) {
+                rsvpGuestsMap[guest.invitation_event_id] = []
+              }
+              rsvpGuestsMap[guest.invitation_event_id].push({
+                guest_index: guest.guest_index,
+                name: guest.name || undefined,
+                food_choice: guest.food_choice || undefined,
+              })
+            }
+          }
+        }
+        
+        // Fetch couple display name
+        let coupleDisplayName: string | undefined
+        try {
+          const { data: weddingData } = await supabase
+            .from('weddings')
+            .select('couple_display_name')
+            .eq('id', finalWeddingId)
+            .single()
+          coupleDisplayName = weddingData?.couple_display_name
+        } catch (error) {
+          console.warn('Failed to fetch couple display name:', error)
+        }
+
         // Generate digital pass
         const passData = {
           guestName,
           inviteCode: guest.invite_code,
           token: invitation.token,
+          weddingId: finalWeddingId,
+          coupleDisplayName,
           events: acceptedEvents.map((ie: any) => ({
             name: ie.event.name,
             startsAtISO: ie.event.starts_at,
             venue: ie.event.venue,
-            address: ie.event.address
+            address: ie.event.address,
+            invitationEventId: ie.id,
+            headcount: ie.headcount,
+            rsvpGuests: rsvpGuestsMap[ie.id] || undefined,
           }))
         }
         const passResult = await generateDigitalPass(passData)

@@ -1,15 +1,26 @@
 import { supabaseServer } from './supabase-server'
 import { generateInvitationQR } from './qr'
+import { getWeddingTheme, getDefaultTheme } from './theme-service'
+import { getWebsiteUrl } from './email-service'
 
 export interface DigitalPassData {
   guestName: string
   inviteCode: string
   token: string
+  weddingId: string
+  coupleDisplayName?: string
   events: Array<{
     name: string
     startsAtISO: string
     venue: string
     address?: string
+    invitationEventId?: string
+    headcount?: number
+    rsvpGuests?: Array<{
+      guest_index: number
+      name?: string
+      food_choice?: string
+    }>
   }>
 }
 
@@ -20,19 +31,100 @@ export interface DigitalPassResult {
 }
 
 /**
+ * Fetch RSVP guests for invitation events
+ */
+async function fetchRsvpGuestsForEvents(
+  invitationEventIds: string[]
+): Promise<Record<string, Array<{ guest_index: number; name?: string; food_choice?: string }>>> {
+  if (invitationEventIds.length === 0) {
+    return {}
+  }
+
+  try {
+    const supabase = await supabaseServer()
+    const { data, error } = await supabase
+      .from('rsvp_guests')
+      .select('invitation_event_id, guest_index, name, food_choice')
+      .in('invitation_event_id', invitationEventIds)
+      .order('invitation_event_id')
+      .order('guest_index')
+
+    if (error || !data) {
+      console.warn('Failed to fetch rsvp_guests:', error)
+      return {}
+    }
+
+    // Group by invitation_event_id
+    const guestsMap: Record<string, Array<{ guest_index: number; name?: string; food_choice?: string }>> = {}
+    for (const guest of data) {
+      if (!guestsMap[guest.invitation_event_id]) {
+        guestsMap[guest.invitation_event_id] = []
+      }
+      guestsMap[guest.invitation_event_id].push({
+        guest_index: guest.guest_index,
+        name: guest.name || undefined,
+        food_choice: guest.food_choice || undefined,
+      })
+    }
+
+    return guestsMap
+  } catch (error) {
+    console.error('Error fetching rsvp_guests:', error)
+    return {}
+  }
+}
+
+/**
  * Generate a digital access card/pass as PDF
  */
 export async function generateDigitalPass(
   data: DigitalPassData
 ): Promise<DigitalPassResult> {
   try {
+    // Fetch wedding theme and website URL
+    const [themeResult, websiteUrlResult] = await Promise.all([
+      getWeddingTheme(data.weddingId).catch(() => null),
+      getWebsiteUrl(data.weddingId).catch(() => null),
+    ])
+    
+    // Ensure theme is never null - use default if not found
+    const theme: ReturnType<typeof getDefaultTheme> = themeResult || getDefaultTheme()
+    
+    // Ensure websiteUrl is always a string
+    const defaultWebsiteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://luwani.com'
+    const websiteUrl: string = websiteUrlResult || defaultWebsiteUrl
+
+    // Fetch couple display name if not provided
+    let coupleDisplayName: string = data.coupleDisplayName || 'Wedding Celebration'
+    if (!data.coupleDisplayName) {
+      try {
+        const supabase = await supabaseServer()
+        const { data: weddingData } = await supabase
+          .from('weddings')
+          .select('couple_display_name')
+          .eq('id', data.weddingId)
+          .single()
+        coupleDisplayName = weddingData?.couple_display_name || 'Wedding Celebration'
+      } catch (error) {
+        console.warn('Failed to fetch couple display name:', error)
+        coupleDisplayName = 'Wedding Celebration'
+      }
+    }
+
+    // Fetch RSVP guests for events that have invitationEventId
+    const invitationEventIds = data.events
+      .map(e => e.invitationEventId)
+      .filter((id): id is string => Boolean(id))
+    
+    const rsvpGuestsMap = await fetchRsvpGuestsForEvents(invitationEventIds)
+
     // Generate QR code for the pass
     const qrResult = await generateInvitationQR(data.token, {
       width: 200,
       margin: 2
     })
 
-    // Format events for display
+    // Format events for display and attach RSVP guests data
     const formattedEvents = data.events.map(event => {
       // Parse text field: "2024-10-16 10:00:00" -> "Wednesday, October 16, 2024 · 10:00"
       const [datePart, timePart] = event.startsAtISO.split(' ')
@@ -44,26 +136,33 @@ export async function generateDigitalPass(
         day: 'numeric',
       })
       let eventTime = '00:00 AM'
-    if (timePart) {
-      const [hourStr, minuteStr] = timePart.split(':')
-      let hour = parseInt(hourStr, 10)
-      const minute = minuteStr ? minuteStr.padStart(2, '0') : '00'
-      const ampm = hour >= 12 ? 'PM' : 'AM'
-      hour = hour % 12 || 12 // Convert 0/12/24 to 12-hour format
-      eventTime = `${hour}:${minute} ${ampm}`
-    }// Extract HH:MM
+      if (timePart) {
+        const [hourStr, minuteStr] = timePart.split(':')
+        let hour = parseInt(hourStr, 10)
+        const minute = minuteStr ? minuteStr.padStart(2, '0') : '00'
+        const ampm = hour >= 12 ? 'PM' : 'AM'
+        hour = hour % 12 || 12 // Convert 0/12/24 to 12-hour format
+        eventTime = `${hour}:${minute} ${ampm}`
+      }
       const formattedEventDateTime = `${eventDate} · ${eventTime}`
+      
+      // Attach RSVP guests if available
+      const rsvpGuests = event.invitationEventId 
+        ? rsvpGuestsMap[event.invitationEventId] || event.rsvpGuests
+        : event.rsvpGuests
       
       return {
         ...event,
         formattedDate: eventDate,
         formattedTime: eventTime,
         formattedDateTime: formattedEventDateTime,
+        rsvpGuests: rsvpGuests || [],
+        headcount: event.headcount || (rsvpGuests?.length || 1),
       }
     })
 
     // Generate HTML for the pass
-    const html = generatePassHTML(data, formattedEvents, qrResult.dataUrl)
+    const html = generatePassHTML(data, formattedEvents, qrResult.dataUrl, theme, websiteUrl, coupleDisplayName)
     
     // For now, we'll generate a simple HTML-based pass
     // In a production environment, you might want to use a PDF generation library like Puppeteer
@@ -124,10 +223,21 @@ function generatePassHTML(
     formattedDate: string
     formattedTime: string
     formattedDateTime: string
+    rsvpGuests?: Array<{
+      guest_index: number
+      name?: string
+      food_choice?: string
+    }>
+    headcount?: number
   }>,
-  qrDataUrl: string
+  qrDataUrl: string,
+  theme: ReturnType<typeof getDefaultTheme>,
+  websiteUrl: string,
+  coupleDisplayName: string
 ): string {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://brendabagsherdiamond.com'
+  const baseUrl = websiteUrl
+  const primaryColor = theme.primary_color || theme.gold_500 || '#C7A049'
+  const logoUrl = theme.email_logo_url || theme.logo_url || null
   
   return `
 <!DOCTYPE html>
@@ -174,7 +284,7 @@ function generatePassHTML(
             left: 0;
             right: 0;
             height: 4px;
-            background: linear-gradient(90deg, #C7A049 0%, #D4AF37 50%, #C7A049 100%);
+            background: linear-gradient(90deg, ${primaryColor} 0%, ${theme.gold_400 || primaryColor} 50%, ${primaryColor} 100%);
         }
         
         .wedding-logo {
@@ -186,7 +296,7 @@ function generatePassHTML(
         
         .wedding-title {
             font-size: 18px;
-            color: #C7A049;
+            color: ${primaryColor};
             font-weight: 300;
             letter-spacing: 3px;
             text-transform: uppercase;
@@ -206,7 +316,7 @@ function generatePassHTML(
         
         .invite-code {
             background: #f8f9fa;
-            border: 2px solid #C7A049;
+            border: 2px solid ${primaryColor};
             border-radius: 8px;
             padding: 16px 24px;
             display: inline-block;
@@ -236,7 +346,7 @@ function generatePassHTML(
         .qr-code {
             width: 200px;
             height: 200px;
-            border: 3px solid #C7A049;
+            border: 3px solid ${primaryColor};
             border-radius: 12px;
             padding: 16px;
             background: white;
@@ -261,7 +371,45 @@ function generatePassHTML(
             text-align: center;
             margin-bottom: 24px;
             padding-bottom: 12px;
-            border-bottom: 2px solid #C7A049;
+            border-bottom: 2px solid ${primaryColor};
+        }
+        
+        .guests-section {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .guests-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #111111;
+            margin-bottom: 12px;
+        }
+        
+        .guest-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .guest-label {
+            font-weight: 600;
+            color: #666;
+            min-width: 100px;
+        }
+        
+        .guest-name {
+            color: #111111;
+            flex: 1;
+        }
+        
+        .food-choice {
+            color: ${primaryColor};
+            font-weight: 500;
+            margin-left: auto;
         }
         
         .event-card {
@@ -302,7 +450,7 @@ function generatePassHTML(
         }
         
         .website-url {
-            color: #C7A049;
+            color: ${primaryColor};
             text-decoration: none;
             font-weight: 500;
         }
@@ -327,8 +475,8 @@ function generatePassHTML(
 <body>
     <div class="pass-container">
         <div class="header">
-            <img src="https://brendabagsherdiamond.com/images/logo.png" alt="Brenda & Diamond Wedding" class="wedding-logo">
-            <div class="wedding-title">Wedding Celebration</div>
+            ${logoUrl ? `<img src="${logoUrl}" alt="${coupleDisplayName}" class="wedding-logo">` : ''}
+            <div class="wedding-title">${coupleDisplayName}</div>
         </div>
         
         <div class="guest-info">
@@ -346,7 +494,12 @@ function generatePassHTML(
         
         <div class="events-section">
             <div class="events-title">Confirmed Events</div>
-            ${formattedEvents.map(event => `
+            ${formattedEvents.map(event => {
+              const totalGuests = event.headcount || event.rsvpGuests?.length || 1
+              const hasMultipleGuests = totalGuests > 1
+              const rsvpGuests = event.rsvpGuests || []
+              
+              return `
                 <div class="event-card">
                     <div class="event-name">${event.name}</div>
                     <div class="event-details">
@@ -361,9 +514,32 @@ function generatePassHTML(
                             <span class="event-detail-label">🏠 Address:</span> ${event.address}
                         </div>
                         ` : ''}
+                        ${hasMultipleGuests ? `
+                        <div class="event-detail-row">
+                            <span class="event-detail-label">👥 Guests:</span> ${totalGuests} ${totalGuests === 1 ? 'guest' : 'guests'}
+                        </div>
+                        ` : ''}
                     </div>
+                    ${rsvpGuests.length > 0 ? `
+                    <div class="guests-section">
+                        <div class="guests-title">Guest Information</div>
+                        ${rsvpGuests.map(guest => {
+                          const guestName = guest.guest_index === 1 
+                            ? data.guestName 
+                            : (guest.name || `Guest ${guest.guest_index}`)
+                          return `
+                            <div class="guest-item">
+                                <span class="guest-label">${guest.guest_index === 1 ? 'Primary Guest' : `Guest ${guest.guest_index}`}:</span>
+                                <span class="guest-name">${guestName}</span>
+                                ${guest.food_choice ? `<span class="food-choice">🍽️ ${guest.food_choice}</span>` : ''}
+                            </div>
+                          `
+                        }).join('')}
+                    </div>
+                    ` : ''}
                 </div>
-            `).join('')}
+              `
+            }).join('')}
         </div>
         
         <div class="footer">
